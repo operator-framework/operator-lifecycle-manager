@@ -1435,7 +1435,7 @@ var _ = Describe("Install Plan", func() {
 		// excluded: new CRD, same version, same schema - won't trigger a CRD update
 
 		tableEntries := []TableEntry{
-			Entry("[FLAKE] upgrade CRD with deprecated version", schemaPayload{
+			Entry("upgrade CRD with deprecated version", schemaPayload{
 				name:          "upgrade CRD with deprecated version",
 				expectedPhase: operatorsv1alpha1.InstallPlanPhaseComplete,
 				oldCRD: func() *apiextensionsv1.CustomResourceDefinition {
@@ -1471,7 +1471,7 @@ var _ = Describe("Install Plan", func() {
 						},
 						{
 							Name:    "v1alpha1",
-							Served:  false,
+							Served:  true,
 							Storage: false,
 							Schema: &apiextensionsv1.CustomResourceValidation{
 								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
@@ -1631,7 +1631,6 @@ var _ = Describe("Install Plan", func() {
 			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, generatedNamespace.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
 			require.NoError(GinkgoT(), err)
 			GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
-
 			require.Equal(GinkgoT(), tt.expectedPhase, fetchedInstallPlan.Status.Phase)
 
 			By(`Ensure correct in-cluster resource(s)`)
@@ -1688,7 +1687,6 @@ var _ = Describe("Install Plan", func() {
 			validateCRDVersions(GinkgoT(), c, tt.oldCRD.GetName(), expectedVersions)
 			GinkgoT().Logf("All expected resources resolved %s", fetchedCSV.Status.Phase)
 		}, tableEntries)
-
 	})
 
 	Describe("update catalog for subscription", func() {
