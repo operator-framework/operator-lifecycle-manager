@@ -2232,7 +2232,7 @@ func validateExistingCRs(dynamicClient dynamic.Interface, gr schema.GroupResourc
 		}
 		gvr := schema.GroupVersionResource{Group: gr.Group, Version: version, Resource: gr.Resource}
 		pager := pager.New(pager.SimplePageFunc(func(opts metav1.ListOptions) (runtime.Object, error) {
-			return dynamicClient.Resource(gvr).List(context.TODO(), metav1.ListOptions{})
+			return dynamicClient.Resource(gvr).List(context.TODO(), opts)
 		}))
 		validationFn := func(obj runtime.Object) error {
 			err = validation.ValidateCustomResource(field.NewPath(""), obj, validator).ToAggregate()
