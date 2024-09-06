@@ -21,7 +21,7 @@ require (
 	github.com/onsi/gomega v1.34.2
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/openshift/client-go v0.0.0-20220525160904-9e1acff93e4a
-	github.com/operator-framework/api v0.26.0
+	github.com/operator-framework/api v0.27.0
 	github.com/operator-framework/operator-registry v1.46.0
 	github.com/otiai10/copy v1.14.0
 	github.com/pkg/errors v0.9.1
