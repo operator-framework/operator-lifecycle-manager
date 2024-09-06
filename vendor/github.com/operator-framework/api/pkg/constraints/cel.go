@@ -29,8 +29,8 @@ func NewCelEnvironment() *CelEnvironment {
 		decls.NewVar(PropertiesKey, decls.NewListType(decls.NewMapType(decls.String, decls.Any)))),
 		cel.Lib(semverLib{}),
 	)
-	// If an error occurs here, it means the CEL enviroment is unable to load
-	// configuration for custom libraries propertly. Hence, the CEL enviroment is
+	// If an error occurs here, it means the CEL environment is unable to load
+	// configuration for custom libraries properly. Hence, the CEL environment is
 	// unusable. Panic here will cause the program to fail immediately to prevent
 	// cascading failures later on when this CEL env is in use.
 	if err != nil {
@@ -41,7 +41,7 @@ func NewCelEnvironment() *CelEnvironment {
 	}
 }
 
-// CelEnvironment is a struct that encapsulates CEL custom program enviroment
+// CelEnvironment is a struct that encapsulates CEL custom program environment
 type CelEnvironment struct {
 	env *cel.Env
 }
