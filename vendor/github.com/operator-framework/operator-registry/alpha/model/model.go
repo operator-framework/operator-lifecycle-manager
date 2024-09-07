@@ -11,6 +11,7 @@ import (
 	"github.com/h2non/filetype/matchers"
 	"github.com/h2non/filetype/types"
 	svg "github.com/h2non/go-is-svg"
+	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/operator-framework/operator-registry/alpha/property"
@@ -86,6 +87,10 @@ func (m *Package) Validate() error {
 		}
 	}
 
+	if err := m.validateUniqueBundleVersions(); err != nil {
+		result.subErrors = append(result.subErrors, err)
+	}
+
 	if m.DefaultChannel != nil && !foundDefault {
 		result.subErrors = append(result.subErrors, fmt.Errorf("default channel %q not found in channels list", m.DefaultChannel.Name))
 	}
@@ -95,6 +100,36 @@ func (m *Package) Validate() error {
 	}
 
 	return result.orNil()
+}
+
+func (m *Package) validateUniqueBundleVersions() error {
+	versionsMap := map[string]semver.Version{}
+	bundlesWithVersion := map[string]sets.Set[string]{}
+	for _, ch := range m.Channels {
+		for _, b := range ch.Bundles {
+			versionsMap[b.Version.String()] = b.Version
+			if bundlesWithVersion[b.Version.String()] == nil {
+				bundlesWithVersion[b.Version.String()] = sets.New[string]()
+			}
+			bundlesWithVersion[b.Version.String()].Insert(b.Name)
+		}
+	}
+
+	versionsSlice := maps.Values(versionsMap)
+	semver.Sort(versionsSlice)
+
+	var errs []error
+	for _, v := range versionsSlice {
+		bundles := sets.List(bundlesWithVersion[v.String()])
+		if len(bundles) > 1 {
+			errs = append(errs, fmt.Errorf("{%s: [%s]}", v, strings.Join(bundles, ", ")))
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("duplicate versions found in bundles: %v", errs)
+	}
+	return nil
 }
 
 type Icon struct {
