@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.16.1
   name: operatorgroups.operators.coreos.com
 spec:
   group: operators.coreos.com
@@ -115,19 +115,16 @@ spec:
                     UpgradeStrategy defines the upgrade strategy for operators in the namespace.
                     There are currently two supported upgrade strategies:
 
-
                     Default: OLM will only allow clusterServiceVersions to move to the replacing
                     phase from the succeeded phase. This effectively means that OLM will not
                     allow operators to move to the next version if an installation or upgrade
                     has failed.
-
 
                     TechPreviewUnsafeFailForward: OLM will allow clusterServiceVersions to move to the
                     replacing phase from the succeeded phase or from the failed phase.
                     Additionally, OLM will generate new installPlans when a subscription references
                     a failed installPlan and the catalog has been updated with a new upgrade for
                     the existing set of operators.
-
 
                     WARNING: The TechPreviewUnsafeFailForward upgrade strategy is unsafe and may result
                     in unexpected behavior or unrecoverable data loss unless you have deep
@@ -147,24 +144,7 @@ spec:
                   description: Conditions is an array of the OperatorGroup's conditions.
                   type: array
                   items:
-                    description: |-
-                      Condition contains details for one aspect of the current state of this API Resource.
-                      ---
-                      This struct is intended for direct use as an array at the field path .status.conditions.  For example,
-
-
-                      	type FooStatus struct{
-                      	    // Represents the observations of a foo's current state.
-                      	    // Known .status.conditions.type are: "Available", "Progressing", and "Degraded"
-                      	    // +patchMergeKey=type
-                      	    // +patchStrategy=merge
-                      	    // +listType=map
-                      	    // +listMapKey=type
-                      	    Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
-
-
-                      	    // other fields
-                      	}
+                    description: Condition contains details for one aspect of the current state of this API Resource.
                     type: object
                     required:
                       - lastTransitionTime
@@ -212,12 +192,7 @@ spec:
                           - "False"
                           - Unknown
                       type:
-                        description: |-
-                          type of condition in CamelCase or in foo.example.com/CamelCase.
-                          ---
-                          Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
-                          useful (see .node.status.conditions), the ability to deconflict is important.
-                          The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+                        description: type of condition in CamelCase or in foo.example.com/CamelCase.
                         type: string
                         maxLength: 316
                         pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
@@ -247,7 +222,6 @@ spec:
                         the event) or if no container name is specified "spec.containers[2]" (container with
                         index 2 in this pod). This syntax is chosen only to have some well-defined way of
                         referencing a part of an object.
-                        TODO: this design is not final and this field is subject to change in the future.
                       type: string
                     kind:
                       description: |-
@@ -400,7 +374,6 @@ spec:
                         the event) or if no container name is specified "spec.containers[2]" (container with
                         index 2 in this pod). This syntax is chosen only to have some well-defined way of
                         referencing a part of an object.
-                        TODO: this design is not final and this field is subject to change in the future.
                       type: string
                     kind:
                       description: |-
