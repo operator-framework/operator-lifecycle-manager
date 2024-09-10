@@ -44,8 +44,8 @@ func (r *BearerTokenRetriever) Retrieve(reference *corev1.ObjectReference) (toke
 				sa.GetName(),
 				err,
 			)
-			return
 		}
+		return
 	}
 
 	token = string(secret.Data[corev1.ServiceAccountTokenKey])
