@@ -37,12 +37,15 @@ func (r *BearerTokenRetriever) Retrieve(reference *corev1.ObjectReference) (toke
 	}
 
 	if secret == nil {
-		err = fmt.Errorf("the service account does not have any API secret sa=%s/%s", sa.GetNamespace(), sa.GetName())
-		token, _ = requestSAToken(r.kubeclient, sa)
-		if token != "" {
-			err = nil
+		token, err = requestSAToken(r.kubeclient, sa)
+		if err != nil {
+			err = fmt.Errorf("creating service account token from TokenRequest API for sa=%s/%s; %v",
+				sa.GetNamespace(),
+				sa.GetName(),
+				err,
+			)
+			return
 		}
-		return
 	}
 
 	token = string(secret.Data[corev1.ServiceAccountTokenKey])
