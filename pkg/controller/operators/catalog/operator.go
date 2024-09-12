@@ -129,7 +129,7 @@ type Operator struct {
 	bundleUnpackTimeout      time.Duration
 	clientFactory            clients.Factory
 	muInstallPlan            sync.Mutex
-	sourceInvalidator        *resolver.RegistrySourceProvider
+	resolverSourceProvider   *resolver.RegistrySourceProvider
 }
 
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
@@ -215,10 +215,9 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		clientFactory:            clients.NewFactory(validatingConfig),
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
-	op.sourceInvalidator = resolver.SourceProviderFromRegistryClientProvider(op.sources, lister.OperatorsV1alpha1().CatalogSourceLister(), logger)
-	resolverSourceProvider := NewOperatorGroupToggleSourceProvider(op.sourceInvalidator, logger, op.lister.OperatorsV1().OperatorGroupLister())
+	op.resolverSourceProvider = resolver.SourceProviderFromRegistryClientProvider(op.sources, lister.OperatorsV1alpha1().CatalogSourceLister(), logger)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now, ssaClient, workloadUserID, opmImage, utilImage)
-	res := resolver.NewOperatorStepResolver(lister, crClient, operatorNamespace, resolverSourceProvider, logger)
+	res := resolver.NewOperatorStepResolver(lister, crClient, operatorNamespace, op.resolverSourceProvider, logger)
 	op.resolver = resolver.NewInstrumentedResolver(res, metrics.RegisterDependencyResolutionSuccess, metrics.RegisterDependencyResolutionFailure)
 
 	// Wire OLM CR sharedIndexInformers
@@ -359,7 +358,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		subscription.WithAppendedReconcilers(subscription.ReconcilerFromLegacySyncHandler(op.syncSubscriptions, nil)),
 		subscription.WithRegistryReconcilerFactory(op.reconciler),
 		subscription.WithGlobalCatalogNamespace(op.namespace),
-		subscription.WithSourceProvider(op.sourceInvalidator),
+		subscription.WithSourceProvider(op.resolverSourceProvider),
 	)
 	if err != nil {
 		return nil, err
@@ -781,7 +780,7 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 
 	switch state.State {
 	case connectivity.Ready:
-		o.sourceInvalidator.Invalidate(resolvercache.SourceKey(state.Key))
+		o.resolverSourceProvider.Invalidate(resolvercache.SourceKey(state.Key))
 		if o.namespace == state.Key.Namespace {
 			namespaces, err := index.CatalogSubscriberNamespaces(o.catalogSubscriberIndexer,
 				state.Key.Name, state.Key.Namespace)
