@@ -22,7 +22,7 @@ Typically, `counterfeiter` is used in `go generate` directives. It can be frustr
 
 #### Step 1 - Create `tools.go`
 
-You can take a dependency on tools by creating a `tools.go` file, as described in [How can I track tool dependencies for a module?](https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module). This ensures that everyone working with your module is using the same version of each tool you use.
+You can take a dependency on tools by creating a `tools.go` file, as described in [How can I track tool dependencies for a module?](https://go.dev/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module). This ensures that everyone working with your module is using the same version of each tool you use.
 
 ```shell
 $ cat tools/tools.go
@@ -159,7 +159,7 @@ Wrote `FakeMySpecialInterface` to `path/to/foo/foofakes/fake_my_special_interfac
 
 ### Using Test Doubles In Your Tests
 
-Instantiate fakes`:
+Instantiate fakes:
 
 ```go
 import "my-repo/path/to/foo/foofakes"
