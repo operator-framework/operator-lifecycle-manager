@@ -17,7 +17,10 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
-var _ = Describe("Subscriptions create required objects from Catalogs", func() {
+// This test was disabled because both of its tests are currently being skipped
+// We need to understand why and whether this test is even needed:
+// https://github.com/operator-framework/operator-lifecycle-manager/issues/3402
+var _ = XDescribe("Subscriptions create required objects from Catalogs", func() {
 	var (
 		crc                versioned.Interface
 		generatedNamespace corev1.Namespace
