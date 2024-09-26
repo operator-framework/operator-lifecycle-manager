@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	clitesting "k8s.io/client-go/testing"
 	utilclocktesting "k8s.io/utils/clock/testing"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
@@ -569,6 +570,117 @@ func TestSyncSubscriptions(t *testing.T) {
 					},
 				},
 			},
+		},
+		{
+			name: "NoStatus/NoCurrentCSV/EnsureInstallPlanFailed",
+			fields: fields{
+				clientOptions: []clientfake.Option{
+					clientfake.WithSelfLinks(t),
+					func(c clientfake.ClientsetDecorator) {
+						c.PrependReactor("create", "installplans", func(a clitesting.Action) (bool, runtime.Object, error) {
+							return true, nil, errors.New("fake install plan create error")
+						})
+					},
+				},
+				existingOLMObjs: []runtime.Object{
+					&v1alpha1.Subscription{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "sub",
+							Namespace: testNamespace,
+						},
+						Spec: &v1alpha1.SubscriptionSpec{
+							CatalogSource:          "src",
+							CatalogSourceNamespace: testNamespace,
+						},
+						Status: v1alpha1.SubscriptionStatus{
+							CurrentCSV: "",
+							State:      "",
+						},
+					},
+				},
+				resolveSteps: []*v1alpha1.Step{
+					{
+						Resolving: "csv.v.2",
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "src",
+							CatalogSourceNamespace: testNamespace,
+							Group:                  v1alpha1.GroupName,
+							Version:                v1alpha1.GroupVersion,
+							Kind:                   v1alpha1.ClusterServiceVersionKind,
+							Name:                   "csv.v.2",
+							Manifest:               "{}",
+						},
+					},
+				},
+				resolveSubs: []*v1alpha1.Subscription{
+					{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "sub",
+							Namespace: testNamespace,
+						},
+						Spec: &v1alpha1.SubscriptionSpec{
+							CatalogSource:          "src",
+							CatalogSourceNamespace: testNamespace,
+						},
+					},
+				},
+			},
+			args: args{
+				obj: &v1alpha1.Subscription{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: testNamespace,
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource:          "src",
+						CatalogSourceNamespace: testNamespace,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV: "",
+						State:      "",
+					},
+				},
+			},
+			wantSubscriptions: []*v1alpha1.Subscription{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SubscriptionCRDAPIVersion,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: testNamespace,
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource:          "src",
+						CatalogSourceNamespace: testNamespace,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						LastUpdated: now,
+						Conditions: []v1alpha1.SubscriptionCondition{
+							{
+								Type:    v1alpha1.SubscriptionBundleUnpackFailed,
+								Reason:  "EnsureInstallPlanFailed",
+								Message: "error ensuring InstallPlan: fake install plan create error",
+								Status:  corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+			},
+			wantErr: errors.New("error ensuring InstallPlan: fake install plan create error"),
 		},
 		{
 			name: "NoStatus/NoCurrentCSV/BundleLookupError",

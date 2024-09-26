@@ -1442,7 +1442,20 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 
 		installPlanReference, err := o.ensureInstallPlan(logger, namespace, maxGeneration+1, subs, installPlanApproval, steps, bundleLookups)
 		if err != nil {
-			logger.WithError(err).Debug("error ensuring installplan")
+			err := fmt.Errorf("error ensuring InstallPlan: %s", err)
+			logger.Infof("%v", err)
+
+			_, updateErr := o.updateSubscriptionStatuses(
+				o.setSubsCond(subs, v1alpha1.SubscriptionCondition{
+					Type:    v1alpha1.SubscriptionBundleUnpackFailed,
+					Reason:  "EnsureInstallPlanFailed",
+					Message: err.Error(),
+					Status:  corev1.ConditionTrue,
+				}))
+			if updateErr != nil {
+				logger.WithError(updateErr).Debug("failed to update subs conditions")
+				return updateErr
+			}
 			return err
 		}
 		updatedSubs = o.setIPReference(updatedSubs, maxGeneration+1, installPlanReference)
