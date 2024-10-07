@@ -56,7 +56,7 @@ type packageManifests struct {
 }
 
 // newPackageManifests returns a PackageManifests
-func newPackageManifests(c *OperatorsV1Client, namespace string) *packageManifests {
+func newPackageManifests(c *PackagesV1Client, namespace string) *packageManifests {
 	return &packageManifests{
 		gentype.NewClientWithList[*v1.PackageManifest, *v1.PackageManifestList](
 			"packagemanifests",

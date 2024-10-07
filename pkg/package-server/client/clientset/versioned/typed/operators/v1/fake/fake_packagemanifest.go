@@ -31,7 +31,7 @@ import (
 
 // FakePackageManifests implements PackageManifestInterface
 type FakePackageManifests struct {
-	Fake *FakeOperatorsV1
+	Fake *FakePackagesV1
 	ns   string
 }
 

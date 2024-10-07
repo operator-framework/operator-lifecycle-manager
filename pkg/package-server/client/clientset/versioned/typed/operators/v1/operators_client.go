@@ -26,24 +26,24 @@ import (
 	rest "k8s.io/client-go/rest"
 )
 
-type OperatorsV1Interface interface {
+type PackagesV1Interface interface {
 	RESTClient() rest.Interface
 	PackageManifestsGetter
 }
 
-// OperatorsV1Client is used to interact with features provided by the operators.coreos.com group.
-type OperatorsV1Client struct {
+// PackagesV1Client is used to interact with features provided by the packages.operators.coreos.com group.
+type PackagesV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *OperatorsV1Client) PackageManifests(namespace string) PackageManifestInterface {
+func (c *PackagesV1Client) PackageManifests(namespace string) PackageManifestInterface {
 	return newPackageManifests(c, namespace)
 }
 
-// NewForConfig creates a new OperatorsV1Client for the given config.
+// NewForConfig creates a new PackagesV1Client for the given config.
 // NewForConfig is equivalent to NewForConfigAndClient(c, httpClient),
 // where httpClient was generated with rest.HTTPClientFor(c).
-func NewForConfig(c *rest.Config) (*OperatorsV1Client, error) {
+func NewForConfig(c *rest.Config) (*PackagesV1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -55,9 +55,9 @@ func NewForConfig(c *rest.Config) (*OperatorsV1Client, error) {
 	return NewForConfigAndClient(&config, httpClient)
 }
 
-// NewForConfigAndClient creates a new OperatorsV1Client for the given config and http client.
+// NewForConfigAndClient creates a new PackagesV1Client for the given config and http client.
 // Note the http client provided takes precedence over the configured transport values.
-func NewForConfigAndClient(c *rest.Config, h *http.Client) (*OperatorsV1Client, error) {
+func NewForConfigAndClient(c *rest.Config, h *http.Client) (*PackagesV1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -66,12 +66,12 @@ func NewForConfigAndClient(c *rest.Config, h *http.Client) (*OperatorsV1Client, 
 	if err != nil {
 		return nil, err
 	}
-	return &OperatorsV1Client{client}, nil
+	return &PackagesV1Client{client}, nil
 }
 
-// NewForConfigOrDie creates a new OperatorsV1Client for the given config and
+// NewForConfigOrDie creates a new PackagesV1Client for the given config and
 // panics if there is an error in the config.
-func NewForConfigOrDie(c *rest.Config) *OperatorsV1Client {
+func NewForConfigOrDie(c *rest.Config) *PackagesV1Client {
 	client, err := NewForConfig(c)
 	if err != nil {
 		panic(err)
@@ -79,9 +79,9 @@ func NewForConfigOrDie(c *rest.Config) *OperatorsV1Client {
 	return client
 }
 
-// New creates a new OperatorsV1Client for the given RESTClient.
-func New(c rest.Interface) *OperatorsV1Client {
-	return &OperatorsV1Client{c}
+// New creates a new PackagesV1Client for the given RESTClient.
+func New(c rest.Interface) *PackagesV1Client {
+	return &PackagesV1Client{c}
 }
 
 func setConfigDefaults(config *rest.Config) error {
@@ -99,7 +99,7 @@ func setConfigDefaults(config *rest.Config) error {
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *OperatorsV1Client) RESTClient() rest.Interface {
+func (c *PackagesV1Client) RESTClient() rest.Interface {
 	if c == nil {
 		return nil
 	}

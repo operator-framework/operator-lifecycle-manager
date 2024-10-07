@@ -787,7 +787,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		By("package-server as a proxy for a functional catalog")
 		By("Waiting for packages from the catalog to show up in the Kubernetes API")
 		Eventually(func() error {
-			manifests, err := packageserverClient.OperatorsV1().PackageManifests("default").List(context.Background(), metav1.ListOptions{})
+			manifests, err := packageserverClient.PackagesV1().PackageManifests("default").List(context.Background(), metav1.ListOptions{})
 			if err != nil {
 				return err
 			}
