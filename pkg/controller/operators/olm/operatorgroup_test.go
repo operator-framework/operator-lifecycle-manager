@@ -114,8 +114,8 @@ func TestCopyToNamespace(t *testing.T) {
 					UID:             "uid",
 					ResourceVersion: "42",
 					Annotations: map[string]string{
-						"$copyhash-nonstatus": "hn-2",
-						"$copyhash-status":    "hs",
+						nonStatusCopyHashAnnotation: "hn-2",
+						statusCopyHashAnnotation:    "hs",
 					},
 				},
 			},
@@ -167,8 +167,8 @@ func TestCopyToNamespace(t *testing.T) {
 					UID:             "uid",
 					ResourceVersion: "42",
 					Annotations: map[string]string{
-						"$copyhash-nonstatus": "hn",
-						"$copyhash-status":    "hs-2",
+						nonStatusCopyHashAnnotation: "hn",
+						statusCopyHashAnnotation:    "hs-2",
 					},
 				},
 			},
@@ -220,8 +220,8 @@ func TestCopyToNamespace(t *testing.T) {
 					UID:             "uid",
 					ResourceVersion: "42",
 					Annotations: map[string]string{
-						"$copyhash-nonstatus": "hn-2",
-						"$copyhash-status":    "hs-2",
+						nonStatusCopyHashAnnotation: "hn-2",
+						statusCopyHashAnnotation:    "hs-2",
 					},
 				},
 			},
@@ -280,8 +280,8 @@ func TestCopyToNamespace(t *testing.T) {
 					Namespace: "to",
 					UID:       "uid",
 					Annotations: map[string]string{
-						"$copyhash-nonstatus": "hn",
-						"$copyhash-status":    "hs",
+						nonStatusCopyHashAnnotation: "hn",
+						statusCopyHashAnnotation:    "hs",
 					},
 				},
 			},
