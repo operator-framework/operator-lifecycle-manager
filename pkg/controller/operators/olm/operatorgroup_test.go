@@ -46,9 +46,12 @@ func TestCopyToNamespace(t *testing.T) {
 			Name:          "copy created if does not exist",
 			FromNamespace: "from",
 			ToNamespace:   "to",
+			Hash:          "hn-1",
+			StatusHash:    "hs",
 			Prototype: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "name",
+                    Annotations: map[string]string{},
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
 					Replaces: "replacee",
@@ -62,6 +65,9 @@ func TestCopyToNamespace(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "name",
 						Namespace: "to",
+                        Annotations: map[string]string{
+                            nonStatusCopyHashAnnotation: "hn-1",
+                        },
 					},
 					Spec: v1alpha1.ClusterServiceVersionSpec{
 						Replaces: "replacee",
@@ -82,6 +88,13 @@ func TestCopyToNamespace(t *testing.T) {
 						Phase: "waxing gibbous",
 					},
 				}),
+                ktesting.NewUpdateAction(gvr, "to", &v1alpha1.ClusterServiceVersion{
+                    ObjectMeta: metav1.ObjectMeta{
+                        Annotations: map[string]string{
+                            statusCopyHashAnnotation: "hs",
+                        },
+                    },
+                })
 			},
 			ExpectedResult: &v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
@@ -99,6 +112,7 @@ func TestCopyToNamespace(t *testing.T) {
 			Prototype: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "name",
+                    Annotations: map[string]string{},
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
 					Replaces: "replacee",
@@ -152,6 +166,7 @@ func TestCopyToNamespace(t *testing.T) {
 			Prototype: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "name",
+                    Annotations: map[string]string{},
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
 					Replaces: "replacee",
@@ -205,6 +220,7 @@ func TestCopyToNamespace(t *testing.T) {
 			Prototype: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "name",
+                    Annotations: map[string]string{},
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
 					Replaces: "replacee",
@@ -272,6 +288,7 @@ func TestCopyToNamespace(t *testing.T) {
 			Prototype: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "name",
+                    Annotations: map[string]string{},
 				},
 			},
 			ExistingCopy: &metav1.PartialObjectMetadata{
@@ -313,10 +330,15 @@ func TestCopyToNamespace(t *testing.T) {
 				logger:          logger,
 			}
 
-			result, err := o.copyToNamespace(tc.Prototype.DeepCopy(), tc.FromNamespace, tc.ToNamespace, tc.Hash, tc.StatusHash)
+			proto := tc.Prototype.DeepCopy()
+			result, err := o.copyToNamespace(proto, tc.FromNamespace, tc.ToNamespace, tc.Hash, tc.StatusHash)
 
 			if tc.ExpectedError == nil {
 				require.NoError(t, err)
+				// if there is no error expected, ensure that the hash annotations are always present on the resulting CSV
+				annotations := proto.GetObjectMeta().GetAnnotations()
+				require.Equal(t, tc.Hash, annotations[nonStatusCopyHashAnnotation])
+				require.Equal(t, tc.StatusHash, annotations[statusCopyHashAnnotation])
 			} else {
 				require.EqualError(t, err, tc.ExpectedError.Error())
 			}
