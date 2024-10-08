@@ -361,7 +361,7 @@ func (a *Operator) pruneProvidedAPIs(group *operatorsv1.OperatorGroup, groupProv
 	}
 
 	// Prune providedAPIs annotation if the cluster has fewer providedAPIs (handles CSV deletion)
-	//if intersection := groupProvidedAPIs.Intersection(providedAPIsFromCSVs); len(intersection) < len(groupProvidedAPIs) {
+	// if intersection := groupProvidedAPIs.Intersection(providedAPIsFromCSVs); len(intersection) < len(groupProvidedAPIs) {
 	if len(intersection) < len(groupProvidedAPIs) {
 		difference := groupProvidedAPIs.Difference(intersection)
 		logger := logger.WithFields(logrus.Fields{
@@ -791,6 +791,11 @@ func copyableCSVHash(original *v1alpha1.ClusterServiceVersion) (string, string, 
 	return newHash, originalHash, nil
 }
 
+const (
+	nonStatusCopyHashAnnotation = "olm.operatorframework.io/nonStatusCopyHash"
+	statusCopyHashAnnotation    = "olm.operatorframework.io/statusCopyHash"
+)
+
 // If returned error is not nil, the returned ClusterServiceVersion
 // has only the Name, Namespace, and UID fields set.
 func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, nsFrom, nsTo, nonstatus, status string) (*v1alpha1.ClusterServiceVersion, error) {
@@ -826,11 +831,14 @@ func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, ns
 	prototype.Namespace = existing.Namespace
 	prototype.ResourceVersion = existing.ResourceVersion
 	prototype.UID = existing.UID
-	existingNonStatus := existing.Annotations["$copyhash-nonstatus"]
-	existingStatus := existing.Annotations["$copyhash-status"]
+	// Get the non-status and status hash of the existing copied CSV
+	existingNonStatus := existing.Annotations[nonStatusCopyHashAnnotation]
+	existingStatus := existing.Annotations[statusCopyHashAnnotation]
 
 	var updated *v1alpha1.ClusterServiceVersion
 	if existingNonStatus != nonstatus {
+		// include updates to the non-status hash annotation if there is a mismatch
+		prototype.Annotations[nonStatusCopyHashAnnotation] = nonstatus
 		if updated, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), prototype, metav1.UpdateOptions{}); err != nil {
 			return nil, fmt.Errorf("failed to update: %w", err)
 		}
@@ -843,6 +851,13 @@ func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, ns
 		updated.Status = prototype.Status
 		if _, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).UpdateStatus(context.TODO(), updated, metav1.UpdateOptions{}); err != nil {
 			return nil, fmt.Errorf("failed to update status: %w", err)
+		}
+		// Update the status first if the existing copied CSV status hash doesn't match what we expect
+		// to prevent a scenario where the hash annotations match but the contents do not.
+		// We also need to update the CSV itself in this case to ensure we set the status hash annotation.
+		prototype.Annotations[statusCopyHashAnnotation] = status
+		if updated, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), prototype, metav1.UpdateOptions{}); err != nil {
+			return nil, fmt.Errorf("failed to update: %w", err)
 		}
 	}
 	return &v1alpha1.ClusterServiceVersion{
@@ -940,7 +955,6 @@ func namespacesChanged(clusterNamespaces []string, statusNamespaces []string) bo
 
 func (a *Operator) getOperatorGroupTargets(op *operatorsv1.OperatorGroup) (map[string]struct{}, error) {
 	selector, err := metav1.LabelSelectorAsSelector(op.Spec.Selector)
-
 	if err != nil {
 		return nil, err
 	}
