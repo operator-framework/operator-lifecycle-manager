@@ -808,6 +808,7 @@ func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, ns
 
 	existing, err := a.copiedCSVLister.Namespace(nsTo).Get(prototype.GetName())
 	if apierrors.IsNotFound(err) {
+		prototype.Annotations[nonStatusCopyHashAnnotation] = nonstatus
 		created, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Create(context.TODO(), prototype, metav1.CreateOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create new CSV: %w", err)
@@ -815,6 +816,10 @@ func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, ns
 		created.Status = prototype.Status
 		if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).UpdateStatus(context.TODO(), created, metav1.UpdateOptions{}); err != nil {
 			return nil, fmt.Errorf("failed to update status on new CSV: %w", err)
+		}
+		prototype.Annotations[statusCopyHashAnnotation] = status
+		if _, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), prototype, metav1.UpdateOptions{}); err != nil {
+			return nil, fmt.Errorf("failed to update annotations after updating status: %w", err)
 		}
 		return &v1alpha1.ClusterServiceVersion{
 			ObjectMeta: metav1.ObjectMeta{
