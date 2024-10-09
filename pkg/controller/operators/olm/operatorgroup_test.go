@@ -8,14 +8,14 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/client-go/metadata/metadatalister"
-
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/metadata/metadatalister"
 	ktesting "k8s.io/client-go/testing"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 )
 
@@ -48,8 +48,8 @@ func TestCopyToNamespace(t *testing.T) {
 			StatusHash:    "hs",
 			Prototype: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "name",
-                    Annotations: map[string]string{},
+					Name:        "name",
+					Annotations: map[string]string{},
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
 					Replaces: "replacee",
@@ -63,9 +63,9 @@ func TestCopyToNamespace(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "name",
 						Namespace: "to",
-                        Annotations: map[string]string{
-                            nonStatusCopyHashAnnotation: "hn-1",
-                        },
+						Annotations: map[string]string{
+							nonStatusCopyHashAnnotation: "hn-1",
+						},
 					},
 					Spec: v1alpha1.ClusterServiceVersionSpec{
 						Replaces: "replacee",
@@ -86,13 +86,13 @@ func TestCopyToNamespace(t *testing.T) {
 						Phase: "waxing gibbous",
 					},
 				}),
-                ktesting.NewUpdateAction(gvr, "to", &v1alpha1.ClusterServiceVersion{
-                    ObjectMeta: metav1.ObjectMeta{
-                        Annotations: map[string]string{
-                            statusCopyHashAnnotation: "hs",
-                        },
-                    },
-                })
+				ktesting.NewUpdateAction(gvr, "to", &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							statusCopyHashAnnotation: "hs",
+						},
+					},
+				}),
 			},
 			ExpectedResult: &v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
@@ -109,8 +109,8 @@ func TestCopyToNamespace(t *testing.T) {
 			StatusHash:    "hs",
 			Prototype: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "name",
-                    Annotations: map[string]string{},
+					Name:        "name",
+					Annotations: map[string]string{},
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
 					Replaces: "replacee",
@@ -163,8 +163,8 @@ func TestCopyToNamespace(t *testing.T) {
 			StatusHash:    "hs-1",
 			Prototype: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "name",
-                    Annotations: map[string]string{},
+					Name:        "name",
+					Annotations: map[string]string{},
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
 					Replaces: "replacee",
@@ -217,8 +217,8 @@ func TestCopyToNamespace(t *testing.T) {
 			StatusHash:    "hs-1",
 			Prototype: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "name",
-                    Annotations: map[string]string{},
+					Name:        "name",
+					Annotations: map[string]string{},
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
 					Replaces: "replacee",
@@ -285,8 +285,8 @@ func TestCopyToNamespace(t *testing.T) {
 			StatusHash:    "hs",
 			Prototype: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "name",
-                    Annotations: map[string]string{},
+					Name:        "name",
+					Annotations: map[string]string{},
 				},
 			},
 			ExistingCopy: &metav1.PartialObjectMetadata{
