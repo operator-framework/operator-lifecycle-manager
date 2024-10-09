@@ -841,9 +841,10 @@ func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, ns
 	existingStatus := existing.Annotations[statusCopyHashAnnotation]
 
 	var updated *v1alpha1.ClusterServiceVersion
+	// Always set the in-memory prototype's nonstatus annotation:
+	prototype.Annotations[nonStatusCopyHashAnnotation] = nonstatus
 	if existingNonStatus != nonstatus {
 		// include updates to the non-status hash annotation if there is a mismatch
-		prototype.Annotations[nonStatusCopyHashAnnotation] = nonstatus
 		if updated, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), prototype, metav1.UpdateOptions{}); err != nil {
 			return nil, fmt.Errorf("failed to update: %w", err)
 		}
@@ -864,6 +865,10 @@ func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, ns
 		if updated, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), prototype, metav1.UpdateOptions{}); err != nil {
 			return nil, fmt.Errorf("failed to update: %w", err)
 		}
+	} else {
+		// Even if they're the same, ensure the returned prototype is annotated.
+		prototype.Annotations[statusCopyHashAnnotation] = status
+		updated = prototype
 	}
 	return &v1alpha1.ClusterServiceVersion{
 		ObjectMeta: metav1.ObjectMeta{

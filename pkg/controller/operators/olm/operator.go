@@ -8,8 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/labeller"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/plugins"
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -42,11 +40,14 @@ import (
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/labeller"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/plugins"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clients"
 	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
