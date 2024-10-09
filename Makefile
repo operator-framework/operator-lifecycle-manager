@@ -63,7 +63,7 @@ export CONFIGMAP_SERVER_IMAGE ?= quay.io/operator-framework/configmap-operator-r
 
 PKG := github.com/operator-framework/operator-lifecycle-manager
 IMAGE_REPO ?= quay.io/operator-framework/olm
-IMAGE_TAG ?= dev
+IMAGE_TAG ?= "dev"
 
 # Go build settings #
 
@@ -228,7 +228,7 @@ kind-create: kind-clean #HELP Create a new kind cluster $KIND_CLUSTER_NAME (defa
 	$(KIND) export kubeconfig --name $(KIND_CLUSTER_NAME)
 
 .PHONY: deploy
-OLM_IMAGE := $(IMAGE_REPO):$(IMAGE_TAG)
+OLM_IMAGE := quay.io/operator-framework/olm:local
 deploy: $(KIND) $(HELM) #HELP Deploy OLM to kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0) using $OLM_IMAGE (default: quay.io/operator-framework/olm:local)
 	$(KIND) load docker-image $(OLM_IMAGE) --name $(KIND_CLUSTER_NAME); \
 	$(HELM) upgrade --install olm deploy/chart \

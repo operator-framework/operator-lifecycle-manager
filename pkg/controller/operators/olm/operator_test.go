@@ -20,7 +20,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	configfake "github.com/openshift/client-go/config/clientset/versioned/fake"
-	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,6 +43,7 @@ import (
 	metadatafake "k8s.io/client-go/metadata/fake"
 	"k8s.io/client-go/pkg/version"
 	"k8s.io/client-go/rest"
+	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
@@ -54,7 +54,6 @@ import (
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
-	clienttesting "k8s.io/client-go/testing"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
@@ -64,6 +63,7 @@ import (
 	resolvercache "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clientfake"
 	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
+	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/labeler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
@@ -5050,7 +5050,12 @@ func TestSyncOperatorGroups(t *testing.T) {
 				},
 				targetNamespace: {
 					withLabels(
-						withAnnotations(targetCSV.DeepCopy(), map[string]string{operatorsv1.OperatorGroupAnnotationKey: "operator-group-1", operatorsv1.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
+						withAnnotations(targetCSV.DeepCopy(), map[string]string{
+							operatorsv1.OperatorGroupAnnotationKey:          "operator-group-1",
+							operatorsv1.OperatorGroupNamespaceAnnotationKey: operatorNamespace,
+							"olm.operatorframework.io/nonStatusCopyHash":    "9ZxHAHQTkxzAQd7Qkk4Qjz3VAkA8lXwuX9mDX6",
+							"olm.operatorframework.io/statusCopyHash":       "bedtcmN999WBSJ1RHvM7JfN2NJITrUjJ0g0MoH",
+						}),
 						labels.Merge(targetCSV.GetLabels(), map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace}),
 					),
 					&rbacv1.Role{
@@ -5155,7 +5160,12 @@ func TestSyncOperatorGroups(t *testing.T) {
 				},
 				targetNamespace: {
 					withLabels(
-						withAnnotations(targetCSV.DeepCopy(), map[string]string{operatorsv1.OperatorGroupAnnotationKey: "operator-group-1", operatorsv1.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
+						withAnnotations(targetCSV.DeepCopy(), map[string]string{
+							operatorsv1.OperatorGroupAnnotationKey:          "operator-group-1",
+							operatorsv1.OperatorGroupNamespaceAnnotationKey: operatorNamespace,
+							"olm.operatorframework.io/nonStatusCopyHash":    "9ZxHAHQTkxzAQd7Qkk4Qjz3VAkA8lXwuX9mDX6",
+							"olm.operatorframework.io/statusCopyHash":       "bedtcmN999WBSJ1RHvM7JfN2NJITrUjJ0g0MoH",
+						}),
 						labels.Merge(targetCSV.GetLabels(), map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace}),
 					),
 					&rbacv1.Role{
@@ -5312,7 +5322,12 @@ func TestSyncOperatorGroups(t *testing.T) {
 				},
 				targetNamespace: {
 					withLabels(
-						withAnnotations(targetCSV.DeepCopy(), map[string]string{operatorsv1.OperatorGroupAnnotationKey: "operator-group-1", operatorsv1.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
+						withAnnotations(targetCSV.DeepCopy(), map[string]string{
+							operatorsv1.OperatorGroupAnnotationKey:          "operator-group-1",
+							operatorsv1.OperatorGroupNamespaceAnnotationKey: operatorNamespace,
+							"olm.operatorframework.io/nonStatusCopyHash":    "9ZxHAHQTkxzAQd7Qkk4Qjz3VAkA8lXwuX9mDX6",
+							"olm.operatorframework.io/statusCopyHash":       "bedtcmN999WBSJ1RHvM7JfN2NJITrUjJ0g0MoH",
+						}),
 						labels.Merge(targetCSV.GetLabels(), map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace}),
 					),
 				},
