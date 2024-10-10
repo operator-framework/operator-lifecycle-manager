@@ -52,9 +52,9 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=operators.coreos.com, Version=internalVersion
+	// Group=packages.operators.coreos.com, Version=internalVersion
 	case operators.SchemeGroupVersion.WithResource("packagemanifests"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Operators().InternalVersion().PackageManifests().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Packages().InternalVersion().PackageManifests().Informer()}, nil
 
 	}
 

@@ -62,13 +62,13 @@ func NewFilteredPackageManifestInformer(client versioned.Interface, namespace st
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorsV1().PackageManifests(namespace).List(context.TODO(), options)
+				return client.PackagesV1().PackageManifests(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorsV1().PackageManifests(namespace).Watch(context.TODO(), options)
+				return client.PackagesV1().PackageManifests(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&operatorsv1.PackageManifest{},

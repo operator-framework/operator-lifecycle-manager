@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	operatorsinternalversion "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
+	packagesinternalversion "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -31,7 +31,7 @@ var scheme = runtime.NewScheme()
 var codecs = serializer.NewCodecFactory(scheme)
 
 var localSchemeBuilder = runtime.SchemeBuilder{
-	operatorsinternalversion.AddToScheme,
+	packagesinternalversion.AddToScheme,
 }
 
 // AddToScheme adds all types of this clientset into the given scheme. This allows composition

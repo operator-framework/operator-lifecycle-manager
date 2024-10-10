@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"net/http"
 
-	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/operators/v1"
+	packagesv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/operators/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -30,18 +30,18 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	OperatorsV1() operatorsv1.OperatorsV1Interface
+	PackagesV1() packagesv1.PackagesV1Interface
 }
 
 // Clientset contains the clients for groups.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	operatorsV1 *operatorsv1.OperatorsV1Client
+	packagesV1 *packagesv1.PackagesV1Client
 }
 
-// OperatorsV1 retrieves the OperatorsV1Client
-func (c *Clientset) OperatorsV1() operatorsv1.OperatorsV1Interface {
-	return c.operatorsV1
+// PackagesV1 retrieves the PackagesV1Client
+func (c *Clientset) PackagesV1() packagesv1.PackagesV1Interface {
+	return c.packagesV1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -88,7 +88,7 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 
 	var cs Clientset
 	var err error
-	cs.operatorsV1, err = operatorsv1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	cs.packagesV1, err = packagesv1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.operatorsV1 = operatorsv1.New(c)
+	cs.packagesV1 = packagesv1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

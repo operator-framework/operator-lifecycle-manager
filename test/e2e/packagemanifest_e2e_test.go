@@ -183,7 +183,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 		It("lists PackageManifest and ensures it has valid PackageManifest item", func() {
 			By(`Get a PackageManifestList and ensure it has the correct items`)
 			Eventually(func() (bool, error) {
-				pmList, err := pmc.OperatorsV1().PackageManifests(generatedNamespace.GetName()).List(context.TODO(), metav1.ListOptions{})
+				pmList, err := pmc.PackagesV1().PackageManifests(generatedNamespace.GetName()).List(context.TODO(), metav1.ListOptions{})
 				return containsPackageManifest(pmList.Items, packageName), err
 			}).Should(BeTrue(), "required package name not found in the list")
 		})
@@ -191,7 +191,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 		It("gets the icon from the default channel", func() {
 			var res rest.Result
 			Eventually(func() error {
-				res = pmc.OperatorsV1().RESTClient().Get().Resource("packagemanifests").SubResource("icon").Namespace(generatedNamespace.GetName()).Name(packageName).Do(context.Background())
+				res = pmc.PackagesV1().RESTClient().Get().Resource("packagemanifests").SubResource("icon").Namespace(generatedNamespace.GetName()).Name(packageName).Do(context.Background())
 				return res.Error()
 			}).Should(Succeed(), "error getting icon")
 
@@ -315,7 +315,7 @@ func fetchPackageManifest(pmc pmversioned.Interface, namespace, name string, che
 
 	EventuallyWithOffset(1, func() (bool, error) {
 		ctx.Ctx().Logf("Polling...")
-		fetched, err = pmc.OperatorsV1().PackageManifests(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		fetched, err = pmc.PackagesV1().PackageManifests(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
