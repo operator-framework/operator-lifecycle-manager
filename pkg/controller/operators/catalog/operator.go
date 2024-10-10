@@ -2097,9 +2097,8 @@ func (o *Operator) setInstallPlanInstalledCond(ip *v1alpha1.InstallPlan, reason 
 	ip.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled, reason, message, &now))
 	outIP, err := o.client.OperatorsV1alpha1().InstallPlans(ip.GetNamespace()).UpdateStatus(context.TODO(), ip, metav1.UpdateOptions{})
 	if err != nil {
-		logger = logger.WithField("updateError", err.Error())
-		logger.Errorf("error updating InstallPlan status")
-		return nil, nil
+		logger.WithError(err).Error("error updating InstallPlan status")
+		return nil, fmt.Errorf("error updating InstallPlan status: %w", err)
 	}
 	return outIP, nil
 }
