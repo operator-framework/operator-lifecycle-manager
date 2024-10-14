@@ -1,6 +1,7 @@
 module github.com/operator-framework/operator-lifecycle-manager
 
 go 1.22.5
+toolchain go1.23.2
 
 require (
 	github.com/blang/semver/v4 v4.0.0
@@ -14,7 +15,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.6.0
 	github.com/itchyny/gojq v0.12.16
-	github.com/maxbrunsfeld/counterfeiter/v6 v6.9.0
+	github.com/maxbrunsfeld/counterfeiter/v6 v6.10.0
 	github.com/mitchellh/hashstructure v1.1.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/onsi/ginkgo/v2 v2.20.2
@@ -161,7 +162,7 @@ require (
 	golang.org/x/sys v0.26.0 // indirect
 	golang.org/x/term v0.25.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
-	golang.org/x/tools v0.25.0 // indirect
+	golang.org/x/tools v0.26.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/genproto v0.0.0-20240227224415-6ceb2ff114de // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240604185151-ef581f913117 // indirect
