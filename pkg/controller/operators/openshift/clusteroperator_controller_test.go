@@ -207,7 +207,7 @@ var _ = Describe("ClusterOperator controller", func() {
 				{
 					namespace:           ns.GetName(),
 					name:                incompatible.GetName(),
-					maxOpenShiftVersion: fmt.Sprintf("%d.%d", parsedVersion.Major, parsedVersion.Minor),
+					maxOpenShiftVersion: &parsedVersion,
 				},
 			}.String(),
 			LastTransitionTime: fixedNow(),
@@ -253,7 +253,7 @@ var _ = Describe("ClusterOperator controller", func() {
 				{
 					namespace:           ns.GetName(),
 					name:                incompatible.GetName(),
-					maxOpenShiftVersion: short,
+					maxOpenShiftVersion: &v,
 				},
 			}.String(),
 			LastTransitionTime: fixedNow(),
