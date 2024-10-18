@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -201,10 +202,9 @@ func (c *GrpcRegistryReconciler) currentUpdatePods(logger *logrus.Entry, source 
 }
 
 func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(logger *logrus.Entry, source grpcCatalogSourceDecorator, serviceAccount *corev1.ServiceAccount, defaultPodSecurityConfig v1alpha1.SecurityConfig) ([]*corev1.Pod, error) {
-	logger.Info("searching for current pods")
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromValidatedSet(source.Labels()))
 	if err != nil {
-		logger.WithError(err).Warn("couldn't find pod in cache")
+		logger.WithError(err).Warn("error searching for catalog source pods: couldn't find pod in cache")
 		return nil, nil
 	}
 	found := []*corev1.Pod{}
@@ -222,7 +222,7 @@ func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(logger *logr
 		if !hash {
 			logger.Infof("pod spec diff: %s", cmp.Diff(p.Spec, newPod.Spec))
 		}
-		if correctImages(source, p) && podHashMatch(p, newPod) {
+		if images && hash {
 			found = append(found, p)
 		}
 	}
@@ -252,6 +252,7 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, cata
 	// if service status is nil, we force create every object to ensure they're created the first time
 	valid, err := isRegistryServiceStatusValid(&source)
 	if err != nil {
+		logger.WithError(err).Error("error ensuring registry server: could not validate registry service status")
 		return err
 	}
 	overwrite := !valid
@@ -262,22 +263,26 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, cata
 	//TODO: if any of these error out, we should write a status back (possibly set RegistryServiceStatus to nil so they get recreated)
 	sa, err := c.ensureSA(source)
 	if err != nil && !apierrors.IsAlreadyExists(err) {
+		logger.WithError(err).Error("error ensuring registry server: could not ensure registry service account")
 		return pkgerrors.Wrapf(err, "error ensuring service account: %s", source.GetName())
 	}
 
 	sa, err = c.OpClient.GetServiceAccount(sa.GetNamespace(), sa.GetName())
 	if err != nil {
+		logger.WithError(err).Error("error ensuring registry server: could not get registry service account")
 		return err
 	}
 
 	defaultPodSecurityConfig, err := getDefaultPodContextConfig(c.OpClient, catalogSource.GetNamespace())
 	if err != nil {
+		logger.WithError(err).Error("error ensuring registry server: could not get default pod security config")
 		return err
 	}
 
 	// recreate the pod if no existing pod is serving the latest image or correct spec
 	current, err := c.currentPodsWithCorrectImageAndSpec(logger, source, sa, defaultPodSecurityConfig)
 	if err != nil {
+		logger.WithError(err).Error("error ensuring registry server: could not get current pods with correct image and spec")
 		return err
 	}
 	overwritePod := overwrite || len(current) == 0
@@ -287,22 +292,29 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, cata
 
 	pod, err := source.Pod(sa, defaultPodSecurityConfig)
 	if err != nil {
+		logger.WithError(err).Error("error ensuring registry server: could not create registry pod")
 		return err
 	}
 	if err := c.ensurePod(logger, source, sa, defaultPodSecurityConfig, overwritePod); err != nil {
+		logger.WithError(err).Error("error ensuring registry server: could not ensure registry pod")
 		return pkgerrors.Wrapf(err, "error ensuring pod: %s", pod.GetName())
 	}
 	if err := c.ensureUpdatePod(logger, sa, defaultPodSecurityConfig, source); err != nil {
+		logger.WithError(err).Error("error ensuring registry server: could not ensure update pod")
 		if _, ok := err.(UpdateNotReadyErr); ok {
+			logger.WithError(err).Error("error ensuring registry server: ensure update pod error is not of type UpdateNotReadyErr")
 			return err
 		}
 		return pkgerrors.Wrapf(err, "error ensuring updated catalog source pod: %s", pod.GetName())
 	}
+
 	service, err := source.Service()
 	if err != nil {
+		logger.WithError(err).Error("couldn't get service")
 		return err
 	}
 	if err := c.ensureService(source, overwrite); err != nil {
+		logger.WithError(err).Error("error ensuring registry server: could not ensure service")
 		return pkgerrors.Wrapf(err, "error ensuring service: %s", service.GetName())
 	}
 
@@ -310,6 +322,7 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, cata
 		now := c.now()
 		service, err := source.Service()
 		if err != nil {
+			logger.WithError(err).Error("error ensuring registry server: could not get service")
 			return err
 		}
 		catalogSource.Status.RegistryServiceStatus = &v1alpha1.RegistryServiceStatus{
@@ -603,6 +616,7 @@ func (c *GrpcRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, catal
 	serviceAccount := source.ServiceAccount()
 	serviceAccount, err := c.OpClient.GetServiceAccount(serviceAccount.GetNamespace(), serviceAccount.GetName())
 	if err != nil {
+		logger.WithError(err).Error("registry service not healthy: could not get service account")
 		if !apierrors.IsNotFound(err) {
 			return false, err
 		}
@@ -611,6 +625,7 @@ func (c *GrpcRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, catal
 
 	registryPodSecurityConfig, err := getDefaultPodContextConfig(c.OpClient, catalogSource.GetNamespace())
 	if err != nil {
+		logger.WithError(err).Error("registry service not healthy: could not get registry pod security config")
 		return false, err
 	}
 
@@ -618,18 +633,30 @@ func (c *GrpcRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, catal
 	// TODO: add gRPC health check
 	service, err := c.currentService(source)
 	if err != nil {
+		logger.WithError(err).Error("registry service not healthy: could not get current service")
 		return false, err
 	}
+
 	currentPods, err := c.currentPodsWithCorrectImageAndSpec(logger, source, serviceAccount, registryPodSecurityConfig)
 	if err != nil {
+		logger.WithError(err).Error("registry service not healthy: could not get current pods")
 		return false, err
 	}
+
+	currentServiceAccount := c.currentServiceAccount(source)
 	if len(currentPods) < 1 ||
-		service == nil || c.currentServiceAccount(source) == nil {
+		service == nil || currentServiceAccount == nil {
+		logger.WithFields(logrus.Fields{
+			"numCurrentPods":             len(currentPods),
+			"isServiceNil":               service == nil,
+			"isCurrentServiceAccountNil": currentServiceAccount == nil,
+		}).Error("registry service not healthy: one or more required resources are missing")
 		return false, nil
 	}
+
 	podsAreLive, e := detectAndDeleteDeadPods(logger, c.OpClient, currentPods, source.GetNamespace())
 	if e != nil {
+		logger.WithError(e).Error("registry service not healthy: could not detect and delete dead pods")
 		return false, fmt.Errorf("error deleting dead pods: %v", e)
 	}
 	return podsAreLive, nil
