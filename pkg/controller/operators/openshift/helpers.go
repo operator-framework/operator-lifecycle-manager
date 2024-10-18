@@ -97,7 +97,7 @@ func (s skews) String() string {
 type skew struct {
 	namespace           string
 	name                string
-	maxOpenShiftVersion string
+	maxOpenShiftVersion *semver.Version
 	err                 error
 }
 
@@ -106,7 +106,8 @@ func (s skew) String() string {
 		return fmt.Sprintf("%s/%s has invalid %s properties: %s", s.namespace, s.name, MaxOpenShiftVersionProperty, s.err)
 	}
 
-	return fmt.Sprintf("%s/%s is incompatible with OpenShift minor versions greater than %s", s.namespace, s.name, s.maxOpenShiftVersion)
+	nextOCPVersion := fmt.Sprintf("%d.%d", s.maxOpenShiftVersion.Major, s.maxOpenShiftVersion.Minor+1)
+	return fmt.Sprintf("Cannot upgrade to OCP %s until a package version newer than %s/%s is available.", nextOCPVersion, s.namespace, s.name)
 }
 
 type transientError struct {
@@ -162,7 +163,7 @@ func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error
 			continue
 		}
 
-		s.maxOpenShiftVersion = fmt.Sprintf("%d.%d", max.Major, max.Minor)
+		s.maxOpenShiftVersion = max
 
 		incompatible = append(incompatible, s)
 	}
