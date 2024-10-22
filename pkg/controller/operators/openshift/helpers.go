@@ -91,7 +91,12 @@ func (s skews) String() string {
 		j--
 	}
 
-	return "ClusterServiceVersions blocking cluster upgrade: " + strings.Join(msg, ",")
+	// it is safe to ignore the error here, with the assumption
+	// that we build each skew object only after verifying that the
+	// version string is parseable safely.
+	maxOCPVersion, _ := semver.ParseTolerant(s[0].maxOpenShiftVersion)
+	nextY := nextY(maxOCPVersion).String()
+	return fmt.Sprintf("ClusterServiceVersions blocking minor version upgrades to %s or higher:\n%s", nextY, strings.Join(msg, "\n"))
 }
 
 type skew struct {
@@ -103,10 +108,9 @@ type skew struct {
 
 func (s skew) String() string {
 	if s.err != nil {
-		return fmt.Sprintf("%s/%s has invalid %s properties: %s", s.namespace, s.name, MaxOpenShiftVersionProperty, s.err)
+		return fmt.Sprintf("- %s/%s has invalid %s properties: %s", s.namespace, s.name, MaxOpenShiftVersionProperty, s.err)
 	}
-
-	return fmt.Sprintf("%s/%s is incompatible with OpenShift minor versions greater than %s", s.namespace, s.name, s.maxOpenShiftVersion)
+	return fmt.Sprintf("- maximum supported OCP version for %s/%s is %s", s.namespace, s.name, s.maxOpenShiftVersion)
 }
 
 type transientError struct {
@@ -131,11 +135,6 @@ func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error
 		return nil, fmt.Errorf("failed to determine current OpenShift Y-stream release")
 	}
 
-	next, err := nextY(*current)
-	if err != nil {
-		return nil, err
-	}
-
 	csvList := &operatorsv1alpha1.ClusterServiceVersionList{}
 	if err := cli.List(ctx, csvList); err != nil {
 		return nil, &transientError{fmt.Errorf("failed to list ClusterServiceVersions: %w", err)}
@@ -158,7 +157,7 @@ func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error
 			continue
 		}
 
-		if max == nil || max.GTE(next) {
+		if max == nil || max.GTE(nextY(*current)) {
 			continue
 		}
 
@@ -224,18 +223,8 @@ func getCurrentRelease() (*semver.Version, error) {
 	return currentRelease.version, nil
 }
 
-func nextY(v semver.Version) (semver.Version, error) {
-	v.Build = nil // Builds are irrelevant
-
-	if len(v.Pre) > 0 {
-		// Dropping pre-releases is equivalent to incrementing Y
-		v.Pre = nil
-		v.Patch = 0
-
-		return v, nil
-	}
-
-	return v, v.IncrementMinor() // Sets Y=Y+1 and Z=0
+func nextY(v semver.Version) semver.Version {
+	return semver.Version{Major: v.Major, Minor: v.Minor + 1} // Sets Y=Y+1
 }
 
 const (
