@@ -72,6 +72,7 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
+              protocol: TCP
             - containerPort: 8081
               name: metrics
               protocol: TCP
@@ -132,6 +133,7 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
+              protocol: TCP
             - containerPort: 8081
               name: metrics
               protocol: TCP
@@ -295,6 +297,7 @@ spec:
                 imagePullPolicy: Always
                 ports:
                 - containerPort: 5443
+                  protocol: TCP
                 livenessProbe:
                   httpGet:
                     scheme: HTTPS
