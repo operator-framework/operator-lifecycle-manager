@@ -37,9 +37,9 @@ require (
 	golang.org/x/time v0.7.0
 	google.golang.org/grpc v1.66.0
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.31.1
+	k8s.io/api v0.31.2
 	k8s.io/apiextensions-apiserver v0.31.1
-	k8s.io/apimachinery v0.31.1
+	k8s.io/apimachinery v0.31.2
 	k8s.io/apiserver v0.31.1
 	k8s.io/client-go v0.31.1
 	k8s.io/code-generator v0.31.1
