@@ -423,7 +423,7 @@ func TestIncompatibleOperators(t *testing.T) {
 		},
 		{
 			description: "ClusterPre",
-			version:     "1.1.0-pre", // Next Y-stream is 1.1.0, NOT 1.2.0
+			version:     "1.1.0-pre", // Next Y-stream is 1.2.0
 			in: skews{
 				{
 					name:                "almond",
@@ -432,8 +432,14 @@ func TestIncompatibleOperators(t *testing.T) {
 				},
 			},
 			expect: expect{
-				err:          false,
-				incompatible: nil,
+				err: false,
+				incompatible: skews{
+					{
+						name:                "almond",
+						namespace:           "default",
+						maxOpenShiftVersion: "1.1",
+					},
+				},
 			},
 		},
 	} {
@@ -594,6 +600,30 @@ func TestNotCopiedSelector(t *testing.T) {
 			selector, err := notCopiedSelector()
 			require.NoError(t, err)
 			require.Equal(t, tc.Matches, selector.Matches(tc.Labels))
+		})
+	}
+}
+
+func TestOCPVersionNextY(t *testing.T) {
+	for _, tc := range []struct {
+		description     string
+		inVersion       semver.Version
+		expectedVersion semver.Version
+	}{
+		{
+			description:     "Version: 4.16.0. Expected output: 4.17",
+			inVersion:       semver.MustParse("4.16.0"),
+			expectedVersion: semver.MustParse("4.17.0"),
+		},
+		{
+			description:     "Version: 4.16.0-rc1. Expected output: 4.17",
+			inVersion:       semver.MustParse("4.16.0-rc1"),
+			expectedVersion: semver.MustParse("4.17.0"),
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			outVersion := nextY(tc.inVersion)
+			require.Equal(t, outVersion, tc.expectedVersion)
 		})
 	}
 }
