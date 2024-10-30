@@ -34,9 +34,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
+          name: ${{ env.IMAGE_TAG }}
           draft: true
-          tag_name: ${{ github.ref }}
-          release_name: ${{ github.ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -60,7 +59,8 @@ jobs:
           PKG: github.com/operator-framework/operator-lifecycle-manager
 
       - name: Generate quickstart release manifests
-        run: make release ver=${{ env.IMAGE_TAG }} IMAGE_REPO=quay.io/operator-framework/olm
+        if: startsWith(github.ref, 'refs/tags')
+        run: make release RELEASE_VERSION=${{ env.IMAGE_TAG }} IMAGE_REPO=quay.io/operator-framework/olm
 
       - name: Update release artifacts with rendered Kubernetes release manifests
         uses: softprops/action-gh-release@v2
