@@ -7,8 +7,8 @@
 [![Slack Channel](https://img.shields.io/badge/chat-4A154B?logo=slack&logoColor=white "Slack Channel")](https://kubernetes.slack.com/archives/C0181L6JYQ2)
 
 ---
-> [!WARNING]  
-> This repository is associated with **Operator Lifecycle Manager** version 0 (v0) which is in maintenance mode. The community is excited to be working on a new design (v1) which intends to overcome a number of limitations of the v0 architecture, the primary repository for which is [operator controller](https://www.github.com/operator-framework/operator-controller).  
+> [!WARNING]
+> This repository is associated with **Operator Lifecycle Manager** version 0 (v0) which is in maintenance mode. The community is excited to be working on a new design (v1) which intends to overcome a number of limitations of the v0 architecture, the primary repository for which is [operator controller](https://www.github.com/operator-framework/operator-controller).
 
 In maintenance mode, we have the following changes to support expectations:
 1. We will accept no new features.
@@ -200,3 +200,5 @@ Operator Lifecycle Manager is under Apache 2.0 license. See the [LICENSE][licens
 [contributor-documentation]: ./CONTRIBUTING.md
 [olm-getting-started]: https://olm.operatorframework.io/docs/getting-started/
 [installation-guide]: doc/install/install.md
+
+Test release automation from the old commit
