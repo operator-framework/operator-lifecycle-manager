@@ -71,14 +71,18 @@ export CGO_ENABLED ?= 0
 export GO111MODULE ?= on
 export GIT_REPO := $(shell go list -m)
 export GIT_COMMIT := $(shell git rev-parse HEAD)
-export VERSION := $(shell cat OLM_VERSION)
 export VERSION_PATH := ${GIT_REPO}/pkg/version
+
+ifeq ($(origin VERSION), undefined)
+VERSION := $(shell git describe --tags --always --dirty)
+endif
+export VERSION
 
 # GO_BUILD flags are set with = to allow for re-evaluation of the variables
 export GO_BUILD_ASMFLAGS = all=-trimpath=$(PWD)
 export GO_BUILD_GCFLAGS = all=-trimpath=$(PWD)
 export GO_BUILD_FLAGS = -mod=vendor -buildvcs=false
-export GO_BUILD_LDFLAGS = -s -w -X '$(VERSION_PATH).version=$(VERSION)' -X '$(VERSION_PATH).gitCommit=$(GIT_COMMIT)' -extldflags "-static"
+export GO_BUILD_LDFLAGS = -s -w -X '$(VERSION_PATH).OLMVersion=$(VERSION)' -X '$(VERSION_PATH).GitCommit=$(GIT_COMMIT)' -extldflags "-static"
 export GO_BUILD_TAGS = json1
 
 # GO_TEST flags are set with = to allow for re-evaluation of the variables
@@ -330,7 +334,6 @@ ifeq ($(PACKAGE_QUICKSTART), true)
 endif
 
 .PHONY: release
-release: RELEASE_VERSION=v$(shell cat OLM_VERSION) #HELP Generate an OLM release (NOTE: before running release, bump the version in ./OLM_VERSION and push to master, then tag those builds in quay with the version in ./OLM_VERSION)
 release: pull-opm manifests # pull the opm image to get the digest
 	@echo "Generating the $(RELEASE_VERSION) release"
 	docker pull $(IMAGE_REPO):$(RELEASE_VERSION)
