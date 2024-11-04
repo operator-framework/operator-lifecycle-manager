@@ -27,16 +27,6 @@ jobs:
             echo IMAGE_TAG="snapshot" >> $GITHUB_ENV
           fi
 
-      - name: Create a draft release
-        uses: softprops/action-gh-release@v2
-        id: release
-        if: startsWith(github.ref, 'refs/tags')
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          name: ${{ env.IMAGE_TAG }}
-          draft: true
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -58,6 +48,10 @@ jobs:
           IMAGE_REPO: quay.io/operator-framework/olm
           PKG: github.com/operator-framework/operator-lifecycle-manager
 
+      # The below steps depend on a image being present in a image registry
+      # as well as existence of a release on GitHub which are not
+      # being created by goreleaser when run against anything other than a tag.
+      # So we only run the steps below for tags.
       - name: Generate quickstart release manifests
         if: startsWith(github.ref, 'refs/tags')
         run: make release RELEASE_VERSION=${{ env.IMAGE_TAG }} IMAGE_REPO=quay.io/operator-framework/olm
