@@ -306,14 +306,8 @@ verify: vendor verify-codegen verify-mockgen verify-manifests #HELP Run all veri
 
 #SECTION Release
 
-.PHONY: pull-opm
-pull-opm:
-	docker pull $(OPERATOR_REGISTRY_IMAGE)
-
 .PHONY: package
 package: $(YQ) $(HELM) #HELP Package OLM for release
-package: OLM_RELEASE_IMG_REF=$(shell docker inspect --format='{{index .RepoDigests 0}}' $(IMAGE_REPO):$(RELEASE_VERSION))
-package: OPM_IMAGE_REF=$(shell docker inspect --format='{{index .RepoDigests 0}}' $(OPERATOR_REGISTRY_IMAGE))
 package:
 ifndef TARGET
 	$(error TARGET is undefined)
@@ -321,12 +315,6 @@ endif
 ifndef RELEASE_VERSION
 	$(error RELEASE_VERSION is undefined)
 endif
-	@echo "Getting operator registry image"
-	docker pull $(OPERATOR_REGISTRY_IMAGE)
-	$(YQ) w -i deploy/$(TARGET)/values.yaml olm.image.ref $(OLM_RELEASE_IMG_REF)
-	$(YQ) w -i deploy/$(TARGET)/values.yaml catalog.image.ref $(OLM_RELEASE_IMG_REF)
-	$(YQ) w -i deploy/$(TARGET)/values.yaml package.image.ref $(OLM_RELEASE_IMG_REF)
-	$(YQ) w -i deploy/$(TARGET)/values.yaml -- catalog.opmImageArgs "--opmImage=$(OPM_IMAGE_REF)"
 	./scripts/package_release.sh $(RELEASE_VERSION) deploy/$(TARGET)/manifests/$(RELEASE_VERSION) deploy/$(TARGET)/values.yaml
 	ln -sfFn ./$(RELEASE_VERSION) deploy/$(TARGET)/manifests/latest
 ifeq ($(PACKAGE_QUICKSTART), true)
@@ -334,9 +322,8 @@ ifeq ($(PACKAGE_QUICKSTART), true)
 endif
 
 .PHONY: release
-release: pull-opm manifests # pull the opm image to get the digest
+release: manifests
 	@echo "Generating the $(RELEASE_VERSION) release"
-	docker pull $(IMAGE_REPO):$(RELEASE_VERSION)
 	$(MAKE) TARGET=upstream RELEASE_VERSION=$(RELEASE_VERSION) PACKAGE_QUICKSTART=true package
 
 .PHONY: FORCE

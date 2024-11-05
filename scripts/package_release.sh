@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+set -o errexit
+set -o nounset
+set -o pipefail
+
 if [[ ${#@} -lt 3 ]]; then
     echo "Usage: $0 semver chart values"
     echo "* semver: semver-formatted version for this package"
@@ -13,6 +17,17 @@ chartdir=$2
 values=$3
 
 source .bingo/variables.env
+
+OLM_RELEASE_IMG_REF=$(go run util/image-canonical-ref/main.go ${IMAGE_REPO}:${version})
+OPM_IMAGE_REF=$(go run util/image-canonical-ref/main.go ${OPERATOR_REGISTRY_IMAGE})
+
+echo "Using OPM image ${OPM_IMAGE_REF}"
+echo "Using OLM image ${OLM_RELEASE_IMG_REF}"
+
+$YQ w -i $values olm.image.ref ${OLM_RELEASE_IMG_REF}
+$YQ w -i $values catalog.image.ref ${OLM_RELEASE_IMG_REF}
+$YQ w -i $values package.image.ref ${OLM_RELEASE_IMG_REF}
+$YQ w -i $values -- catalog.opmImageArgs "--opmImage=${OPM_IMAGE_REF}"
 
 charttmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t charttmpdir)
 
