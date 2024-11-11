@@ -4,6 +4,7 @@ go 1.22.5
 
 require (
 	github.com/blang/semver/v4 v4.0.0
+	github.com/containers/image/v5 v5.32.2
 	github.com/coreos/go-semver v0.3.1
 	github.com/distribution/reference v0.6.0
 	github.com/evanphx/json-patch v5.9.0+incompatible
@@ -27,7 +28,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/client_model v0.6.1
-	github.com/prometheus/common v0.60.0
+	github.com/prometheus/common v0.60.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
@@ -73,7 +74,6 @@ require (
 	github.com/containerd/ttrpc v1.2.5 // indirect
 	github.com/containerd/typeurl/v2 v2.1.1 // indirect
 	github.com/containers/common v0.60.4 // indirect
-	github.com/containers/image/v5 v5.32.2 // indirect
 	github.com/containers/libtrust v0.0.0-20230121012942-c1716e8a8d01 // indirect
 	github.com/containers/ocicrypt v1.2.0 // indirect
 	github.com/containers/storage v1.55.0 // indirect
