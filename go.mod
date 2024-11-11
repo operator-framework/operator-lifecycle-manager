@@ -4,6 +4,7 @@ go 1.22.5
 
 require (
 	github.com/blang/semver/v4 v4.0.0
+	github.com/containers/image/v5 v5.32.2
 	github.com/coreos/go-semver v0.3.1
 	github.com/distribution/reference v0.6.0
 	github.com/evanphx/json-patch v5.9.0+incompatible
@@ -18,7 +19,7 @@ require (
 	github.com/mitchellh/hashstructure v1.1.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/onsi/ginkgo/v2 v2.21.0
-	github.com/onsi/gomega v1.34.2
+	github.com/onsi/gomega v1.35.1
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/openshift/client-go v0.0.0-20220525160904-9e1acff93e4a
 	github.com/operator-framework/api v0.27.0
@@ -73,7 +74,6 @@ require (
 	github.com/containerd/ttrpc v1.2.5 // indirect
 	github.com/containerd/typeurl/v2 v2.1.1 // indirect
 	github.com/containers/common v0.60.4 // indirect
-	github.com/containers/image/v5 v5.32.2 // indirect
 	github.com/containers/libtrust v0.0.0-20230121012942-c1716e8a8d01 // indirect
 	github.com/containers/ocicrypt v1.2.0 // indirect
 	github.com/containers/storage v1.55.0 // indirect
