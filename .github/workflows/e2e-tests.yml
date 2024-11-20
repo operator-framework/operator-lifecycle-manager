@@ -92,12 +92,12 @@ jobs:
 
       # run non-flakes if matrix-id is not 'flakes'
       - name: Run e2e tests
-        # calculate the number of chunks as the number of parallel jobs minus 1 (flakes job)
+        # calculate the number of chunks as the number of parallel jobs
         # use the split tool to split the test suite into chunks and run the chunk corresponding to the matrix-id
         # focus on those tests and skip tests marked as FLAKE
         run: |
-          E2E_TEST_NUM_CHUNKS=$(( ${{ strategy.job-total }} - 1 )) \
-          GINKGO_OPTS="${GINKGO_OPTS} -focus '$(go run ./test/e2e/split/... -chunks $E2E_TEST_NUM_CHUNKS -print-chunk $E2E_TEST_CHUNK ./test/e2e)' -skip '\[FLAKE\]'" \
+          E2E_TEST_NUM_CHUNKS=$(( ${{ strategy.job-total }} )) \
+          GINKGO_OPTS="${GINKGO_OPTS} -label-filter '$(go run ./test/e2e/split/... -chunks $E2E_TEST_NUM_CHUNKS -print-chunk $E2E_TEST_CHUNK ./test/e2e)' -skip '\[FLAKE\]'" \
           make e2e;
 
       # archive test results
