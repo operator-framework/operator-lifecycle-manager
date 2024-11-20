@@ -26,7 +26,7 @@ const (
 	protectedCopiedCSVNamespacesRuntimeFlag = "--protectedCopiedCSVNamespaces"
 )
 
-var _ = Describe("Disabling copied CSVs", func() {
+var _ = Describe("Disabling copied CSVs", Label("DisablingCopiedCSVs"), func() {
 	var (
 		generatedNamespace              corev1.Namespace
 		csv                             operatorsv1alpha1.ClusterServiceVersion

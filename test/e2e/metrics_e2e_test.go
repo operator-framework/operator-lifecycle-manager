@@ -27,7 +27,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
-var _ = Describe("Metrics are generated for OLM managed resources", func() {
+var _ = Describe("Metrics are generated for OLM managed resources", Label("Metrics"), func() {
 	var (
 		c                  operatorclient.ClientInterface
 		crc                versioned.Interface

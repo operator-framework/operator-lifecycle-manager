@@ -123,7 +123,7 @@ func updateCatalogSource(namespace, name string, packages ...string) (func(), er
 	return deployCatalogSource(namespace, name, packages...)
 }
 
-var _ = Describe("Fail Forward Upgrades", func() {
+var _ = Describe("Fail Forward Upgrades", Label("FailForward"), func() {
 
 	var (
 		generatedNamespace corev1.Namespace

@@ -55,7 +55,7 @@ const (
 	subscriptionTestDataBaseDir = "subscription/"
 )
 
-var _ = Describe("Subscription", func() {
+var _ = Describe("Subscription", Label("Subscription"), func() {
 	var (
 		generatedNamespace corev1.Namespace
 		operatorGroup      operatorsv1.OperatorGroup

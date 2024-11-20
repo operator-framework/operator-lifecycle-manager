@@ -34,7 +34,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
-var _ = Describe("ClusterServiceVersion", func() {
+var _ = Describe("ClusterServiceVersion", Label("ClusterServiceVersion"), func() {
 	var (
 		generatedNamespace corev1.Namespace
 		c                  operatorclient.ClientInterface

@@ -38,7 +38,7 @@ const (
 	webhookName = "webhook.test.com"
 )
 
-var _ = Describe("CSVs with a Webhook", func() {
+var _ = Describe("CSVs with a Webhook", Label("Webhooks"), func() {
 	var (
 		generatedNamespace corev1.Namespace
 		c                  operatorclient.ClientInterface

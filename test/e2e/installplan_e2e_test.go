@@ -50,7 +50,7 @@ const (
 	deprecatedCRDDir = "deprecated-crd"
 )
 
-var _ = Describe("Install Plan", func() {
+var _ = Describe("Install Plan", Label("InstallPlan"), func() {
 	var (
 		c                  operatorclient.ClientInterface
 		crc                versioned.Interface

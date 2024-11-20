@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var _ = Describe("CRD Versions", func() {
+var _ = Describe("CRD Versions", Label("CRDs"), func() {
 	var (
 		generatedNamespace corev1.Namespace
 		c                  operatorclient.ClientInterface

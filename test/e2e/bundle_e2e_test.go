@@ -26,7 +26,7 @@ import (
 //go:embed testdata/vpa/crd.yaml
 var vpaCRDRaw []byte
 
-var _ = Describe("Installing bundles with new object types", func() {
+var _ = Describe("Installing bundles with new object types", Label("ObjectTypes"), func() {
 	var (
 		kubeClient         operatorclient.ClientInterface
 		operatorClient     versioned.Interface

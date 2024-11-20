@@ -18,7 +18,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
-var _ = Describe("Scoped Client bound to a service account can be used to make API calls", func() {
+var _ = Describe("Scoped Client bound to a service account can be used to make API calls", Label("ScopedClient"), func() {
 	// TestScopedClient ensures that we can create a scoped client bound to a
 	// service account and then we can use the scoped client to make API calls.
 	var (
