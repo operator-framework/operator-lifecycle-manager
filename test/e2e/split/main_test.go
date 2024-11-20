@@ -3,12 +3,14 @@ package main
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestMain(t *testing.T) {
+func TestCmd(t *testing.T) {
 	// This test makes sure that every spec gets run.
 
 	cmd := exec.Command("./test/e2e/split/integration_test.sh")
@@ -19,7 +21,7 @@ func TestMain(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestCreateChunkRegexp(t *testing.T) {
+func TestCreateFilterLabelChunk(t *testing.T) {
 	type spec struct {
 		name       string
 		numChunks  int
@@ -34,25 +36,25 @@ func TestCreateChunkRegexp(t *testing.T) {
 			name:      "singlePrefix1",
 			numChunks: 1, printChunk: 0,
 			specs: []string{"foo"},
-			expRE: "foo .*",
+			expRE: "foo",
 		},
 		{
 			name:      "multiplePrefixes1",
 			numChunks: 1, printChunk: 0,
 			specs: []string{"bar foo", "baz", "foo"},
-			expRE: "(bar foo|baz|foo) .*",
+			expRE: "bar foo || baz || foo",
 		},
 		{
 			name:      "multiplePrefixes2",
 			numChunks: 3, printChunk: 0,
 			specs: []string{"bar foo", "baz", "foo"},
-			expRE: "bar foo .*",
+			expRE: "bar foo",
 		},
 		{
 			name:      "multiplePrefixes3",
 			numChunks: 3, printChunk: 2,
 			specs: []string{"bar foo", "baz", "foo"},
-			expRE: "foo .*",
+			expRE: "foo",
 		},
 		{
 			name:      "empty",
@@ -76,7 +78,7 @@ func TestCreateChunkRegexp(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			re, err := createChunkRegexp(c.numChunks, c.printChunk, c.specs)
+			re, err := createFilterLabelChunk(c.numChunks, c.printChunk, c.specs)
 			if c.expError != "" {
 				require.EqualError(t, err, c.expError)
 			} else {
@@ -87,55 +89,17 @@ func TestCreateChunkRegexp(t *testing.T) {
 	}
 }
 
-func TestFindMinimalWordPrefixes(t *testing.T) {
-	type spec struct {
-		name        string
-		specs       []string
-		expPrefixes []string
+func TestExtractLabels(t *testing.T) {
+	// Determine the directory of this test file
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatalf("Unable to determine the current file location")
 	}
+	testDir := filepath.Join(filepath.Dir(filename), "testdata")
+	relPath, err := getPathRelativeToCwd(testDir)
+	require.NoError(t, err)
 
-	cases := []spec{
-		{
-			name:        "empty",
-			specs:       nil,
-			expPrefixes: nil,
-		},
-		{
-			name:        "singleSpec",
-			specs:       []string{"foo"},
-			expPrefixes: []string{"foo"},
-		},
-		{
-			name:        "twoSpecsSingleWordPrefix",
-			specs:       []string{"foo", "foo bar"},
-			expPrefixes: []string{"foo"},
-		},
-		{
-			name:        "twoMultiWordSpecsSingleWordPrefix",
-			specs:       []string{"foo bar", "foo baz"},
-			expPrefixes: []string{"foo"},
-		},
-		{
-			name:        "twoMultiWordSpecsLongPrefix",
-			specs:       []string{"foo bar", "foo bar baz"},
-			expPrefixes: []string{"foo bar"},
-		},
-		{
-			name:        "threeSpecsSingleWordPrefix",
-			specs:       []string{"foo", "foo bar", "foo baz"},
-			expPrefixes: []string{"foo"},
-		},
-		{
-			name:        "multiplePrefixes",
-			specs:       []string{"foo", "foo bar", "foo bar baz", "bar foo", "baz buf", "baz bar foo"},
-			expPrefixes: []string{"foo", "bar foo", "baz"},
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			prefixes := findMinimalWordPrefixes(c.specs)
-			require.ElementsMatch(t, c.expPrefixes, prefixes)
-		})
-	}
+	labels, err := findLabels(relPath)
+	require.NoError(t, err)
+	require.ElementsMatch(t, labels, []string{"SomeTest", "SomeOtherTest", "AlsoThis"})
 }

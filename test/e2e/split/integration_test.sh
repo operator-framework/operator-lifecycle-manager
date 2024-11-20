@@ -5,8 +5,8 @@ function get_total_specs() {
 }
 
 unfocused_specs=$(get_total_specs)
-regexp=$(go run ./test/e2e/split/... -chunks 1 -print-chunk 0 ./test/e2e)
-focused_specs=$(get_total_specs -focus "$regexp")
+label_filter=$(go run ./test/e2e/split/... -chunks 1 -print-chunk 0 ./test/e2e)
+focused_specs=$(get_total_specs -label-filter "$label_filter")
 
 if ! [ $unfocused_specs -eq $focused_specs ]; then
   echo "expected number of unfocused specs $unfocused_specs to equal focus specs $focused_specs"
