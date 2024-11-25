@@ -62,6 +62,12 @@ jobs:
           path: .
       - run: docker load < olm-image.tar
 
+      # install ginkgo
+      - run: |
+          echo "Installing ginkgo"
+          GOBIN=$(pwd)/tools go install github.com/onsi/ginkgo/v2/ginkgo@$(cat go.mod | grep "github.com/onsi/ginkgo/v2" | awk '{ print $2 }')
+          E2E_LABELS=$(./tools/ginkgo ./test/e2e | grep -o '\[.*\]' | sed 's/^\[\(.*\)\]$/\1/')
+
       # set e2e environment variables
       # Set ginkgo output and parallelism
       - run: echo "GINKGO_OPTS=-output-dir ${ARTIFACT_DIR} -junit-report junit_e2e.xml -nodes ${E2E_NODES}" >> $GITHUB_ENV
