@@ -24,7 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var _ = Describe("User defined service account", func() {
+var _ = Describe("User defined service account", Label("UserDefinedServiceAccount"), func() {
 	var (
 		generatedNamespace corev1.Namespace
 		c                  operatorclient.ClientInterface

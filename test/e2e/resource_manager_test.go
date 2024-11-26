@@ -14,7 +14,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
-var _ = Describe("ResourceManager", func() {
+var _ = Describe("ResourceManager", Label("ResourceManager"), func() {
 	var generatedNamespace corev1.Namespace
 
 	BeforeEach(func() {

@@ -23,7 +23,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
-var _ = Describe("Garbage collection for dependent resources", func() {
+var _ = Describe("Garbage collection for dependent resources", Label("GarbageCollection"), func() {
 	var (
 		kubeClient         operatorclient.ClientInterface
 		operatorClient     versioned.Interface

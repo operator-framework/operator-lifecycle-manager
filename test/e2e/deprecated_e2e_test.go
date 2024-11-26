@@ -18,7 +18,7 @@ import (
 
 var missingAPI = `{"apiVersion":"verticalpodautoscalers.autoscaling.k8s.io/v1","kind":"VerticalPodAutoscaler","metadata":{"name":"my.thing","namespace":"foo"}}`
 
-var _ = Describe("Not found APIs", func() {
+var _ = Describe("Not found APIs", Label("APIDeprecation"), func() {
 	var generatedNamespace corev1.Namespace
 
 	BeforeEach(func() {

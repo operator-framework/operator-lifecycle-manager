@@ -43,7 +43,7 @@ const (
 	badCSVDir             = "bad-csv"
 )
 
-var _ = Describe("Starting CatalogSource e2e tests", func() {
+var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), func() {
 	var (
 		generatedNamespace  corev1.Namespace
 		c                   operatorclient.ClientInterface

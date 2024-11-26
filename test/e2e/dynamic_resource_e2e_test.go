@@ -20,7 +20,7 @@ import (
 // This test was disabled because both of its tests are currently being skipped
 // We need to understand why and whether this test is even needed:
 // https://github.com/operator-framework/operator-lifecycle-manager/issues/3402
-var _ = XDescribe("Subscriptions create required objects from Catalogs", func() {
+var _ = XDescribe("Subscriptions create required objects from Catalogs", Label("DynamicResource"), func() {
 	var (
 		crc                versioned.Interface
 		generatedNamespace corev1.Namespace

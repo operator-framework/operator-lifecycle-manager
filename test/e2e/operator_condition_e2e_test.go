@@ -19,7 +19,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
-var _ = Describe("Operator Condition", func() {
+var _ = Describe("Operator Condition", Label("OperatorCondition"), func() {
 	var (
 		generatedNamespace corev1.Namespace
 	)

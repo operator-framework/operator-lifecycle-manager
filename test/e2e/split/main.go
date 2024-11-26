@@ -3,17 +3,26 @@ package main
 import (
 	"flag"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io"
 	"log"
 	"math"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/sirupsen/logrus"
 )
+
+const (
+	ginkgoDescribeFunctionName = "Describe"
+	ginkgoLabelFunctionName    = "Label"
+)
+
+var logger = logrus.New()
 
 type options struct {
 	numChunks  int
@@ -34,54 +43,57 @@ func main() {
 	flag.Parse()
 
 	if opts.printChunk >= opts.numChunks {
-		exitIfErr(fmt.Errorf("the chunk to print (%d) must be a smaller number than the number of chunks (%d)", opts.printChunk, opts.numChunks))
+		log.Fatal(fmt.Errorf("the chunk to print (%d) must be a smaller number than the number of chunks (%d)", opts.printChunk, opts.numChunks))
 	}
 
 	dir := flag.Arg(0)
 	if dir == "" {
-		exitIfErr(fmt.Errorf("test directory required as the argument"))
+		log.Fatal(fmt.Errorf("test directory required as the argument"))
 	}
 
-	// Clean dir.
 	var err error
-	dir, err = filepath.Abs(dir)
-	exitIfErr(err)
-	wd, err := os.Getwd()
-	exitIfErr(err)
-	dir, err = filepath.Rel(wd, dir)
-	exitIfErr(err)
-
-	exitIfErr(opts.run(dir))
-}
-
-func exitIfErr(err error) {
+	level, err := logrus.ParseLevel(opts.logLevel)
 	if err != nil {
+		log.Fatal(err)
+	}
+	logger.SetLevel(level)
+
+	dir, err = getPathRelativeToCwd(dir)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := opts.run(dir); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func (opts options) run(dir string) error {
-	level, err := logrus.ParseLevel(opts.logLevel)
+func getPathRelativeToCwd(path string) (string, error) {
+	path, err := filepath.Abs(path)
 	if err != nil {
-		return fmt.Errorf("failed to parse the %s log level: %v", opts.logLevel, err)
+		return "", err
 	}
-	logger := logrus.New()
-	logger.SetLevel(level)
 
-	describes, err := findDescribes(logger, dir)
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Rel(wd, path)
+}
+
+func (opts options) run(dir string) error {
+	// Get all test labels
+	labels, err := findLabels(dir)
 	if err != nil {
 		return err
 	}
-
-	// Find minimal prefixes for all spec strings so no spec runs are duplicated across chunks.
-	prefixes := findMinimalWordPrefixes(describes)
-	sort.Strings(prefixes)
+	sort.Strings(labels)
 
 	var out string
 	if opts.printDebug {
-		out = strings.Join(prefixes, "\n")
+		out = strings.Join(labels, "\n")
 	} else {
-		out, err = createChunkRegexp(opts.numChunks, opts.printChunk, prefixes)
+		out, err = createFilterLabelChunk(opts.numChunks, opts.printChunk, labels)
 		if err != nil {
 			return err
 		}
@@ -91,52 +103,53 @@ func (opts options) run(dir string) error {
 	return nil
 }
 
-// TODO: this is hacky because top-level tests may be defined elsewise.
-// A better strategy would be to use the output of `ginkgo -noColor -dryRun`
-// like https://github.com/operator-framework/operator-lifecycle-manager/pull/1476 does.
-var topDescribeRE = regexp.MustCompile(`var _ = Describe\("(.+)", func\(.*`)
-
-func findDescribes(logger logrus.FieldLogger, dir string) ([]string, error) {
-	// Find all Ginkgo specs in dir's test files.
-	// These can be grouped independently.
-	describeTable := make(map[string]struct{})
+func findLabels(dir string) ([]string, error) {
+	var labels []string
+	logger.Infof("Finding labels for ginkgo tests in path: %s", dir)
 	matches, err := filepath.Glob(filepath.Join(dir, "*_test.go"))
 	if err != nil {
 		return nil, err
 	}
 	for _, match := range matches {
-		b, err := os.ReadFile(match)
-		if err != nil {
-			return nil, err
-		}
-		specNames := topDescribeRE.FindAllSubmatch(b, -1)
-		if len(specNames) == 0 {
-			logger.Warnf("%s: found no top level describes, skipping", match)
-			continue
-		}
-		for _, possibleNames := range specNames {
-			if len(possibleNames) != 2 {
-				logger.Debugf("%s: expected to find 2 submatch, found %d:", match, len(possibleNames))
-				for _, name := range possibleNames {
-					logger.Debugf("\t%s\n", string(name))
-				}
-				continue
-			}
-			describe := strings.TrimSpace(string(possibleNames[1]))
-			describeTable[describe] = struct{}{}
-		}
+		labels = append(labels, extractLabelsFromFile(match)...)
 	}
-
-	describes := make([]string, len(describeTable))
-	i := 0
-	for describeKey := range describeTable {
-		describes[i] = describeKey
-		i++
-	}
-	return describes, nil
+	return labels, nil
 }
 
-func createChunkRegexp(numChunks, printChunk int, specs []string) (string, error) {
+func extractLabelsFromFile(filename string) []string {
+	var labels []string
+
+	// Create a Go source file set
+	fs := token.NewFileSet()
+	node, err := parser.ParseFile(fs, filename, nil, parser.AllErrors)
+	if err != nil {
+		fmt.Printf("Error parsing file %s: %v\n", filename, err)
+		return labels
+	}
+
+	ast.Inspect(node, func(n ast.Node) bool {
+		if callExpr, ok := n.(*ast.CallExpr); ok {
+			if fun, ok := callExpr.Fun.(*ast.Ident); ok && fun.Name == ginkgoDescribeFunctionName {
+				for _, arg := range callExpr.Args {
+					if ce, ok := arg.(*ast.CallExpr); ok {
+						if labelFunc, ok := ce.Fun.(*ast.Ident); ok && labelFunc.Name == ginkgoLabelFunctionName {
+							for _, arg := range ce.Args {
+								if lit, ok := arg.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+									labels = append(labels, strings.Trim(lit.Value, "\""))
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		return true
+	})
+
+	return labels
+}
+
+func createFilterLabelChunk(numChunks, printChunk int, specs []string) (string, error) {
 	numSpecs := len(specs)
 	if numSpecs < numChunks {
 		return "", fmt.Errorf("have more desired chunks (%d) than specs (%d)", numChunks, numSpecs)
@@ -162,72 +175,16 @@ func createChunkRegexp(numChunks, printChunk int, specs []string) (string, error
 	// Write out the regexp to focus chunk specs via `ginkgo -focus <re>`.
 	var reStr string
 	if len(chunk) == 1 {
-		reStr = fmt.Sprintf("%s .*", chunk[0])
+		reStr = fmt.Sprintf("%s", chunk[0])
 	} else {
 		sb := strings.Builder{}
 		sb.WriteString(chunk[0])
 		for _, test := range chunk[1:] {
-			sb.WriteString("|")
+			sb.WriteString(" || ")
 			sb.WriteString(test)
 		}
-		reStr = fmt.Sprintf("(%s) .*", sb.String())
+		reStr = fmt.Sprintf("%s", sb.String())
 	}
 
 	return reStr, nil
-}
-
-func findMinimalWordPrefixes(specs []string) (prefixes []string) {
-	// Create a word trie of all spec strings.
-	t := make(wordTrie)
-	for _, spec := range specs {
-		t.push(spec)
-	}
-
-	// Now find the first branch point for each path in the trie by DFS.
-	for word, node := range t {
-		var prefixElements []string
-	next:
-		if word != "" {
-			prefixElements = append(prefixElements, word)
-		}
-		if len(node.children) == 1 {
-			for nextWord, nextNode := range node.children {
-				word, node = nextWord, nextNode
-			}
-			goto next
-		}
-		// TODO: this might need to be joined by "\s+"
-		// in case multiple spaces were used in the spec name.
-		prefixes = append(prefixes, strings.Join(prefixElements, " "))
-	}
-
-	return prefixes
-}
-
-// wordTrie is a trie of word nodes, instead of individual characters.
-type wordTrie map[string]*wordTrieNode
-
-type wordTrieNode struct {
-	word     string
-	children map[string]*wordTrieNode
-}
-
-// push creates s branch of the trie from each word in s.
-func (t wordTrie) push(s string) {
-	split := strings.Split(s, " ")
-
-	curr := &wordTrieNode{word: "", children: t}
-	for _, sp := range split {
-		if sp = strings.TrimSpace(sp); sp == "" {
-			continue
-		}
-		next, hasNext := curr.children[sp]
-		if !hasNext {
-			next = &wordTrieNode{word: sp, children: make(map[string]*wordTrieNode)}
-			curr.children[sp] = next
-		}
-		curr = next
-	}
-	// Add termination node so "foo" and "foo bar" have a branching point of "foo".
-	curr.children[""] = &wordTrieNode{}
 }

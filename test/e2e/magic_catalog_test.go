@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("MagicCatalog", func() {
+var _ = Describe("MagicCatalog", Label("MagicCatalog"), func() {
 	var (
 		generatedNamespace corev1.Namespace
 		c                  client.Client

@@ -35,7 +35,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
-var _ = Describe("Operator Group", func() {
+var _ = Describe("Operator Group", Label("OperatorGroup"), func() {
 	var (
 		c                  operatorclient.ClientInterface
 		crc                versioned.Interface

@@ -31,7 +31,7 @@ import (
 )
 
 // Describes test specs for the Operator resource.
-var _ = Describe("Operator API", func() {
+var _ = Describe("Operator API", Label("Operator"), func() {
 	var (
 		clientCtx       context.Context
 		scheme          *runtime.Scheme

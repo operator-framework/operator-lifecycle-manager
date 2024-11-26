@@ -19,7 +19,7 @@ import (
 
 const magicCatalogDir = "magiccatalog"
 
-var _ = Describe("Global Catalog Exclusion", func() {
+var _ = Describe("Global Catalog Exclusion", Label("CatalogExclusion"), func() {
 	var (
 		generatedNamespace  corev1.Namespace
 		determinedE2eClient *util.DeterminedE2EClient

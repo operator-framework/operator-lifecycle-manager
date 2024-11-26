@@ -23,7 +23,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
-var _ = Describe("Package Manifest API lists available Operators from Catalog Sources", func() {
+var _ = Describe("Package Manifest API lists available Operators from Catalog Sources", Label("PackageManifest"), func() {
 	var (
 		crc                versioned.Interface
 		pmc                pmversioned.Interface
