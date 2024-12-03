@@ -394,8 +394,8 @@ github.com/imdario/mergo
 # github.com/inconshreveable/mousetrap v1.1.0
 ## explicit; go 1.18
 github.com/inconshreveable/mousetrap
-# github.com/itchyny/gojq v0.12.16
-## explicit; go 1.20
+# github.com/itchyny/gojq v0.12.17
+## explicit; go 1.21
 github.com/itchyny/gojq
 # github.com/itchyny/timefmt-go v0.1.6
 ## explicit; go 1.20
