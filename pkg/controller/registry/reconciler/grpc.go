@@ -531,6 +531,7 @@ func imageChanged(logger *logrus.Entry, updatePod *corev1.Pod, servingPods []*co
 func isPodDead(pod *corev1.Pod) bool {
 	for _, check := range []func(*corev1.Pod) bool{
 		isPodDeletedByTaintManager,
+		isPodTerminatedByKubelet,
 	} {
 		if check(pod) {
 			return true
@@ -545,6 +546,19 @@ func isPodDeletedByTaintManager(pod *corev1.Pod) bool {
 	}
 	for _, condition := range pod.Status.Conditions {
 		if condition.Type == corev1.DisruptionTarget && condition.Reason == "DeletionByTaintManager" && condition.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
+// This reason is set when the Pod was evicted due to resource pressure on the Node
+func isPodTerminatedByKubelet(pod *corev1.Pod) bool {
+	if pod.DeletionTimestamp == nil {
+		return false
+	}
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.DisruptionTarget && condition.Reason == "TerminationByKubelet" && condition.Status == corev1.ConditionTrue {
 			return true
 		}
 	}
