@@ -1835,6 +1835,14 @@ func TestValidateV1Beta1CRDCompatibility(t *testing.T) {
 			newCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.no-versions-list.yaml"),
 			want:   validationError{fmt.Errorf("error validating cluster.com/v1alpha1, Kind=testcrd \"my-cr-1\": updated validation is too restrictive: [].spec.scalar: Invalid value: 2: spec.scalar in body should be greater than or equal to 3")},
 		},
+		{
+			name: "crd with incorrect comparison",
+			existingObjects: []runtime.Object{
+				unstructuredForFile("testdata/postgrestolerations/pgadmin.cr.yaml"),
+			},
+			oldCRD: unversionedCRDForV1beta1File("testdata/postgrestolerations/crd.yaml"),
+			newCRD: unversionedCRDForV1beta1File("testdata/postgrestolerations/crd.yaml"),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

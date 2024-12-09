@@ -2246,11 +2246,11 @@ func validateExistingCRs(dynamicClient dynamic.Interface, gr schema.GroupResourc
 			return dynamicClient.Resource(gvr).List(context.TODO(), opts)
 		}))
 		validationFn := func(obj runtime.Object) error {
-			err = validation.ValidateCustomResource(field.NewPath(""), obj, validator).ToAggregate()
+			// lister will only provide unstructured objects as runtime.Object, so this should never fail to convert
+			// if it does, it's a programming error
+			cr := obj.(*unstructured.Unstructured)
+			err = validation.ValidateCustomResource(field.NewPath(""), cr.UnstructuredContent(), validator).ToAggregate()
 			if err != nil {
-				// lister will only provide unstructured objects as runtime.Object, so this should never fail to convert
-				// if it does, it's a programming error
-				cr := obj.(*unstructured.Unstructured)
 				var namespacedName string
 				if cr.GetNamespace() == "" {
 					namespacedName = cr.GetName()
