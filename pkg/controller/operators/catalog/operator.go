@@ -238,6 +238,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 						Namespace:   csv.Namespace,
 						Labels:      csv.Labels,
 						Annotations: csv.Annotations,
+						UID:         csv.UID,
 					},
 					Spec: v1alpha1.ClusterServiceVersionSpec{
 						CustomResourceDefinitions: csv.Spec.CustomResourceDefinitions,
@@ -745,10 +746,15 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	// Namespace sync for resolving subscriptions
 	namespaceInformer := informers.NewSharedInformerFactory(op.opClient.KubernetesInterface(), resyncPeriod()).Core().V1().Namespaces()
 	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
-	op.nsResolveQueue = workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](),
+	op.nsResolveQueue = workqueue.NewTypedRateLimitingQueueWithConfig[any](
+		workqueue.NewTypedItemExponentialFailureRateLimiter[any](1*time.Second, 30*time.Second),
 		workqueue.TypedRateLimitingQueueConfig[any]{
 			Name: "resolve",
 		})
+	//op.nsResolveQueue = workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](),
+	//	workqueue.TypedRateLimitingQueueConfig[any]{
+	//		Name: "resolve",
+	//	})
 	namespaceQueueInformer, err := queueinformer.NewQueueInformer(
 		ctx,
 		queueinformer.WithLogger(op.logger),
@@ -1313,6 +1319,9 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		// from users/admins. Resyncing the namespace again is unlikely to resolve
 		// not-satisfiable error
 		if _, ok := err.(solver.NotSatisfiable); ok {
+			if err := o.ResyncInformers(); err != nil {
+				logger.WithError(err).Infof("error resyncing informers")
+			}
 			logger.WithError(err).Debug("resolution failed")
 			_, updateErr := o.updateSubscriptionStatuses(
 				o.setSubsCond(subs, v1alpha1.SubscriptionCondition{
@@ -1325,7 +1334,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 				logger.WithError(updateErr).Debug("failed to update subs conditions")
 				return updateErr
 			}
-			return nil
+			return err
 		}
 
 		_, updateErr := o.updateSubscriptionStatuses(
@@ -1736,7 +1745,8 @@ func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, cond v1alpha1.Subs
 
 	for _, sub := range subs {
 		subCond := sub.Status.GetCondition(cond.Type)
-		if subCond.Equals(cond) {
+
+		if subCond.Type == cond.Type && subCond.Status == cond.Status && subCond.Reason == cond.Reason {
 			continue
 		}
 		sub.Status.LastUpdated = lastUpdated

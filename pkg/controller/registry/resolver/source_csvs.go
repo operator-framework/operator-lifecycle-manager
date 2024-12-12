@@ -40,6 +40,9 @@ func (csp *csvSourceProvider) Sources(namespaces ...string) map[cache.SourceKey]
 			listSubscriptions: func(ctx context.Context) (*v1alpha1.SubscriptionList, error) {
 				return csp.client.OperatorsV1alpha1().Subscriptions(namespace).List(ctx, metav1.ListOptions{})
 			},
+			//getCSV: func(ctx context.Context, namespace string, name string) (*v1alpha1.ClusterServiceVersion, error) {
+			//	return csp.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(ctx, name, metav1.GetOptions{})
+			//},
 		}
 		break // first ns is assumed to be the target ns, todo: make explicit
 	}
@@ -54,6 +57,7 @@ type csvSource struct {
 	logger    logrus.StdLogger
 
 	listSubscriptions func(context.Context) (*v1alpha1.SubscriptionList, error)
+	// getCSV            func(ctx context.Context, namespace string, name string) (*v1alpha1.ClusterServiceVersion, error)
 }
 
 func (s *csvSource) Snapshot(ctx context.Context) (*cache.Snapshot, error) {
@@ -93,19 +97,26 @@ func (s *csvSource) Snapshot(ctx context.Context) (*cache.Snapshot, error) {
 			continue
 		}
 
-		if cachedSubscription, ok := csvSubscriptions[csv]; !ok || cachedSubscription == nil {
-			// we might be in an incoherent state, so let's check with live clients to make sure
-			realSubscriptions, err := s.listSubscriptions(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to list subscriptions: %w", err)
-			}
-			for _, realSubscription := range realSubscriptions.Items {
-				if realSubscription.Status.InstalledCSV == csv.Name {
-					// oops, live cluster state is coherent
-					return nil, fmt.Errorf("lister caches incoherent for CSV %s/%s - found owning Subscription %s/%s", csv.Namespace, csv.Name, realSubscription.Namespace, realSubscription.Name)
-				}
-			}
-		}
+		//if cachedSubscription, ok := csvSubscriptions[csv]; !ok || cachedSubscription == nil {
+		//	// we might be in an incoherent state, so let's check with live clients to make sure
+		//	realSubscriptions, err := s.listSubscriptions(ctx)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to list subscriptions: %w", err)
+		//	}
+		//	for _, realSubscription := range realSubscriptions.Items {
+		//		if realSubscription.Status.InstalledCSV == csv.Name {
+		//			// oops, live cluster state is coherent
+		//			return nil, fmt.Errorf("lister caches incoherent for CSV %s/%s - found owning Subscription %s/%s", csv.Namespace, csv.Name, realSubscription.Namespace, realSubscription.Name)
+		//		}
+		//	}
+		//	realCsv, err := s.getCSV(ctx, csv.Namespace, csv.Name)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("lister caches might be incoherent for CSV %s/%s: %w", csv.Namespace, csv.Name, err)
+		//	}
+		//	if realCsv.GetUID() != csv.GetUID() {
+		//		return nil, fmt.Errorf("lister caches incoherent for CSV %s/%s: differing UIDs (%s != %s)", csv.Namespace, csv.Name, csv.UID)
+		//	}
+		//}
 
 		if failForwardEnabled {
 			replacementChainEndsInFailure, err := isReplacementChainThatEndsInFailure(csv, ReplacementMapping(csvs))

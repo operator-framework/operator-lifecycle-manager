@@ -54,6 +54,8 @@ type Operator interface {
 	// RunInformers starts the Operator's underlying Informers.
 	RunInformers(ctx context.Context)
 
+	ResyncInformers() error
+
 	// Run starts the Operator and its underlying Informers.
 	Run(ctx context.Context)
 }
@@ -195,6 +197,17 @@ func (o *operator) Run(ctx context.Context) {
 			<-ctx.Done()
 		}()
 	})
+}
+
+func (o *operator) ResyncInformers() error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for _, informer := range o.informers {
+		if err := informer.GetStore().Resync(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (o *operator) start(ctx context.Context) error {

@@ -91,7 +91,7 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 }
 
 func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
-	subs, err := r.listSubscriptions(namespace)
+	subs, err := r.subLister.Subscriptions(namespace).List(labels.Everything())
 	if err != nil {
 		return nil, nil, nil, err
 	}
