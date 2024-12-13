@@ -47,7 +47,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/pager"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 	utilclock "k8s.io/utils/clock"
 
@@ -760,7 +759,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		queueinformer.WithLogger(op.logger),
 		queueinformer.WithQueue(op.nsResolveQueue),
 		queueinformer.WithInformer(namespaceInformer.Informer()),
-		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncResolvingNamespace).ToSyncer()),
+		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncResolvingNamespace).ToSyncerWithDelete(op.handleDeletion)),
 	)
 	if err != nil {
 		return nil, err
@@ -1772,10 +1771,10 @@ func (o *Operator) removeSubsCond(subs []*v1alpha1.Subscription, condType v1alph
 
 func (o *Operator) updateSubscriptionStatuses(subs []*v1alpha1.Subscription) ([]*v1alpha1.Subscription, error) {
 	var (
-		errs       []error
-		mu         sync.Mutex
-		wg         sync.WaitGroup
-		getOpts    = metav1.GetOptions{}
+		errs []error
+		mu   sync.Mutex
+		wg   sync.WaitGroup
+		// getOpts    = metav1.GetOptions{}
 		updateOpts = metav1.UpdateOptions{}
 	)
 
@@ -1783,23 +1782,27 @@ func (o *Operator) updateSubscriptionStatuses(subs []*v1alpha1.Subscription) ([]
 		wg.Add(1)
 		go func(sub *v1alpha1.Subscription) {
 			defer wg.Done()
-
-			update := func() error {
-				// Update the status of the latest revision
-				latest, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Get(context.TODO(), sub.GetName(), getOpts)
-				if err != nil {
-					return err
-				}
-				latest.Status = sub.Status
-				*sub = *latest
-				_, err = o.client.OperatorsV1alpha1().Subscriptions(sub.Namespace).UpdateStatus(context.TODO(), latest, updateOpts)
-				return err
-			}
-			if err := retry.RetryOnConflict(retry.DefaultRetry, update); err != nil {
+			if _, err := o.client.OperatorsV1alpha1().Subscriptions(sub.Namespace).UpdateStatus(context.TODO(), sub, updateOpts); err != nil {
 				mu.Lock()
 				defer mu.Unlock()
 				errs = append(errs, err)
 			}
+			//update := func() error {
+			//	// Update the status of the latest revision
+			//	latest, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Get(context.TODO(), sub.GetName(), getOpts)
+			//	if err != nil {
+			//		return err
+			//	}
+			//	latest.Status = sub.Status
+			//	*sub = *latest
+			//	_, err = o.client.OperatorsV1alpha1().Subscriptions(sub.Namespace).UpdateStatus(context.TODO(), latest, updateOpts)
+			//	return err
+			//}
+			//if err := retry.RetryOnConflict(retry.DefaultRetry, update); err != nil {
+			//	mu.Lock()
+			//	defer mu.Unlock()
+			//	errs = append(errs, err)
+			//}
 		}(sub)
 	}
 	wg.Wait()
@@ -2860,31 +2863,33 @@ func (o *Operator) getUpdatedOwnerReferences(refs []metav1.OwnerReference, names
 }
 
 func (o *Operator) listSubscriptions(namespace string) (subs []*v1alpha1.Subscription, err error) {
-	list, err := o.client.OperatorsV1alpha1().Subscriptions(namespace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return
-	}
-
-	subs = make([]*v1alpha1.Subscription, 0)
-	for i := range list.Items {
-		subs = append(subs, &list.Items[i])
-	}
-
-	return
+	return o.lister.OperatorsV1alpha1().SubscriptionLister().Subscriptions(namespace).List(labels.Everything())
+	//list, err := o.client.OperatorsV1alpha1().Subscriptions(namespace).List(context.TODO(), metav1.ListOptions{})
+	//if err != nil {
+	//	return
+	//}
+	//
+	//subs = make([]*v1alpha1.Subscription, 0)
+	//for i := range list.Items {
+	//	subs = append(subs, &list.Items[i])
+	//}
+	//
+	//return
 }
 
 func (o *Operator) listInstallPlans(namespace string) (ips []*v1alpha1.InstallPlan, err error) {
-	list, err := o.client.OperatorsV1alpha1().InstallPlans(namespace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return
-	}
-
-	ips = make([]*v1alpha1.InstallPlan, 0)
-	for i := range list.Items {
-		ips = append(ips, &list.Items[i])
-	}
-
-	return
+	return o.lister.OperatorsV1alpha1().InstallPlanLister().InstallPlans(namespace).List(labels.Everything())
+	//list, err := o.client.OperatorsV1alpha1().InstallPlans(namespace).List(context.TODO(), metav1.ListOptions{})
+	//if err != nil {
+	//	return
+	//}
+	//
+	//ips = make([]*v1alpha1.InstallPlan, 0)
+	//for i := range list.Items {
+	//	ips = append(ips, &list.Items[i])
+	//}
+	//
+	//return
 }
 
 // competingCRDOwnersExist returns true if there exists a CSV that owns at least one of the given CSVs owned CRDs (that's not the given CSV)
