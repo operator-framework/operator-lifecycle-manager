@@ -232,7 +232,7 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 		return err
 	}
 
-	queueOperator, err := queueinformer.NewOperator(crClient.Discovery())
+	queueOperator, err := queueinformer.NewOperator(crClient.Discovery(), queueinformer.WithNumWorkers(1))
 	if err != nil {
 		return err
 	}

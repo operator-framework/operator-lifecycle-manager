@@ -69,7 +69,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, logger *logrus.Logg
 		return nil, err
 	}
 
-	queueOperator, err := queueinformer.NewOperator(opClient.KubernetesInterface().Discovery(), queueinformer.WithOperatorLogger(logger))
+	queueOperator, err := queueinformer.NewOperator(opClient.KubernetesInterface().Discovery(), queueinformer.WithOperatorLogger(logger), queueinformer.WithNumWorkers(1))
 	if err != nil {
 		return nil, err
 	}
