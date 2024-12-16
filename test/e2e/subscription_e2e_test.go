@@ -3308,14 +3308,15 @@ func fetchSubscription(crc versioned.Interface, namespace, name string, checker 
 		thisState, thisCSV, thisInstallPlanRef := fetchedSubscription.Status.State, fetchedSubscription.Status.CurrentCSV, fetchedSubscription.Status.InstallPlanRef
 		if thisState != lastState || thisCSV != lastCSV || !equality.Semantic.DeepEqual(thisInstallPlanRef, lastInstallPlanRef) {
 			lastState, lastCSV, lastInstallPlanRef = thisState, thisCSV, thisInstallPlanRef
-			log(fmt.Sprintf("subscription %s/%s state: %s (csv %s): installPlanRef: %#v", namespace, name, thisState, thisCSV, thisInstallPlanRef))
-			log(fmt.Sprintf("subscription %s/%s state: %s (csv %s): status: %#v", namespace, name, thisState, thisCSV, fetchedSubscription.Status))
+			log(fmt.Sprintf("subscription %s/%s state: %s (csv %s): installPlanRef: %s", namespace, name, thisState, thisCSV, toJSON(thisInstallPlanRef)))
+			log(fmt.Sprintf("subscription %s/%s state: %s (csv %s): status: %s", namespace, name, thisState, thisCSV, toJSON(fetchedSubscription.Status)))
 		}
 		return checker(fetchedSubscription), nil
 	})
 	if err != nil {
-		log(fmt.Sprintf("subscription %s/%s never got correct status: %#v", namespace, name, fetchedSubscription.Status))
-		log(fmt.Sprintf("subscription %s/%s spec: %#v", namespace, name, fetchedSubscription.Spec))
+		log(fmt.Sprintf("subscription %s/%s never got correct status: %s", namespace, name, toJSON(fetchedSubscription.Status)))
+		log(fmt.Sprintf("subscription %s/%s spec: %s", namespace, name, toJSON(fetchedSubscription.Spec)))
+		log(fmt.Sprintf("error %v", err))
 		return nil, err
 	}
 	return fetchedSubscription, nil

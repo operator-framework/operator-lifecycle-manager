@@ -4,6 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
+	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/client-go/util/workqueue"
+
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -12,6 +17,7 @@ import (
 
 	"github.com/operator-framework/api/pkg/operators/install"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	resolverCache "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
@@ -29,13 +35,16 @@ func init() {
 // subscriptionSyncer syncs Subscriptions by invoking its reconciler chain for each Subscription event it receives.
 type subscriptionSyncer struct {
 	logger                 *logrus.Logger
+	client                 versioned.Interface
 	clock                  utilclock.Clock
-	reconcilers            kubestate.ReconcilerChain
+	reconcilers            ReconcilerChain
 	subscriptionCache      cache.Indexer
+	subscriptionLister     listers.SubscriptionLister
 	installPlanLister      listers.InstallPlanLister
 	globalCatalogNamespace string
 	notify                 kubestate.NotifyFunc
 	sourceProvider         resolverCache.SourceProvider
+	nsResolveQueue         workqueue.TypedRateLimitingInterface[any]
 }
 
 // now returns the Syncer's current time.
@@ -47,16 +56,24 @@ func (s *subscriptionSyncer) now() *metav1.Time {
 // Sync reconciles Subscription events by invoking a sequence of reconcilers, passing the result of each
 // successful reconciliation as an argument to its successor.
 func (s *subscriptionSyncer) Sync(ctx context.Context, event kubestate.ResourceEvent) error {
-	res := &v1alpha1.Subscription{}
-	if err := scheme.Convert(event.Resource(), res, nil); err != nil {
-		return err
+	sub, ok := event.Resource().(*v1alpha1.Subscription)
+	if !ok {
+		tombstone, ok := event.Resource().(cache.DeletedFinalStateUnknown)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", event.Resource()))
+			return nil
+		}
+
+		sub, ok = tombstone.Obj.(*v1alpha1.Subscription)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a metav1 object %#v", event.Resource()))
+			return nil
+		}
 	}
 
-	metrics.EmitSubMetric(res)
-
 	logger := s.logger.WithFields(logrus.Fields{
-		"reconciling": fmt.Sprintf("%T", res),
-		"selflink":    res.GetSelfLink(),
+		"reconciling": fmt.Sprintf("%T", event),
+		"selflink":    sub.GetSelfLink(),
 		"event":       event.Type(),
 	})
 	logger.Info("syncing")
@@ -64,23 +81,32 @@ func (s *subscriptionSyncer) Sync(ctx context.Context, event kubestate.ResourceE
 	// Enter initial state based on subscription and event type
 	// TODO: Consider generalizing initial generic add, update, delete transitions in the kubestate package.
 	// 		 Possibly make a resource event aware bridge between Sync and reconciler.
-	initial := NewSubscriptionState(res.DeepCopy())
-	switch event.Type() {
-	case kubestate.ResourceAdded:
-		initial = initial.Add()
-	case kubestate.ResourceUpdated:
-		initial = initial.Update()
-		metrics.UpdateSubsSyncCounterStorage(res)
-	case kubestate.ResourceDeleted:
-		initial = initial.Delete()
-		metrics.DeleteSubsMetric(res)
+	if event.Type() == kubestate.ResourceDeleted {
+		metrics.DeleteSubsMetric(sub)
+		return nil
 	}
 
-	reconciled, err := s.reconcilers.Reconcile(ctx, initial)
+	res, err := s.subscriptionLister.Subscriptions(sub.GetNamespace()).Get(sub.GetName())
+	if err != nil {
+		return err
+	}
+
+	metrics.EmitSubMetric(res)
+	metrics.UpdateSubsSyncCounterStorage(res)
+
+	reconciled, err := s.reconcilers.Reconcile(ctx, res.DeepCopy())
 	if err != nil {
 		logger.WithError(err).Warn("an error was encountered during reconciliation")
 		return err
 	}
+
+	if !equality.Semantic.DeepEqual(res.Status, reconciled.Status) {
+		if _, err := s.client.OperatorsV1alpha1().Subscriptions(reconciled.GetNamespace()).UpdateStatus(ctx, reconciled, metav1.UpdateOptions{}); err != nil {
+			return err
+		}
+	}
+
+	s.nsResolveQueue.Add(res.GetNamespace())
 
 	logger.WithFields(logrus.Fields{
 		"state": fmt.Sprintf("%T", reconciled),
@@ -211,12 +237,15 @@ func newSyncerWithConfig(ctx context.Context, config *syncerConfig) (kubestate.S
 	}
 
 	s := &subscriptionSyncer{
-		logger:            config.logger,
-		clock:             config.clock,
-		reconcilers:       config.reconcilers,
-		subscriptionCache: config.subscriptionInformer.GetIndexer(),
-		installPlanLister: config.lister.OperatorsV1alpha1().InstallPlanLister(),
-		sourceProvider:    config.sourceProvider,
+		logger:             config.logger,
+		client:             config.client,
+		clock:              config.clock,
+		reconcilers:        config.reconcilers,
+		subscriptionCache:  config.subscriptionInformer.GetIndexer(),
+		installPlanLister:  config.lister.OperatorsV1alpha1().InstallPlanLister(),
+		subscriptionLister: config.lister.OperatorsV1alpha1().SubscriptionLister(),
+		sourceProvider:     config.sourceProvider,
+		nsResolveQueue:     config.nsResolveQueue,
 		notify: func(event kubestate.ResourceEvent) {
 			// Notify Subscriptions by enqueuing to the Subscription queue.
 			config.subscriptionQueue.Add(event)
@@ -225,15 +254,13 @@ func newSyncerWithConfig(ctx context.Context, config *syncerConfig) (kubestate.S
 
 	// Build a reconciler chain from the default and configured reconcilers
 	// Default reconcilers should always come first in the chain
-	defaultReconcilers := kubestate.ReconcilerChain{
+	defaultReconcilers := ReconcilerChain{
 		&installPlanReconciler{
 			now:               s.now,
-			client:            config.client,
 			installPlanLister: config.lister.OperatorsV1alpha1().InstallPlanLister(),
 		},
 		&catalogHealthReconciler{
 			now:                       s.now,
-			client:                    config.client,
 			catalogLister:             config.lister.OperatorsV1alpha1().CatalogSourceLister(),
 			registryReconcilerFactory: config.registryReconcilerFactory,
 			globalCatalogNamespace:    config.globalCatalogNamespace,

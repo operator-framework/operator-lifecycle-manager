@@ -110,29 +110,6 @@ type deletedState struct {
 
 func (d deletedState) isDeletedState() {}
 
-type Reconciler interface {
-	Reconcile(ctx context.Context, in State) (out State, err error)
-}
-
-type ReconcilerFunc func(ctx context.Context, in State) (out State, err error)
-
-func (r ReconcilerFunc) Reconcile(ctx context.Context, in State) (out State, err error) {
-	return r(ctx, in)
-}
-
-type ReconcilerChain []Reconciler
-
-func (r ReconcilerChain) Reconcile(ctx context.Context, in State) (out State, err error) {
-	out = in
-	for _, rec := range r {
-		if out, err = rec.Reconcile(ctx, out); err != nil || out == nil || out.Terminal() {
-			break
-		}
-	}
-
-	return
-}
-
 // ResourceEventType tells an operator what kind of event has occurred on a given resource.
 type ResourceEventType string
 

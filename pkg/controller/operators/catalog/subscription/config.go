@@ -11,7 +11,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	resolverCache "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
 
@@ -24,7 +23,8 @@ type syncerConfig struct {
 	catalogInformer           cache.SharedIndexInformer
 	installPlanInformer       cache.SharedIndexInformer
 	subscriptionQueue         workqueue.TypedRateLimitingInterface[any]
-	reconcilers               kubestate.ReconcilerChain
+	nsResolveQueue            workqueue.TypedRateLimitingInterface[any]
+	reconcilers               ReconcilerChain
 	registryReconcilerFactory reconciler.RegistryReconcilerFactory
 	globalCatalogNamespace    string
 	sourceProvider            resolverCache.SourceProvider
@@ -37,7 +37,7 @@ func defaultSyncerConfig() *syncerConfig {
 	return &syncerConfig{
 		logger:      logrus.New(),
 		clock:       utilclock.RealClock{},
-		reconcilers: kubestate.ReconcilerChain{},
+		reconcilers: ReconcilerChain{},
 	}
 }
 
@@ -51,6 +51,12 @@ func (s *syncerConfig) apply(options []SyncerOption) {
 func WithLogger(logger *logrus.Logger) SyncerOption {
 	return func(config *syncerConfig) {
 		config.logger = logger
+	}
+}
+
+func WithNamespaceResolveQueue(queue workqueue.TypedRateLimitingInterface[any]) SyncerOption {
+	return func(config *syncerConfig) {
+		config.nsResolveQueue = queue
 	}
 }
 
@@ -105,7 +111,7 @@ func WithSubscriptionQueue(subscriptionQueue workqueue.TypedRateLimitingInterfac
 
 // WithAppendedReconcilers adds the given reconcilers to the end of a syncer's reconciler chain, to be
 // invoked after its default reconcilers have been called.
-func WithAppendedReconcilers(reconcilers ...kubestate.Reconciler) SyncerOption {
+func WithAppendedReconcilers(reconcilers ...Reconciler) SyncerOption {
 	return func(config *syncerConfig) {
 		// Add non-nil reconcilers to the chain
 		for _, rec := range reconcilers {
@@ -158,8 +164,8 @@ func (s *syncerConfig) validate() (err error) {
 		err = newInvalidConfigError("nil installplan informer")
 	case s.subscriptionQueue == nil:
 		err = newInvalidConfigError("nil subscription queue")
-	case len(s.reconcilers) == 0:
-		err = newInvalidConfigError("no reconcilers")
+	case s.nsResolveQueue == nil:
+		err = newInvalidConfigError("no namespace resolve queue")
 	case s.registryReconcilerFactory == nil:
 		err = newInvalidConfigError("nil reconciler factory")
 	case s.globalCatalogNamespace == metav1.NamespaceAll:
