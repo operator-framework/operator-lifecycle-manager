@@ -3298,7 +3298,7 @@ func fetchSubscription(crc versioned.Interface, namespace, name string, checker 
 	var lastCSV string
 	var lastInstallPlanRef *corev1.ObjectReference
 
-	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+	err := wait.PollUntilContextTimeout(context.TODO(), pollInterval, pollDuration, true, func(ctx context.Context) (bool, error) {
 		var err error
 		fetchedSubscription, err = crc.OperatorsV1alpha1().Subscriptions(namespace).Get(context.Background(), name, metav1.GetOptions{})
 		if err != nil || fetchedSubscription == nil {

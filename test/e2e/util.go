@@ -3,6 +3,7 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
@@ -62,6 +63,14 @@ var (
 	genName               = names.SimpleNameGenerator.GenerateName
 	nonAlphaNumericRegexp = regexp.MustCompile(`[^a-zA-Z0-9]`)
 )
+
+func toJSON(obj interface{}) string {
+	b, err := json.Marshal(obj)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
 
 // newKubeClient configures a client to talk to the cluster defined by KUBECONFIG
 func newKubeClient() operatorclient.ClientInterface {
