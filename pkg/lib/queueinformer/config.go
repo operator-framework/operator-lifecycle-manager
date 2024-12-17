@@ -233,6 +233,6 @@ func (c *operatorConfig) validate() (err error) {
 func defaultOperatorConfig() *operatorConfig {
 	return &operatorConfig{
 		logger:     logrus.New(),
-		numWorkers: 1,
+		numWorkers: 2,
 	}
 }

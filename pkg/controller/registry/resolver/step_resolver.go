@@ -2,6 +2,7 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -15,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
@@ -89,7 +91,7 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 }
 
 func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
-	subs, err := r.subLister.Subscriptions(namespace).List(labels.Everything())
+	subs, err := r.listSubscriptions(namespace)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -117,9 +119,9 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 
 	// if there's no error, we were able to satisfy all constraints in the subscription set, so we calculate what
 	// changes to persist to the cluster and write them out as `steps`
-	var steps []*v1alpha1.Step
-	var updatedSubs []*v1alpha1.Subscription
-	var bundleLookups []v1alpha1.BundleLookup
+	steps := []*v1alpha1.Step{}
+	updatedSubs := []*v1alpha1.Subscription{}
+	bundleLookups := []v1alpha1.BundleLookup{}
 	for _, op := range operators {
 		// Find any existing subscriptions that resolve to this operator.
 		existingSubscriptions := make(map[*v1alpha1.Subscription]bool)
@@ -217,9 +219,8 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 				continue
 			}
 			// update existing subscription status
-			updatedSub := sub.DeepCopy()
-			updatedSub.Status.CurrentCSV = op.Name
-			updatedSubs = append(updatedSubs, updatedSub)
+			sub.Status.CurrentCSV = op.Name
+			updatedSubs = append(updatedSubs, sub)
 		}
 	}
 
@@ -242,19 +243,19 @@ func (r *OperatorStepResolver) hasExistingCurrentCSV(sub *v1alpha1.Subscription)
 	return false, err // Can't answer this question right now.
 }
 
-//func (r *OperatorStepResolver) listSubscriptions(namespace string) ([]*v1alpha1.Subscription, error) {
-//	list, err := r.client.OperatorsV1alpha1().Subscriptions(namespace).List(context.TODO(), metav1.ListOptions{})
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	var subs []*v1alpha1.Subscription
-//	for i := range list.Items {
-//		subs = append(subs, &list.Items[i])
-//	}
-//
-//	return subs, nil
-//}
+func (r *OperatorStepResolver) listSubscriptions(namespace string) ([]*v1alpha1.Subscription, error) {
+	list, err := r.client.OperatorsV1alpha1().Subscriptions(namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	var subs []*v1alpha1.Subscription
+	for i := range list.Items {
+		subs = append(subs, &list.Items[i])
+	}
+
+	return subs, nil
+}
 
 type mergedSourceProvider struct {
 	sps    []cache.SourceProvider
