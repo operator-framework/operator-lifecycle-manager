@@ -130,6 +130,7 @@ type Operator struct {
 	clientFactory            clients.Factory
 	muInstallPlan            sync.Mutex
 	resolverSourceProvider   *resolver.RegistrySourceProvider
+	resolverMu               sync.Mutex
 }
 
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
@@ -213,6 +214,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		installPlanTimeout:       installPlanTimeout,
 		bundleUnpackTimeout:      bundleUnpackTimeout,
 		clientFactory:            clients.NewFactory(validatingConfig),
+		resolverMu:               sync.Mutex{},
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.resolverSourceProvider = resolver.SourceProviderFromRegistryClientProvider(op.sources, lister.OperatorsV1alpha1().CatalogSourceLister(), logger)
@@ -1206,6 +1208,9 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 }
 
 func (o *Operator) syncResolvingNamespace(obj interface{}) error {
+	o.resolverMu.Lock()
+	defer o.resolverMu.Unlock()
+
 	ns, ok := obj.(*corev1.Namespace)
 	if !ok {
 		o.logger.Infof("wrong type: %#v", obj)
@@ -1472,27 +1477,31 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	// Remove resolutionfailed condition from subscriptions
 	o.removeSubsCond(subs, v1alpha1.SubscriptionResolutionFailed)
 
-	newSub := true
 	for _, updatedSub := range updatedSubs {
+		isNewSub := true
 		updatedSub.Status.RemoveConditions(v1alpha1.SubscriptionResolutionFailed)
 		for i, sub := range subs {
 			if sub.Name == updatedSub.Name && sub.Namespace == updatedSub.Namespace {
 				subs[i] = updatedSub
-				newSub = false
+				isNewSub = false
 				break
 			}
 		}
-		if newSub {
+		if isNewSub {
 			subs = append(subs, updatedSub)
-			continue
 		}
-		newSub = true
 	}
 
+	// *********************************** WARNING *********************************** //
+	// if updateSubscriptionStatuses call fails and the IP reference was changed       //
+	// in this run, we'll be screwed because the IP would have been created but the    //
+	// subscription won't carry its reference. And, if the CSV gets created by the IP, //
+	// it won't be associated with the Subscription -> perma-failure on resolution     //
+	// ******************************************************************************* //
 	// Update subscriptions with all changes so far
 	_, updateErr := o.updateSubscriptionStatuses(subs)
 	if updateErr != nil {
-		logger.WithError(updateErr).Warn("failed to update subscription conditions")
+		logger.WithField("irreconcilable-resolution", namespace).WithError(updateErr).Warn("failed to patch subscription conditions")
 		return updateErr
 	}
 
@@ -1672,7 +1681,7 @@ func (o *Operator) createInstallPlan(namespace string, gen int, subs []*v1alpha1
 		return nil, nil
 	}
 
-	csvNames := []string{}
+	var csvNames []string
 	catalogSourceMap := map[string]struct{}{}
 	for _, s := range steps {
 		if s.Resource.Kind == "ClusterServiceVersion" {
@@ -1681,7 +1690,7 @@ func (o *Operator) createInstallPlan(namespace string, gen int, subs []*v1alpha1
 		catalogSourceMap[s.Resource.CatalogSource] = struct{}{}
 	}
 
-	catalogSources := []string{}
+	var catalogSources []string
 	for s := range catalogSourceMap {
 		catalogSources = append(catalogSources, s)
 	}
@@ -1717,12 +1726,18 @@ func (o *Operator) createInstallPlan(namespace string, gen int, subs []*v1alpha1
 		CatalogSources: catalogSources,
 		BundleLookups:  bundleLookups,
 	}
-	res, err = o.client.OperatorsV1alpha1().InstallPlans(namespace).UpdateStatus(context.TODO(), res, metav1.UpdateOptions{})
+
+	// *************************** WARNING *************************** //
+	// If this call fails, the IP will never do anything since it      //
+	// requires the steps to exist in .status                          //
+	// *************************************************************** //
+	newRes, err := o.client.OperatorsV1alpha1().InstallPlans(namespace).UpdateStatus(context.TODO(), res, metav1.UpdateOptions{})
 	if err != nil {
+		o.logger.WithField("irreconcilable-ip", res.GetName()).WithError(err).Warn("error updating installplan status after creation")
 		return nil, err
 	}
 
-	return reference.GetReference(res)
+	return reference.GetReference(newRes)
 }
 
 // setSubsCond will set the condition to the subscription if it doesn't already
@@ -1746,7 +1761,7 @@ func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, cond v1alpha1.Subs
 	return subList
 }
 
-// removeSubsCond removes the given condition from all of the subscriptions in the input
+// removeSubsCond removes the given condition from all the subscriptions in the input
 func (o *Operator) removeSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.SubscriptionConditionType) {
 	lastUpdated := o.now()
 	for _, sub := range subs {
