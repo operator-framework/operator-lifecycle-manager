@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/labeller"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/validatingroundtripper"
 	errorwrap "github.com/pkg/errors"
@@ -114,7 +116,7 @@ type Operator struct {
 	subQueueSet              *queueinformer.ResourceQueueSet
 	ipQueueSet               *queueinformer.ResourceQueueSet
 	ogQueueSet               *queueinformer.ResourceQueueSet
-	nsResolveQueue           workqueue.TypedRateLimitingInterface[any]
+	nsResolveQueue           workqueue.TypedRateLimitingInterface[kubestate.ResourceEvent]
 	namespace                string
 	recorder                 record.EventRecorder
 	sources                  *grpc.SourceStore
@@ -268,8 +270,9 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	// Wire InstallPlans
 	ipInformer := crInformerFactory.Operators().V1alpha1().InstallPlans()
 	op.lister.OperatorsV1alpha1().RegisterInstallPlanLister(metav1.NamespaceAll, ipInformer.Lister())
-	ipQueue := workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](),
-		workqueue.TypedRateLimitingQueueConfig[any]{
+	ipQueue := workqueue.NewTypedRateLimitingQueueWithConfig[kubestate.ResourceEvent](
+		workqueue.DefaultTypedControllerRateLimiter[kubestate.ResourceEvent](),
+		workqueue.TypedRateLimitingQueueConfig[kubestate.ResourceEvent]{
 			Name: "ips",
 		})
 	op.ipQueueSet.Set(metav1.NamespaceAll, ipQueue)
@@ -290,8 +293,9 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 
 	operatorGroupInformer := crInformerFactory.Operators().V1().OperatorGroups()
 	op.lister.OperatorsV1().RegisterOperatorGroupLister(metav1.NamespaceAll, operatorGroupInformer.Lister())
-	ogQueue := workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](),
-		workqueue.TypedRateLimitingQueueConfig[any]{
+	ogQueue := workqueue.NewTypedRateLimitingQueueWithConfig[kubestate.ResourceEvent](
+		workqueue.DefaultTypedControllerRateLimiter[kubestate.ResourceEvent](),
+		workqueue.TypedRateLimitingQueueConfig[kubestate.ResourceEvent]{
 			Name: "ogs",
 		})
 	op.ogQueueSet.Set(metav1.NamespaceAll, ogQueue)
@@ -312,8 +316,9 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	// Wire CatalogSources
 	catsrcInformer := crInformerFactory.Operators().V1alpha1().CatalogSources()
 	op.lister.OperatorsV1alpha1().RegisterCatalogSourceLister(metav1.NamespaceAll, catsrcInformer.Lister())
-	catsrcQueue := workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](),
-		workqueue.TypedRateLimitingQueueConfig[any]{
+	catsrcQueue := workqueue.NewTypedRateLimitingQueueWithConfig[kubestate.ResourceEvent](
+		workqueue.DefaultTypedControllerRateLimiter[kubestate.ResourceEvent](),
+		workqueue.TypedRateLimitingQueueConfig[kubestate.ResourceEvent]{
 			Name: "catsrcs",
 		})
 	op.catsrcQueueSet.Set(metav1.NamespaceAll, catsrcQueue)
@@ -341,8 +346,9 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	subIndexer := subInformer.Informer().GetIndexer()
 	op.catalogSubscriberIndexer[metav1.NamespaceAll] = subIndexer
 
-	subQueue := workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](),
-		workqueue.TypedRateLimitingQueueConfig[any]{
+	subQueue := workqueue.NewTypedRateLimitingQueueWithConfig[kubestate.ResourceEvent](
+		workqueue.DefaultTypedControllerRateLimiter[kubestate.ResourceEvent](),
+		workqueue.TypedRateLimitingQueueConfig[kubestate.ResourceEvent]{
 			Name: "subs",
 		})
 	op.subQueueSet.Set(metav1.NamespaceAll, subQueue)
@@ -415,9 +421,12 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		logger := op.logger.WithFields(logrus.Fields{"gvr": gvr.String(), "index": idx})
 		logger.Info("registering labeller")
 
-		queue := workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{
-			Name: gvr.String(),
-		})
+		queue := workqueue.NewTypedRateLimitingQueueWithConfig[kubestate.ResourceEvent](
+			workqueue.DefaultTypedControllerRateLimiter[kubestate.ResourceEvent](),
+			workqueue.TypedRateLimitingQueueConfig[kubestate.ResourceEvent]{
+				Name: gvr.String(),
+			},
+		)
 		queueInformer, err := queueinformer.NewQueueInformer(
 			ctx,
 			queueinformer.WithQueue(queue),
@@ -560,9 +569,12 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		logger := op.logger.WithFields(logrus.Fields{"gvr": gvr.String()})
 		logger.Info("registering owner reference fixer")
 
-		queue := workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{
-			Name: gvr.String(),
-		})
+		queue := workqueue.NewTypedRateLimitingQueueWithConfig[kubestate.ResourceEvent](
+			workqueue.DefaultTypedControllerRateLimiter[kubestate.ResourceEvent](),
+			workqueue.TypedRateLimitingQueueConfig[kubestate.ResourceEvent]{
+				Name: gvr.String(),
+			},
+		)
 		queueInformer, err := queueinformer.NewQueueInformer(
 			ctx,
 			queueinformer.WithQueue(queue),
@@ -745,8 +757,9 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	// Namespace sync for resolving subscriptions
 	namespaceInformer := informers.NewSharedInformerFactory(op.opClient.KubernetesInterface(), resyncPeriod()).Core().V1().Namespaces()
 	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
-	op.nsResolveQueue = workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](),
-		workqueue.TypedRateLimitingQueueConfig[any]{
+	op.nsResolveQueue = workqueue.NewTypedRateLimitingQueueWithConfig[kubestate.ResourceEvent](
+		workqueue.DefaultTypedControllerRateLimiter[kubestate.ResourceEvent](),
+		workqueue.TypedRateLimitingQueueConfig[kubestate.ResourceEvent]{
 			Name: "resolve",
 		})
 	namespaceQueueInformer, err := queueinformer.NewQueueInformer(
@@ -787,12 +800,12 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 
 			if err == nil {
 				for ns := range namespaces {
-					o.nsResolveQueue.Add(ns)
+					o.nsResolveQueue.Add(kubestate.NewUpdateEvent(ns))
 				}
 			}
 		}
 
-		o.nsResolveQueue.Add(state.Key.Namespace)
+		o.nsResolveQueue.Add(kubestate.NewUpdateEvent(state.Key.Namespace))
 	}
 	if err := o.catsrcQueueSet.Requeue(state.Key.Namespace, state.Key.Name); err != nil {
 		o.logger.WithError(err).Info("couldn't requeue catalogsource from catalog status change")
@@ -1411,7 +1424,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			}
 
 			logger.Info("unpacking is not complete yet, requeueing")
-			o.nsResolveQueue.AddAfter(namespace, 5*time.Second)
+			o.nsResolveQueue.AddAfter(kubestate.NewUpdateEvent(namespace), 5*time.Second)
 			return nil
 		}
 	}
@@ -1506,7 +1519,7 @@ func (o *Operator) syncSubscriptions(obj interface{}) error {
 		return fmt.Errorf("casting Subscription failed")
 	}
 
-	o.nsResolveQueue.Add(sub.GetNamespace())
+	o.nsResolveQueue.Add(kubestate.NewUpdateEvent(sub.GetNamespace()))
 
 	return nil
 }
@@ -1520,7 +1533,7 @@ func (o *Operator) syncOperatorGroups(obj interface{}) error {
 		return fmt.Errorf("casting OperatorGroup failed")
 	}
 
-	o.nsResolveQueue.Add(og.GetNamespace())
+	o.nsResolveQueue.Add(kubestate.NewUpdateEvent(og.GetNamespace()))
 
 	return nil
 }

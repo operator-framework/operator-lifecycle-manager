@@ -23,7 +23,7 @@ type syncerConfig struct {
 	subscriptionInformer      cache.SharedIndexInformer
 	catalogInformer           cache.SharedIndexInformer
 	installPlanInformer       cache.SharedIndexInformer
-	subscriptionQueue         workqueue.TypedRateLimitingInterface[any]
+	subscriptionQueue         workqueue.TypedRateLimitingInterface[kubestate.ResourceEvent]
 	reconcilers               kubestate.ReconcilerChain
 	registryReconcilerFactory reconciler.RegistryReconcilerFactory
 	globalCatalogNamespace    string
@@ -97,7 +97,7 @@ func WithOperatorLister(lister operatorlister.OperatorLister) SyncerOption {
 }
 
 // WithSubscriptionQueue sets a syncer's subscription queue.
-func WithSubscriptionQueue(subscriptionQueue workqueue.TypedRateLimitingInterface[any]) SyncerOption {
+func WithSubscriptionQueue(subscriptionQueue workqueue.TypedRateLimitingInterface[kubestate.ResourceEvent]) SyncerOption {
 	return func(config *syncerConfig) {
 		config.subscriptionQueue = subscriptionQueue
 	}

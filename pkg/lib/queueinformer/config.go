@@ -14,7 +14,7 @@ import (
 type queueInformerConfig struct {
 	provider metrics.MetricsProvider
 	logger   *logrus.Logger
-	queue    workqueue.RateLimitingInterface
+	queue    workqueue.TypedRateLimitingInterface[kubestate.ResourceEvent]
 	informer cache.SharedIndexInformer
 	indexer  cache.Indexer
 	keyFunc  KeyFunc
@@ -105,9 +105,9 @@ func defaultKeyFunc(obj interface{}) (string, bool) {
 func defaultConfig() *queueInformerConfig {
 	return &queueInformerConfig{
 		provider: metrics.NewMetricsNil(),
-		queue: workqueue.NewTypedRateLimitingQueueWithConfig[any](
-			workqueue.DefaultTypedControllerRateLimiter[any](),
-			workqueue.TypedRateLimitingQueueConfig[any]{
+		queue: workqueue.NewTypedRateLimitingQueueWithConfig[kubestate.ResourceEvent](
+			workqueue.DefaultTypedControllerRateLimiter[kubestate.ResourceEvent](),
+			workqueue.TypedRateLimitingQueueConfig[kubestate.ResourceEvent]{
 				Name: "default",
 			}),
 		logger:  logrus.New(),
@@ -130,7 +130,7 @@ func WithLogger(logger *logrus.Logger) Option {
 }
 
 // WithQueue sets the queue used by a QueueInformer.
-func WithQueue(queue workqueue.RateLimitingInterface) Option {
+func WithQueue(queue workqueue.TypedRateLimitingInterface[kubestate.ResourceEvent]) Option {
 	return func(config *queueInformerConfig) {
 		config.queue = queue
 	}

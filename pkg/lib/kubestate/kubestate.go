@@ -163,6 +163,13 @@ func (r resourceEvent) Resource() interface{} {
 	return r.resource
 }
 
+func NewUpdateEvent(resource interface{}) ResourceEvent {
+	return resourceEvent{
+		eventType: ResourceUpdated,
+		resource:  resource,
+	}
+}
+
 func NewResourceEvent(eventType ResourceEventType, resource interface{}) ResourceEvent {
 	return resourceEvent{
 		eventType: eventType,

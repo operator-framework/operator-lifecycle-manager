@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
+
 	"github.com/distribution/reference"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/sirupsen/logrus"
@@ -101,8 +103,9 @@ func NewOperator(ctx context.Context, kubeconfigPath string, logger *logrus.Logg
 	// Wire CatalogSources
 	catsrcInformer := crInformerFactory.Operators().V1alpha1().CatalogSources()
 	op.lister.OperatorsV1alpha1().RegisterCatalogSourceLister(metav1.NamespaceAll, catsrcInformer.Lister())
-	catalogTemplateSrcQueue := workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](),
-		workqueue.TypedRateLimitingQueueConfig[any]{
+	catalogTemplateSrcQueue := workqueue.NewTypedRateLimitingQueueWithConfig[kubestate.ResourceEvent](
+		workqueue.DefaultTypedControllerRateLimiter[kubestate.ResourceEvent](),
+		workqueue.TypedRateLimitingQueueConfig[kubestate.ResourceEvent]{
 			Name: "catalogSourceTemplate",
 		})
 	op.catalogSourceTemplateQueueSet.Set(metav1.NamespaceAll, catalogTemplateSrcQueue)

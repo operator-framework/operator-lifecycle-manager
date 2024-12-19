@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,7 +37,7 @@ const DefaultWakeupInterval = 12 * time.Hour
 
 type Operator struct {
 	queueinformer.Operator
-	olmConfigQueue workqueue.TypedRateLimitingInterface[any]
+	olmConfigQueue workqueue.TypedRateLimitingInterface[kubestate.ResourceEvent]
 	options        *PackageServerOptions
 }
 
@@ -239,9 +241,9 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 
 	op := &Operator{
 		Operator: queueOperator,
-		olmConfigQueue: workqueue.NewTypedRateLimitingQueueWithConfig[any](
-			workqueue.DefaultTypedControllerRateLimiter[any](),
-			workqueue.TypedRateLimitingQueueConfig[any]{
+		olmConfigQueue: workqueue.NewTypedRateLimitingQueueWithConfig[kubestate.ResourceEvent](
+			workqueue.DefaultTypedControllerRateLimiter[kubestate.ResourceEvent](),
+			workqueue.TypedRateLimitingQueueConfig[kubestate.ResourceEvent]{
 				Name: "olmConfig",
 			}),
 		options: o,

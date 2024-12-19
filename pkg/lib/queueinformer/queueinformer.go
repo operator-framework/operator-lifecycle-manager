@@ -23,7 +23,7 @@ type QueueInformer struct {
 	metrics.MetricsProvider
 
 	logger   *logrus.Logger
-	queue    workqueue.RateLimitingInterface
+	queue    workqueue.TypedRateLimitingInterface[kubestate.ResourceEvent]
 	informer cache.SharedIndexInformer
 	indexer  cache.Indexer
 	keyFunc  KeyFunc

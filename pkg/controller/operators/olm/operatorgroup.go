@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
+
 	"k8s.io/apimachinery/pkg/api/equality"
 
 	"github.com/sirupsen/logrus"
@@ -182,7 +184,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		logger.Debug("Requeueing out of sync namespaces")
 		for _, ns := range outOfSyncNamespaces {
 			logger.WithField("namespace", ns).Debug("requeueing")
-			a.nsQueueSet.Add(ns)
+			a.nsQueueSet.Add(kubestate.NewUpdateEvent(ns))
 		}
 
 		// CSV requeue is handled by the succeeding sync in `annotateCSVs`
@@ -263,7 +265,7 @@ func (a *Operator) operatorGroupDeleted(obj interface{}) {
 	logger.Debug("OperatorGroup deleted, requeueing out of sync namespaces")
 	for _, ns := range op.Status.Namespaces {
 		logger.WithField("namespace", ns).Debug("requeueing")
-		a.nsQueueSet.Add(ns)
+		a.nsQueueSet.Add(kubestate.NewUpdateEvent(ns))
 	}
 }
 

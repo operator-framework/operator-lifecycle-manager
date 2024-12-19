@@ -14,22 +14,22 @@ import (
 
 // ResourceQueueSet is a set of workqueues that is assumed to be keyed by namespace
 type ResourceQueueSet struct {
-	queueSet map[string]workqueue.RateLimitingInterface
+	queueSet map[string]workqueue.TypedRateLimitingInterface[kubestate.ResourceEvent]
 	mutex    sync.RWMutex
 }
 
 // NewResourceQueueSet returns a new queue set with the given queue map
-func NewResourceQueueSet(queueSet map[string]workqueue.RateLimitingInterface) *ResourceQueueSet {
+func NewResourceQueueSet(queueSet map[string]workqueue.TypedRateLimitingInterface[kubestate.ResourceEvent]) *ResourceQueueSet {
 	return &ResourceQueueSet{queueSet: queueSet}
 }
 
 // NewEmptyResourceQueueSet returns a new queue set with an empty but initialized queue map
 func NewEmptyResourceQueueSet() *ResourceQueueSet {
-	return &ResourceQueueSet{queueSet: make(map[string]workqueue.RateLimitingInterface)}
+	return &ResourceQueueSet{queueSet: make(map[string]workqueue.TypedRateLimitingInterface[kubestate.ResourceEvent])}
 }
 
 // Set sets the queue at the given key
-func (r *ResourceQueueSet) Set(key string, queue workqueue.RateLimitingInterface) {
+func (r *ResourceQueueSet) Set(key string, queue workqueue.TypedRateLimitingInterface[kubestate.ResourceEvent]) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	r.queueSet[key] = queue

@@ -13,6 +13,8 @@ import (
 	"testing/quick"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
+
 	"k8s.io/utils/ptr"
 
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
@@ -2156,13 +2158,13 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 		client:        clientFake,
 		lister:        lister,
 		namespace:     namespace,
-		nsResolveQueue: workqueue.NewTypedRateLimitingQueueWithConfig[any](
-			workqueue.NewTypedMaxOfRateLimiter[any](
-				workqueue.NewTypedItemExponentialFailureRateLimiter[any](1*time.Second, 1000*time.Second),
+		nsResolveQueue: workqueue.NewTypedRateLimitingQueueWithConfig[kubestate.ResourceEvent](
+			workqueue.NewTypedMaxOfRateLimiter[kubestate.ResourceEvent](
+				workqueue.NewTypedItemExponentialFailureRateLimiter[kubestate.ResourceEvent](1*time.Second, 1000*time.Second),
 				// 1 qps, 100 bucket size.  This is only for retry speed and its only the overall factor (not per item)
-				&workqueue.TypedBucketRateLimiter[any]{Limiter: rate.NewLimiter(rate.Limit(1), 100)},
+				&workqueue.TypedBucketRateLimiter[kubestate.ResourceEvent]{Limiter: rate.NewLimiter(rate.Limit(1), 100)},
 			),
-			workqueue.TypedRateLimitingQueueConfig[any]{
+			workqueue.TypedRateLimitingQueueConfig[kubestate.ResourceEvent]{
 				Name: "resolver",
 			}),
 		resolver:              config.resolver,
