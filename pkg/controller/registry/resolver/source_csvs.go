@@ -93,19 +93,19 @@ func (s *csvSource) Snapshot(ctx context.Context) (*cache.Snapshot, error) {
 			continue
 		}
 
-		//if cachedSubscription, ok := csvSubscriptions[csv]; !ok || cachedSubscription == nil {
-		//	// we might be in an incoherent state, so let's check with live clients to make sure
-		//	realSubscriptions, err := s.listSubscriptions(ctx)
-		//	if err != nil {
-		//		return nil, fmt.Errorf("failed to list subscriptions: %w", err)
-		//	}
-		//	for _, realSubscription := range realSubscriptions.Items {
-		//		if realSubscription.Status.InstalledCSV == csv.Name {
-		//			// oops, live cluster state is coherent
-		//			return nil, fmt.Errorf("lister caches incoherent for CSV %s/%s - found owning Subscription %s/%s", csv.Namespace, csv.Name, realSubscription.Namespace, realSubscription.Name)
-		//		}
-		//	}
-		//}
+		if cachedSubscription, ok := csvSubscriptions[csv]; !ok || cachedSubscription == nil {
+			// we might be in an incoherent state, so let's check with live clients to make sure
+			realSubscriptions, err := s.listSubscriptions(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to list subscriptions: %w", err)
+			}
+			for _, realSubscription := range realSubscriptions.Items {
+				if realSubscription.Status.InstalledCSV == csv.Name {
+					// oops, live cluster state is coherent
+					return nil, fmt.Errorf("lister caches incoherent for CSV %s/%s - found owning Subscription %s/%s", csv.Namespace, csv.Name, realSubscription.Namespace, realSubscription.Name)
+				}
+			}
+		}
 
 		if failForwardEnabled {
 			replacementChainEndsInFailure, err := isReplacementChainThatEndsInFailure(csv, ReplacementMapping(csvs))
