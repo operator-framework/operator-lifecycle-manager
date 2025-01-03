@@ -1,6 +1,7 @@
 module github.com/operator-framework/operator-lifecycle-manager
 
-go 1.22.5
+go 1.22.6
+
 toolchain go1.22.9
 
 require (
@@ -34,7 +35,7 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/net v0.32.0
+	golang.org/x/net v0.33.0
 	golang.org/x/sync v0.10.0
 	golang.org/x/time v0.8.0
 	google.golang.org/grpc v1.67.1
