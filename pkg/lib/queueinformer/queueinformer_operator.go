@@ -284,25 +284,20 @@ func (o *operator) processNextWorkItem(ctx context.Context, loop *QueueInformer)
 		}
 
 		logger = logger.WithField("cache-key", key)
-
-		var resource interface{}
-		if loop.indexer == nil {
-			resource = item.Resource()
-		} else {
-			// Get the current cached version of the resource
-			var exists bool
-			var err error
-			resource, exists, err = loop.indexer.GetByKey(key)
-			if err != nil {
-				logger.WithError(err).Error("cache get failed")
-				queue.Forget(item)
-				return true
-			}
-			if !exists {
-				logger.WithField("existing-cache-keys", loop.indexer.ListKeys()).Debug("cache get failed, key not in cache")
-				queue.Forget(item)
-				return true
-			}
+		
+		// Get the current cached version of the resource
+		var exists bool
+		var err error
+		resource, exists, err := loop.indexer.GetByKey(key)
+		if err != nil {
+			logger.WithError(err).Error("cache get failed")
+			queue.Forget(item)
+			return true
+		}
+		if !exists {
+			logger.WithField("existing-cache-keys", loop.indexer.ListKeys()).Debug("cache get failed, key not in cache")
+			queue.Forget(item)
+			return true
 		}
 		event = kubestate.NewResourceEvent(item.Type(), resource)
 	}

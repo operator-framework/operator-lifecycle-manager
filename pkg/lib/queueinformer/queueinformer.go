@@ -2,6 +2,7 @@ package queueinformer
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -43,7 +44,7 @@ func (q *QueueInformer) Enqueue(event kubestate.ResourceEvent) {
 		return
 	}
 
-	resource := event.Resource()
+	e := event
 
 	// Delete operations should always carry either something assignable to
 	// metev1.Object or cache.DeletedFinalStateUnknown.
@@ -51,13 +52,17 @@ func (q *QueueInformer) Enqueue(event kubestate.ResourceEvent) {
 	// converted to a key (string) before being enqueued.
 	if event.Type() != kubestate.ResourceDeleted {
 		// Extract key for add and update events
-		if key, ok := q.key(resource); ok {
-			resource = key
+		if key, ok := q.key(e.Resource()); ok {
+			e = kubestate.NewResourceEvent(event.Type(), key)
+		} else {
+			// if the resource cannot be keyed the worker will not be able to process it
+			// since it will not be able to retrieve the resource
+			q.logger.WithField("event", e).Warn(fmt.Sprintf("resource of type %T is not keyable - skipping enqueue", e.Resource()))
+			return
 		}
 	}
 
 	// Create new resource event and add to queue
-	e := kubestate.NewResourceEvent(event.Type(), resource)
 	q.logger.WithField("event", e).Trace("enqueuing resource event")
 	q.queue.Add(e)
 }
