@@ -886,18 +886,16 @@ func (o *Operator) handleDeletion(obj interface{}) {
 func (o *Operator) handleCatSrcDeletion(obj interface{}) {
 	catsrc, ok := obj.(metav1.Object)
 	if !ok {
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-			if !ok {
-				utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", obj))
-				return
-			}
+			utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", obj))
+			return
+		}
 
-			catsrc, ok = tombstone.Obj.(metav1.Object)
-			if !ok {
-				utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a Namespace %#v", obj))
-				return
-			}
+		catsrc, ok = tombstone.Obj.(metav1.Object)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a Namespace %#v", obj))
+			return
 		}
 	}
 	sourceKey := registry.CatalogKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}

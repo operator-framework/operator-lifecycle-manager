@@ -44,12 +44,12 @@ func (q *QueueInformer) Enqueue(event kubestate.ResourceEvent) {
 	}
 
 	resource := event.Resource()
-	if event.Type() == kubestate.ResourceDeleted {
-		// Get object from tombstone if possible
-		if tombstone, ok := resource.(cache.DeletedFinalStateUnknown); ok {
-			resource = tombstone
-		}
-	} else {
+
+	// Delete operations should always carry either something assignable to
+	// metev1.Object or cache.DeletedFinalStateUnknown.
+	// Add/Update events coming from the informer should have their resource
+	// converted to a key (string) before being enqueued.
+	if event.Type() != kubestate.ResourceDeleted {
 		// Extract key for add and update events
 		if key, ok := q.key(resource); ok {
 			resource = key
@@ -69,7 +69,7 @@ func (q *QueueInformer) key(obj interface{}) (string, bool) {
 
 // resourceHandlers provides the default implementation for responding to events
 // these simply Log the event and add the object's key to the queue for later processing.
-func (q *QueueInformer) resourceHandlers(ctx context.Context) *cache.ResourceEventHandlerFuncs {
+func (q *QueueInformer) resourceHandlers(_ context.Context) *cache.ResourceEventHandlerFuncs {
 	return &cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			q.Enqueue(kubestate.NewResourceEvent(kubestate.ResourceUpdated, obj))
@@ -102,25 +102,6 @@ func (q *QueueInformer) metricHandlers() *cache.ResourceEventHandlerFuncs {
 			}
 		},
 	}
-}
-
-func NewQueue(ctx context.Context, options ...Option) (*QueueInformer, error) {
-	config := defaultConfig()
-	config.apply(options)
-
-	if err := config.validateQueue(); err != nil {
-		return nil, err
-	}
-
-	queue := &QueueInformer{
-		MetricsProvider: config.provider,
-		logger:          config.logger,
-		queue:           config.queue,
-		keyFunc:         config.keyFunc,
-		syncer:          config.syncer,
-	}
-
-	return queue, nil
 }
 
 // NewQueueInformer returns a new QueueInformer configured with options.
