@@ -276,15 +276,19 @@ func (o *operator) processNextWorkItem(ctx context.Context, loop *QueueInformer)
 	var event = item
 	if item.Type() != kubestate.ResourceDeleted {
 		// Get the key
-		key, keyable := loop.key(item)
-		if !keyable {
-			logger.WithField("item", item).Warn("could not form key")
-			queue.Forget(item)
-			return true
+		//key, keyable := loop.key(item)
+		//if !keyable {
+		//	logger.WithField("item", item).Warn("could not form key")
+		//	queue.Forget(item)
+		//	return true
+		//}
+		key, ok := item.Resource().(string)
+		if !ok {
+			panic(fmt.Sprintf("unexpected item resource type: %T", item.Resource()))
 		}
 
 		logger = logger.WithField("cache-key", key)
-		
+
 		// Get the current cached version of the resource
 		var exists bool
 		var err error
