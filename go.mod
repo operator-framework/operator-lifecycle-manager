@@ -1,6 +1,7 @@
 module github.com/operator-framework/operator-lifecycle-manager
 
-go 1.22.5
+go 1.22.6
+
 toolchain go1.22.9
 
 require (
