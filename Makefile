@@ -153,8 +153,14 @@ image: clean build #HELP Build image image for linux on host architecture
 # the e2e and experimental_metrics tags are required to get e2e tests to pass
 # search the code for go:build e2e or go:build experimental_metrics to see where these tags are used
 e2e-build: export GO_BUILD_TAGS += e2e experimental_metrics #HELP Build image for e2e testing
-e2e-build: IMAGE_TAG = local
-e2e-build: image
+e2e-build: local-build
+
+.PHONY: local-build
+local-build: IMAGE_TAG = local
+local-build: image
+
+.PHONY: run-local
+run-local: local-build kind-create deploy
 
 .PHONY: clean
 clean: #HELP Clean up build artifacts
