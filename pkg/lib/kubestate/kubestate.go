@@ -2,6 +2,9 @@ package kubestate
 
 import (
 	"context"
+	"fmt"
+	"k8s.io/client-go/tools/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type State interface {
@@ -148,6 +151,7 @@ const (
 type ResourceEvent interface {
 	Type() ResourceEventType
 	Resource() interface{}
+	String() string
 }
 
 type resourceEvent struct {
@@ -163,14 +167,33 @@ func (r resourceEvent) Resource() interface{} {
 	return r.resource
 }
 
-func NewUpdateEvent(resource interface{}) ResourceEvent {
-	return resourceEvent{
-		eventType: ResourceUpdated,
-		resource:  resource,
+func (r resourceEvent) String() string {
+	key, err := cache.MetaNamespaceKeyFunc(r.resource)
+
+	// should not happen as resources must be either cache.ExplicitKey
+	// or client.Object
+	if err != nil {
+		panic("could not get resource key: " + err.Error())
 	}
+	return key
+}
+
+func NewUpdateEvent(resource interface{}) ResourceEvent {
+	return NewResourceEvent(ResourceUpdated, resource)
 }
 
 func NewResourceEvent(eventType ResourceEventType, resource interface{}) ResourceEvent {
+	// assert resource type
+	// only accept cache.ExplicitKey or client.Objects
+	switch r := resource.(type) {
+	case string:
+		resource = cache.ExplicitKey(r)
+	case cache.ExplicitKey:
+	case client.Object:
+	default:
+		panic(fmt.Sprintf("NewResourceEvent called with invalid resource type: %T", resource))
+	}
+
 	return resourceEvent{
 		eventType: eventType,
 		resource:  resource,

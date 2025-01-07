@@ -262,6 +262,30 @@ func (o *operator) worker(ctx context.Context, loop *QueueInformer) {
 }
 
 func (o *operator) processNextWorkItem(ctx context.Context, loop *QueueInformer) bool {
+	// **************************** WARNING ****************************
+	// The QueueInformer listens to resource events raised by its
+	// (client-go) informer. For Add/Update event, it extracts the key
+	// for the resource and adds to its queue (that we Get() from below)
+	// a ResourceEvent carrying the key.
+	// **Except** if it is a deletion event. In that case,
+	// ResourceEvent carries the resource object (or tombstone).
+	// The sync'er expects a ResourceEvent carrying the resource.
+	// So, in the case of an Add/Update event coming from the queue,
+	// the resource is acquired from the index (through the key), and then
+	// a ResourceEvent carrying the resource is handed to the syncer.
+	// It should also be noted that throughout the code, items are added to
+	// queueinformers out of band of informer notifications.
+	// The fact that the queueinformers queue processes ResourceEvents, which
+	// themselves encapsulate an interface{} "Resource" make it tricky for the
+	// queue to dedup. Previous to the writing of this comment, the queue was
+	// processing strings and ResourceEvents, which led to concurrent processing
+	// of the same resource. To address this, we enforce (with panic) that the resource
+	// in the ResourceEvent must either be a cache.ExplicitKey or a client.Object.
+	// We then make sure that the ResourceEvent's String() returns the key for the
+	// encapsulated resource. Thus, independent of the resource type, the queue always
+	// processes it by key and dedups appropriately.
+	// Furthermore, we also enforce here that Add/Update events always contain
+	// cache.ExplicitKey as their Resource
 	queue := loop.queue
 	item, quit := queue.Get()
 
@@ -271,20 +295,15 @@ func (o *operator) processNextWorkItem(ctx context.Context, loop *QueueInformer)
 	defer queue.Done(item)
 
 	logger := o.logger.WithField("item", item)
-	logger.WithField("queue-length", queue.Len()).Trace("popped queue")
+	logger.WithField("queue-length", queue.Len()).Info("popped queue")
 
 	var event = item
 	if item.Type() != kubestate.ResourceDeleted {
-		// Get the key
-		//key, keyable := loop.key(item)
-		//if !keyable {
-		//	logger.WithField("item", item).Warn("could not form key")
-		//	queue.Forget(item)
-		//	return true
-		//}
-		key, ok := item.Resource().(string)
-		if !ok {
-			panic(fmt.Sprintf("unexpected item resource type: %T", item.Resource()))
+		key, keyable := loop.key(item)
+		if !keyable {
+			logger.WithField("item", item).Warn("could not form key")
+			queue.Forget(item)
+			return true
 		}
 
 		logger = logger.WithField("cache-key", key)
@@ -292,7 +311,7 @@ func (o *operator) processNextWorkItem(ctx context.Context, loop *QueueInformer)
 		// Get the current cached version of the resource
 		var exists bool
 		var err error
-		resource, exists, err := loop.indexer.GetByKey(key)
+		resource, exists, err := loop.indexer.GetByKey(string(key))
 		if err != nil {
 			logger.WithError(err).Error("cache get failed")
 			queue.Forget(item)

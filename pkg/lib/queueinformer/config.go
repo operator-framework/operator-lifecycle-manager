@@ -81,19 +81,6 @@ func (c *queueInformerConfig) validateQueue() (err error) {
 }
 
 func defaultKeyFunc(obj interface{}) (string, bool) {
-	// Get keys nested in resource events up to depth 2
-	keyable := false
-	for d := 0; d < 2 && !keyable; d++ {
-		switch v := obj.(type) {
-		case string:
-			return v, true
-		case kubestate.ResourceEvent:
-			obj = v.Resource()
-		default:
-			keyable = true
-		}
-	}
-
 	k, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
 		return k, false
