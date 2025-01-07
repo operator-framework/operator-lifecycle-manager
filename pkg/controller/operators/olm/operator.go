@@ -1674,7 +1674,7 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 	}
 
 	if err == nil {
-		go a.olmConfigQueue.AddAfter(kubestate.NewUpdateEvent(olmConfig), time.Second*5)
+		go a.olmConfigQueue.AddAfter(kubestate.NewUpdateEvent(olmConfig.GetName()), time.Second*5)
 	}
 
 	logger := a.logger.WithFields(logrus.Fields{

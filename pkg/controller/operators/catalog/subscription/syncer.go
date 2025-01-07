@@ -179,7 +179,7 @@ func (s *subscriptionSyncer) notifyOnInstallPlan(ctx context.Context, obj interf
 	for _, owner := range owners {
 		subKey := fmt.Sprintf("%s/%s", plan.GetNamespace(), owner.Name)
 		logger.Tracef("notifying subscription %s", subKey)
-		s.Notify(kubestate.NewResourceEvent(kubestate.ResourceUpdated, cache.ExplicitKey(subKey)))
+		s.Notify(kubestate.NewResourceEvent(kubestate.ResourceUpdated, subKey))
 	}
 }
 
