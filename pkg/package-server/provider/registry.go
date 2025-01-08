@@ -146,7 +146,8 @@ func NewRegistryProvider(ctx context.Context, crClient versioned.Interface, oper
 	catsrcQueueInformer, err := queueinformer.NewQueueInformer(
 		ctx,
 		queueinformer.WithInformer(catsrcInformer.Informer()),
-		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(p.syncCatalogSource).ToSyncerWithDelete(p.catalogSourceDeleted)),
+		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(p.syncCatalogSource).ToSyncer()),
+		queueinformer.WithDeletionHandler(p.catalogSourceDeleted),
 	)
 	if err != nil {
 		return nil, err

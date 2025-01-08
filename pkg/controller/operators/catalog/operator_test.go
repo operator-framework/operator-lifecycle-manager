@@ -2156,13 +2156,13 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 		client:        clientFake,
 		lister:        lister,
 		namespace:     namespace,
-		nsResolveQueue: workqueue.NewTypedRateLimitingQueueWithConfig[any](
-			workqueue.NewTypedMaxOfRateLimiter[any](
-				workqueue.NewTypedItemExponentialFailureRateLimiter[any](1*time.Second, 1000*time.Second),
+		nsResolveQueue: workqueue.NewTypedRateLimitingQueueWithConfig[types.NamespacedName](
+			workqueue.NewTypedMaxOfRateLimiter[types.NamespacedName](
+				workqueue.NewTypedItemExponentialFailureRateLimiter[types.NamespacedName](1*time.Second, 1000*time.Second),
 				// 1 qps, 100 bucket size.  This is only for retry speed and its only the overall factor (not per item)
-				&workqueue.TypedBucketRateLimiter[any]{Limiter: rate.NewLimiter(rate.Limit(1), 100)},
+				&workqueue.TypedBucketRateLimiter[types.NamespacedName]{Limiter: rate.NewLimiter(rate.Limit(1), 100)},
 			),
-			workqueue.TypedRateLimitingQueueConfig[any]{
+			workqueue.TypedRateLimitingQueueConfig[types.NamespacedName]{
 				Name: "resolver",
 			}),
 		resolver:              config.resolver,

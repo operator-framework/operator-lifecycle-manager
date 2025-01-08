@@ -3,6 +3,7 @@ package queueinformer
 import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -14,11 +15,11 @@ import (
 type queueInformerConfig struct {
 	provider metrics.MetricsProvider
 	logger   *logrus.Logger
-	queue    workqueue.RateLimitingInterface
+	queue    workqueue.TypedRateLimitingInterface[types.NamespacedName]
 	informer cache.SharedIndexInformer
 	indexer  cache.Indexer
-	keyFunc  KeyFunc
 	syncer   kubestate.Syncer
+	onDelete func(interface{})
 }
 
 // Option applies an option to the given queue informer config.
@@ -51,67 +52,25 @@ func (c *queueInformerConfig) validateQueueInformer() (err error) {
 		err = newInvalidConfigError("nil logger")
 	case config.queue == nil:
 		err = newInvalidConfigError("nil queue")
-	case config.indexer == nil && config.informer == nil:
-		err = newInvalidConfigError("nil indexer and informer")
-	case config.keyFunc == nil:
-		err = newInvalidConfigError("nil key function")
+	case config.indexer == nil:
+		err = newInvalidConfigError("nil indexer")
 	case config.syncer == nil:
 		err = newInvalidConfigError("nil syncer")
 	}
 
 	return
-}
-
-// difference from above is that this intentionally verifies without index/informer
-func (c *queueInformerConfig) validateQueue() (err error) {
-	switch config := c; {
-	case config.provider == nil:
-		err = newInvalidConfigError("nil metrics provider")
-	case config.logger == nil:
-		err = newInvalidConfigError("nil logger")
-	case config.queue == nil:
-		err = newInvalidConfigError("nil queue")
-	case config.keyFunc == nil:
-		err = newInvalidConfigError("nil key function")
-	case config.syncer == nil:
-		err = newInvalidConfigError("nil syncer")
-	}
-
-	return
-}
-
-func defaultKeyFunc(obj interface{}) (string, bool) {
-	// Get keys nested in resource events up to depth 2
-	keyable := false
-	for d := 0; d < 2 && !keyable; d++ {
-		switch v := obj.(type) {
-		case string:
-			return v, true
-		case kubestate.ResourceEvent:
-			obj = v.Resource()
-		default:
-			keyable = true
-		}
-	}
-
-	k, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-	if err != nil {
-		return k, false
-	}
-
-	return k, true
 }
 
 func defaultConfig() *queueInformerConfig {
 	return &queueInformerConfig{
 		provider: metrics.NewMetricsNil(),
-		queue: workqueue.NewTypedRateLimitingQueueWithConfig[any](
-			workqueue.DefaultTypedControllerRateLimiter[any](),
-			workqueue.TypedRateLimitingQueueConfig[any]{
+		onDelete: func(obj interface{}) {},
+		queue: workqueue.NewTypedRateLimitingQueueWithConfig[types.NamespacedName](
+			workqueue.DefaultTypedControllerRateLimiter[types.NamespacedName](),
+			workqueue.TypedRateLimitingQueueConfig[types.NamespacedName]{
 				Name: "default",
 			}),
-		logger:  logrus.New(),
-		keyFunc: defaultKeyFunc,
+		logger: logrus.New(),
 	}
 }
 
@@ -130,7 +89,7 @@ func WithLogger(logger *logrus.Logger) Option {
 }
 
 // WithQueue sets the queue used by a QueueInformer.
-func WithQueue(queue workqueue.RateLimitingInterface) Option {
+func WithQueue(queue workqueue.TypedRateLimitingInterface[types.NamespacedName]) Option {
 	return func(config *queueInformerConfig) {
 		config.queue = queue
 	}
@@ -150,17 +109,16 @@ func WithIndexer(indexer cache.Indexer) Option {
 	}
 }
 
-// WithKeyFunc sets the key func used by a QueueInformer.
-func WithKeyFunc(keyFunc KeyFunc) Option {
-	return func(config *queueInformerConfig) {
-		config.keyFunc = keyFunc
-	}
-}
-
 // WithSyncer sets the syncer invoked by a QueueInformer.
 func WithSyncer(syncer kubestate.Syncer) Option {
 	return func(config *queueInformerConfig) {
 		config.syncer = syncer
+	}
+}
+
+func WithDeletionHandler(onDelete func(obj interface{})) Option {
+	return func(config *queueInformerConfig) {
+		config.onDelete = onDelete
 	}
 }
 

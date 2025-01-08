@@ -2,8 +2,11 @@ package queueinformer
 
 import (
 	"context"
+	"fmt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -12,10 +15,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
-// KeyFunc returns a key for the given object and a bool which is true if the key was
-// successfully generated and false otherwise.
-type KeyFunc func(obj interface{}) (string, bool)
-
 // QueueInformer ties an informer to a queue in order to process events from the informer
 // the informer watches objects of interest and adds objects to the queue for processing
 // the syncHandler is called for all objects on the queue
@@ -23,62 +22,50 @@ type QueueInformer struct {
 	metrics.MetricsProvider
 
 	logger   *logrus.Logger
-	queue    workqueue.RateLimitingInterface
+	queue    workqueue.TypedRateLimitingInterface[types.NamespacedName]
 	informer cache.SharedIndexInformer
 	indexer  cache.Indexer
-	keyFunc  KeyFunc
 	syncer   kubestate.Syncer
+	onDelete func(interface{})
 }
 
 // Sync invokes all registered sync handlers in the QueueInformer's chain
-func (q *QueueInformer) Sync(ctx context.Context, event kubestate.ResourceEvent) error {
-	return q.syncer.Sync(ctx, event)
+func (q *QueueInformer) Sync(ctx context.Context, obj client.Object) error {
+	return q.syncer.Sync(ctx, obj)
 }
 
 // Enqueue adds a key to the queue. If obj is a key already it gets added directly.
-// Otherwise, the key is extracted via keyFunc.
-func (q *QueueInformer) Enqueue(event kubestate.ResourceEvent) {
-	if event == nil {
-		// Don't enqueue nil events
-		return
-	}
-
-	resource := event.Resource()
-	if event.Type() == kubestate.ResourceDeleted {
-		// Get object from tombstone if possible
-		if tombstone, ok := resource.(cache.DeletedFinalStateUnknown); ok {
-			resource = tombstone
-		}
-	} else {
-		// Extract key for add and update events
-		if key, ok := q.key(resource); ok {
-			resource = key
-		}
-	}
-
-	// Create new resource event and add to queue
-	e := kubestate.NewResourceEvent(event.Type(), resource)
-	q.logger.WithField("event", e).Trace("enqueuing resource event")
-	q.queue.Add(e)
-}
-
-// key turns an object into a key for the indexer.
-func (q *QueueInformer) key(obj interface{}) (string, bool) {
-	return q.keyFunc(obj)
+func (q *QueueInformer) Enqueue(item types.NamespacedName) {
+	q.logger.WithField("item", item).Trace("enqueuing item")
+	q.queue.Add(item)
 }
 
 // resourceHandlers provides the default implementation for responding to events
 // these simply Log the event and add the object's key to the queue for later processing.
-func (q *QueueInformer) resourceHandlers(ctx context.Context) *cache.ResourceEventHandlerFuncs {
+func (q *QueueInformer) resourceHandlers(_ context.Context) *cache.ResourceEventHandlerFuncs {
 	return &cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			q.Enqueue(kubestate.NewResourceEvent(kubestate.ResourceUpdated, obj))
+			metaObj, ok := obj.(metav1.Object)
+			if !ok {
+				panic(fmt.Errorf("unexpected object type in add event: %T", obj))
+			}
+			q.Enqueue(types.NamespacedName{
+				Namespace: metaObj.GetNamespace(),
+				Name:      metaObj.GetName(),
+			})
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			q.Enqueue(kubestate.NewResourceEvent(kubestate.ResourceUpdated, newObj))
+		UpdateFunc: func(_, newObj interface{}) {
+			metaObj, ok := newObj.(metav1.Object)
+			if !ok {
+				panic(fmt.Errorf("unexpected object type in update event: %T", newObj))
+			}
+			q.Enqueue(types.NamespacedName{
+				Namespace: metaObj.GetNamespace(),
+				Name:      metaObj.GetName(),
+			})
 		},
 		DeleteFunc: func(obj interface{}) {
-			q.Enqueue(kubestate.NewResourceEvent(kubestate.ResourceDeleted, obj))
+			q.onDelete(obj)
 		},
 	}
 }
@@ -104,25 +91,6 @@ func (q *QueueInformer) metricHandlers() *cache.ResourceEventHandlerFuncs {
 	}
 }
 
-func NewQueue(ctx context.Context, options ...Option) (*QueueInformer, error) {
-	config := defaultConfig()
-	config.apply(options)
-
-	if err := config.validateQueue(); err != nil {
-		return nil, err
-	}
-
-	queue := &QueueInformer{
-		MetricsProvider: config.provider,
-		logger:          config.logger,
-		queue:           config.queue,
-		keyFunc:         config.keyFunc,
-		syncer:          config.syncer,
-	}
-
-	return queue, nil
-}
-
 // NewQueueInformer returns a new QueueInformer configured with options.
 func NewQueueInformer(ctx context.Context, options ...Option) (*QueueInformer, error) {
 	// Get default config and apply given options
@@ -145,8 +113,8 @@ func newQueueInformerFromConfig(ctx context.Context, config *queueInformerConfig
 		queue:           config.queue,
 		indexer:         config.indexer,
 		informer:        config.informer,
-		keyFunc:         config.keyFunc,
 		syncer:          config.syncer,
+		onDelete:        config.onDelete,
 	}
 
 	// Register event handlers for resource and metrics
@@ -163,28 +131,7 @@ type LegacySyncHandler func(obj interface{}) error
 
 // ToSyncer returns the Syncer equivalent of the sync handler.
 func (l LegacySyncHandler) ToSyncer() kubestate.Syncer {
-	return l.ToSyncerWithDelete(nil)
-}
-
-// ToSyncerWithDelete returns the Syncer equivalent of the given sync handler and delete function.
-func (l LegacySyncHandler) ToSyncerWithDelete(onDelete func(obj interface{})) kubestate.Syncer {
-	var syncer kubestate.SyncFunc = func(ctx context.Context, event kubestate.ResourceEvent) error {
-		switch event.Type() {
-		case kubestate.ResourceDeleted:
-			if onDelete != nil {
-				onDelete(event.Resource())
-			}
-		case kubestate.ResourceAdded:
-			// Added and updated are treated the same
-			fallthrough
-		case kubestate.ResourceUpdated:
-			return l(event.Resource())
-		default:
-			return errors.Errorf("unexpected resource event type: %s", event.Type())
-		}
-
-		return nil
-	}
-
-	return syncer
+	return kubestate.SyncFunc(func(ctx context.Context, obj client.Object) error {
+		return l(obj)
+	})
 }

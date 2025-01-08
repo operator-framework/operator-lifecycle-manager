@@ -8,19 +8,17 @@ import (
 	"reflect"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/api/equality"
-
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/errors"
-
-	utillabels "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/labels"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -30,6 +28,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
+	utillabels "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/labels"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
@@ -182,7 +181,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		logger.Debug("Requeueing out of sync namespaces")
 		for _, ns := range outOfSyncNamespaces {
 			logger.WithField("namespace", ns).Debug("requeueing")
-			a.nsQueueSet.Add(ns)
+			a.nsQueueSet.Add(types.NamespacedName{Name: ns})
 		}
 
 		// CSV requeue is handled by the succeeding sync in `annotateCSVs`
@@ -263,7 +262,7 @@ func (a *Operator) operatorGroupDeleted(obj interface{}) {
 	logger.Debug("OperatorGroup deleted, requeueing out of sync namespaces")
 	for _, ns := range op.Status.Namespaces {
 		logger.WithField("namespace", ns).Debug("requeueing")
-		a.nsQueueSet.Add(ns)
+		a.nsQueueSet.Add(types.NamespacedName{Name: ns})
 	}
 }
 

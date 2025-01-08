@@ -28,17 +28,13 @@ import (
 
 // ReconcilerFromLegacySyncHandler returns a reconciler that invokes the given legacy sync handler and on delete funcs.
 // Since the reconciler does not return an updated kubestate, it MUST be the last reconciler in a given chain.
-func ReconcilerFromLegacySyncHandler(sync queueinformer.LegacySyncHandler, onDelete func(obj interface{})) kubestate.Reconciler {
+func ReconcilerFromLegacySyncHandler(sync queueinformer.LegacySyncHandler) kubestate.Reconciler {
 	var rec kubestate.ReconcilerFunc = func(ctx context.Context, in kubestate.State) (out kubestate.State, err error) {
 		out = in
 		switch s := in.(type) {
 		case SubscriptionExistsState:
 			if sync != nil {
 				err = sync(s.Subscription())
-			}
-		case SubscriptionDeletedState:
-			if onDelete != nil {
-				onDelete(s.Subscription())
 			}
 		case SubscriptionState:
 			if sync != nil {

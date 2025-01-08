@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
@@ -16,7 +18,7 @@ func TestSync(t *testing.T) {
 		syncer kubestate.Syncer
 	}
 	type args struct {
-		event kubestate.ResourceEvent
+		obj client.Object
 	}
 	type want struct {
 		err error
@@ -36,10 +38,7 @@ func TestSync(t *testing.T) {
 				},
 			},
 			args: args{
-				event: kubestate.NewResourceEvent(
-					kubestate.ResourceAdded,
-					&v1alpha1.Subscription{},
-				),
+				obj: &v1alpha1.Subscription{},
 			},
 			want: want{
 				err: nil,
@@ -52,7 +51,7 @@ func TestSync(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			require.Equal(t, tt.want.err, tt.fields.syncer.Sync(ctx, tt.args.event))
+			require.Equal(t, tt.want.err, tt.fields.syncer.Sync(ctx, tt.args.obj))
 		})
 	}
 }

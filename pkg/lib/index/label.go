@@ -2,6 +2,7 @@ package indexer
 
 import (
 	"fmt"
+	"k8s.io/apimachinery/pkg/types"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/labels"
@@ -29,9 +30,9 @@ func MetaLabelIndexFunc(obj interface{}) ([]string, error) {
 }
 
 // LabelIndexKeys returns the union of indexed cache keys in the given indexers matching the same labels as the given selector
-func LabelIndexKeys(indexers map[string]cache.Indexer, labelSets ...labels.Set) ([]string, error) {
-	keySet := map[string]struct{}{}
-	keys := []string{}
+func LabelIndexKeys(indexers map[string]cache.Indexer, labelSets ...labels.Set) ([]types.NamespacedName, error) {
+	stringKeySet := map[string]struct{}{}
+	stringKeys := []string{}
 	for _, indexer := range indexers {
 		for _, labelSet := range labelSets {
 			for key, value := range labelSet {
@@ -43,18 +44,26 @@ func LabelIndexKeys(indexers map[string]cache.Indexer, labelSets ...labels.Set) 
 
 				for _, cacheKey := range cacheKeys {
 					// Detect duplication
-					if _, ok := keySet[cacheKey]; ok {
+					if _, ok := stringKeySet[cacheKey]; ok {
 						continue
 					}
 
 					// Add to set
-					keySet[cacheKey] = struct{}{}
-					keys = append(keys, cacheKey)
+					stringKeySet[cacheKey] = struct{}{}
+					stringKeys = append(stringKeys, cacheKey)
 				}
 
 			}
 		}
 	}
 
+	keys := make([]types.NamespacedName, 0, len(stringKeys))
+	for _, k := range stringKeys {
+		ns, name, err := cache.SplitMetaNamespaceKey(k)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, types.NamespacedName{Namespace: ns, Name: name})
+	}
 	return keys, nil
 }

@@ -25,7 +25,6 @@ type SubscriptionState interface {
 	Subscription() *v1alpha1.Subscription
 	Add() SubscriptionExistsState
 	Update() SubscriptionExistsState
-	Delete() SubscriptionDeletedState
 }
 
 // SubscriptionExistsState describes subscription states in which the subscription exists on the cluster.
@@ -47,13 +46,6 @@ type SubscriptionUpdatedState interface {
 	SubscriptionExistsState
 
 	isSubscriptionUpdatedState()
-}
-
-// SubscriptionDeletedState describes subscription states in which the subscription no longer exists and was deleted from the cluster.
-type SubscriptionDeletedState interface {
-	SubscriptionState
-
-	isSubscriptionDeletedState()
 }
 
 // CatalogHealthState describes subscription states that represent a subscription with respect to catalog health.
@@ -176,12 +168,6 @@ func (s *subscriptionState) Update() SubscriptionExistsState {
 	}
 }
 
-func (s *subscriptionState) Delete() SubscriptionDeletedState {
-	return &subscriptionDeletedState{
-		SubscriptionState: s,
-	}
-}
-
 func NewSubscriptionState(sub *v1alpha1.Subscription) SubscriptionState {
 	return &subscriptionState{
 		State:        kubestate.NewState(),
@@ -206,12 +192,6 @@ type subscriptionUpdatedState struct {
 }
 
 func (c *subscriptionUpdatedState) isSubscriptionUpdatedState() {}
-
-type subscriptionDeletedState struct {
-	SubscriptionState
-}
-
-func (c *subscriptionDeletedState) isSubscriptionDeletedState() {}
 
 type catalogHealthState struct {
 	SubscriptionExistsState
