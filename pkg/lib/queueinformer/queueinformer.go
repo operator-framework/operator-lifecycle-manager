@@ -2,8 +2,6 @@ package queueinformer
 
 import (
 	"context"
-	"fmt"
-
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/cache"
@@ -50,17 +48,17 @@ func (q *QueueInformer) Enqueue(event kubestate.ResourceEvent) {
 	// metev1.Object or cache.DeletedFinalStateUnknown.
 	// Add/Update events coming from the informer should have their resource
 	// converted to a key (string) before being enqueued.
-	if event.Type() != kubestate.ResourceDeleted {
-		// Extract key for add and update events
-		if key, ok := q.key(e.Resource()); ok {
-			e = kubestate.NewResourceEvent(event.Type(), key)
-		} else {
-			// if the resource cannot be keyed the worker will not be able to process it
-			// since it will not be able to retrieve the resource
-			q.logger.WithField("event", e).Warn(fmt.Sprintf("resource of type %T is not keyable - skipping enqueue", e.Resource()))
-			return
-		}
-	}
+	//if event.Type() != kubestate.ResourceDeleted {
+	//	// Extract key for add and update events
+	//	if key, ok := q.key(e.Resource()); ok {
+	//		e = kubestate.NewResourceEvent(event.Type(), cache.ExplicitKey(key))
+	//	} else {
+	//		// if the resource cannot be keyed the worker will not be able to process it
+	//		// since it will not be able to retrieve the resource
+	//		q.logger.WithField("event", e).Warn(fmt.Sprintf("resource of type %T is not keyable - skipping enqueue", e.Resource()))
+	//		return
+	//	}
+	//}
 
 	// Create new resource event and add to queue
 	q.logger.WithField("event", e).Trace("enqueuing resource event")

@@ -284,8 +284,6 @@ func (o *operator) processNextWorkItem(ctx context.Context, loop *QueueInformer)
 	// We then make sure that the ResourceEvent's String() returns the key for the
 	// encapsulated resource. Thus, independent of the resource type, the queue always
 	// processes it by key and dedups appropriately.
-	// Furthermore, we also enforce here that Add/Update events always contain
-	// cache.ExplicitKey as their Resource
 	queue := loop.queue
 	item, quit := queue.Get()
 
@@ -301,7 +299,7 @@ func (o *operator) processNextWorkItem(ctx context.Context, loop *QueueInformer)
 	if item.Type() != kubestate.ResourceDeleted {
 		key, keyable := loop.key(item)
 		if !keyable {
-			logger.WithField("item", item).Warn("could not form key")
+			logger.WithField("item", item).Warnf("could not form key %s", item)
 			queue.Forget(item)
 			return true
 		}
@@ -311,7 +309,7 @@ func (o *operator) processNextWorkItem(ctx context.Context, loop *QueueInformer)
 		// Get the current cached version of the resource
 		var exists bool
 		var err error
-		resource, exists, err := loop.indexer.GetByKey(string(key))
+		resource, exists, err := loop.indexer.GetByKey(key)
 		if err != nil {
 			logger.WithError(err).Error("cache get failed")
 			queue.Forget(item)

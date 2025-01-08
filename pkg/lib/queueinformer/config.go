@@ -1,6 +1,7 @@
 package queueinformer
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/discovery"
@@ -81,8 +82,12 @@ func (c *queueInformerConfig) validateQueue() (err error) {
 }
 
 func defaultKeyFunc(obj interface{}) (string, bool) {
+	if re, ok := obj.(kubestate.ResourceEvent); ok {
+		obj = re.Resource()
+	}
 	k, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
+		fmt.Printf("error getting key for object %v: %v", obj, err)
 		return k, false
 	}
 

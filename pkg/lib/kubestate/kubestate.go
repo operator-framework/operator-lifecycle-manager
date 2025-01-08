@@ -168,20 +168,25 @@ func (r resourceEvent) Resource() interface{} {
 }
 
 func (r resourceEvent) String() string {
-	key, err := cache.MetaNamespaceKeyFunc(r.resource)
-
-	// should not happen as resources must be either cache.ExplicitKey
-	// or client.Object
+	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(r.resource)
+	// should not happen as resources must be either cache.ExplicitKey or client.Object
+	// and this should be enforced in NewResourceEvent
 	if err != nil {
 		panic("could not get resource key: " + err.Error())
 	}
-	return key
+	return fmt.Sprintf("{%s %s}", string(r.eventType), key)
 }
 
 func NewUpdateEvent(resource interface{}) ResourceEvent {
 	return NewResourceEvent(ResourceUpdated, resource)
 }
 
+// NewResourceEvent creates a new resource event. The resource parameter must either be
+// a client.Object, a string, a cache.DeletedFinalStateUnknown, or a cache.ExplicitKey. In case it is a string, it will be
+// coerced to cache.ExplicitKey. This ensures that whether a reference (string/cache.ExplicitKey)
+// or a resource, workqueue will treat the items in the same way and dedup appropriately.
+// This behavior is guaranteed by the String() method, which will also ignore the type of event.
+// I.e. Add/Update/Delete events for the same resource object or reference will be ded
 func NewResourceEvent(eventType ResourceEventType, resource interface{}) ResourceEvent {
 	// assert resource type
 	// only accept cache.ExplicitKey or client.Objects
@@ -190,6 +195,7 @@ func NewResourceEvent(eventType ResourceEventType, resource interface{}) Resourc
 		resource = cache.ExplicitKey(r)
 	case cache.ExplicitKey:
 	case client.Object:
+	case cache.DeletedFinalStateUnknown:
 	default:
 		panic(fmt.Sprintf("NewResourceEvent called with invalid resource type: %T", resource))
 	}
