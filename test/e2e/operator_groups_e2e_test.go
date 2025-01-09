@@ -2511,7 +2511,7 @@ func pollForNamespaceListCount(c operatorclient.ClientInterface, listOptions met
 		if len(list.Items) == expectedLength {
 			return true, nil
 		}
-		return false, nil
+		return false, fmt.Errorf("expected %d resources, got %d", expectedLength, len(list.Items))
 	}).Should(BeTrue())
 	return
 }
