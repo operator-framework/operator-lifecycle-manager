@@ -4,4 +4,4 @@ go 1.22.0
 
 toolchain go1.22.3
 
-require helm.sh/helm/v3 v3.15.4 // cmd/helm
+require helm.sh/helm/v3 v3.16.4 // cmd/helm
