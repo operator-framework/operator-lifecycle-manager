@@ -19,9 +19,9 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
-	v1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	scheme "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,34 @@ type OperatorsGetter interface {
 
 // OperatorInterface has methods to work with Operator resources.
 type OperatorInterface interface {
-	Create(ctx context.Context, operator *v1.Operator, opts metav1.CreateOptions) (*v1.Operator, error)
-	Update(ctx context.Context, operator *v1.Operator, opts metav1.UpdateOptions) (*v1.Operator, error)
+	Create(ctx context.Context, operator *operatorsv1.Operator, opts metav1.CreateOptions) (*operatorsv1.Operator, error)
+	Update(ctx context.Context, operator *operatorsv1.Operator, opts metav1.UpdateOptions) (*operatorsv1.Operator, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, operator *v1.Operator, opts metav1.UpdateOptions) (*v1.Operator, error)
+	UpdateStatus(ctx context.Context, operator *operatorsv1.Operator, opts metav1.UpdateOptions) (*operatorsv1.Operator, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.Operator, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.OperatorList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*operatorsv1.Operator, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*operatorsv1.OperatorList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Operator, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *operatorsv1.Operator, err error)
 	OperatorExpansion
 }
 
 // operators implements OperatorInterface
 type operators struct {
-	*gentype.ClientWithList[*v1.Operator, *v1.OperatorList]
+	*gentype.ClientWithList[*operatorsv1.Operator, *operatorsv1.OperatorList]
 }
 
 // newOperators returns a Operators
 func newOperators(c *OperatorsV1Client) *operators {
 	return &operators{
-		gentype.NewClientWithList[*v1.Operator, *v1.OperatorList](
+		gentype.NewClientWithList[*operatorsv1.Operator, *operatorsv1.OperatorList](
 			"operators",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.Operator { return &v1.Operator{} },
-			func() *v1.OperatorList { return &v1.OperatorList{} }),
+			func() *operatorsv1.Operator { return &operatorsv1.Operator{} },
+			func() *operatorsv1.OperatorList { return &operatorsv1.OperatorList{} },
+		),
 	}
 }

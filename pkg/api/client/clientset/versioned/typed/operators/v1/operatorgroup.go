@@ -19,9 +19,9 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
-	v1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	scheme "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,34 @@ type OperatorGroupsGetter interface {
 
 // OperatorGroupInterface has methods to work with OperatorGroup resources.
 type OperatorGroupInterface interface {
-	Create(ctx context.Context, operatorGroup *v1.OperatorGroup, opts metav1.CreateOptions) (*v1.OperatorGroup, error)
-	Update(ctx context.Context, operatorGroup *v1.OperatorGroup, opts metav1.UpdateOptions) (*v1.OperatorGroup, error)
+	Create(ctx context.Context, operatorGroup *operatorsv1.OperatorGroup, opts metav1.CreateOptions) (*operatorsv1.OperatorGroup, error)
+	Update(ctx context.Context, operatorGroup *operatorsv1.OperatorGroup, opts metav1.UpdateOptions) (*operatorsv1.OperatorGroup, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, operatorGroup *v1.OperatorGroup, opts metav1.UpdateOptions) (*v1.OperatorGroup, error)
+	UpdateStatus(ctx context.Context, operatorGroup *operatorsv1.OperatorGroup, opts metav1.UpdateOptions) (*operatorsv1.OperatorGroup, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.OperatorGroup, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.OperatorGroupList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*operatorsv1.OperatorGroup, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*operatorsv1.OperatorGroupList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.OperatorGroup, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *operatorsv1.OperatorGroup, err error)
 	OperatorGroupExpansion
 }
 
 // operatorGroups implements OperatorGroupInterface
 type operatorGroups struct {
-	*gentype.ClientWithList[*v1.OperatorGroup, *v1.OperatorGroupList]
+	*gentype.ClientWithList[*operatorsv1.OperatorGroup, *operatorsv1.OperatorGroupList]
 }
 
 // newOperatorGroups returns a OperatorGroups
 func newOperatorGroups(c *OperatorsV1Client, namespace string) *operatorGroups {
 	return &operatorGroups{
-		gentype.NewClientWithList[*v1.OperatorGroup, *v1.OperatorGroupList](
+		gentype.NewClientWithList[*operatorsv1.OperatorGroup, *operatorsv1.OperatorGroupList](
 			"operatorgroups",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1.OperatorGroup { return &v1.OperatorGroup{} },
-			func() *v1.OperatorGroupList { return &v1.OperatorGroupList{} }),
+			func() *operatorsv1.OperatorGroup { return &operatorsv1.OperatorGroup{} },
+			func() *operatorsv1.OperatorGroupList { return &operatorsv1.OperatorGroupList{} },
+		),
 	}
 }

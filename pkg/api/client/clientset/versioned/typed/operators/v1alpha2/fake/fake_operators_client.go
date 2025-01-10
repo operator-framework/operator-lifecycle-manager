@@ -29,7 +29,7 @@ type FakeOperatorsV1alpha2 struct {
 }
 
 func (c *FakeOperatorsV1alpha2) OperatorGroups(namespace string) v1alpha2.OperatorGroupInterface {
-	return &FakeOperatorGroups{c, namespace}
+	return newFakeOperatorGroups(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

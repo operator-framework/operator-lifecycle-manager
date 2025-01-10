@@ -19,129 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
 	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeClusterServiceVersions implements ClusterServiceVersionInterface
-type FakeClusterServiceVersions struct {
+// fakeClusterServiceVersions implements ClusterServiceVersionInterface
+type fakeClusterServiceVersions struct {
+	*gentype.FakeClientWithList[*v1alpha1.ClusterServiceVersion, *v1alpha1.ClusterServiceVersionList]
 	Fake *FakeOperatorsV1alpha1
-	ns   string
 }
 
-var clusterserviceversionsResource = v1alpha1.SchemeGroupVersion.WithResource("clusterserviceversions")
-
-var clusterserviceversionsKind = v1alpha1.SchemeGroupVersion.WithKind("ClusterServiceVersion")
-
-// Get takes name of the clusterServiceVersion, and returns the corresponding clusterServiceVersion object, and an error if there is any.
-func (c *FakeClusterServiceVersions) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.ClusterServiceVersion, err error) {
-	emptyResult := &v1alpha1.ClusterServiceVersion{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(clusterserviceversionsResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeClusterServiceVersions(fake *FakeOperatorsV1alpha1, namespace string) operatorsv1alpha1.ClusterServiceVersionInterface {
+	return &fakeClusterServiceVersions{
+		gentype.NewFakeClientWithList[*v1alpha1.ClusterServiceVersion, *v1alpha1.ClusterServiceVersionList](
+			fake.Fake,
+			namespace,
+			v1alpha1.SchemeGroupVersion.WithResource("clusterserviceversions"),
+			v1alpha1.SchemeGroupVersion.WithKind("ClusterServiceVersion"),
+			func() *v1alpha1.ClusterServiceVersion { return &v1alpha1.ClusterServiceVersion{} },
+			func() *v1alpha1.ClusterServiceVersionList { return &v1alpha1.ClusterServiceVersionList{} },
+			func(dst, src *v1alpha1.ClusterServiceVersionList) { dst.ListMeta = src.ListMeta },
+			func(list *v1alpha1.ClusterServiceVersionList) []*v1alpha1.ClusterServiceVersion {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v1alpha1.ClusterServiceVersionList, items []*v1alpha1.ClusterServiceVersion) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1alpha1.ClusterServiceVersion), err
-}
-
-// List takes label and field selectors, and returns the list of ClusterServiceVersions that match those selectors.
-func (c *FakeClusterServiceVersions) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.ClusterServiceVersionList, err error) {
-	emptyResult := &v1alpha1.ClusterServiceVersionList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(clusterserviceversionsResource, clusterserviceversionsKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1alpha1.ClusterServiceVersionList{ListMeta: obj.(*v1alpha1.ClusterServiceVersionList).ListMeta}
-	for _, item := range obj.(*v1alpha1.ClusterServiceVersionList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested clusterServiceVersions.
-func (c *FakeClusterServiceVersions) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(clusterserviceversionsResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a clusterServiceVersion and creates it.  Returns the server's representation of the clusterServiceVersion, and an error, if there is any.
-func (c *FakeClusterServiceVersions) Create(ctx context.Context, clusterServiceVersion *v1alpha1.ClusterServiceVersion, opts v1.CreateOptions) (result *v1alpha1.ClusterServiceVersion, err error) {
-	emptyResult := &v1alpha1.ClusterServiceVersion{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(clusterserviceversionsResource, c.ns, clusterServiceVersion, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1alpha1.ClusterServiceVersion), err
-}
-
-// Update takes the representation of a clusterServiceVersion and updates it. Returns the server's representation of the clusterServiceVersion, and an error, if there is any.
-func (c *FakeClusterServiceVersions) Update(ctx context.Context, clusterServiceVersion *v1alpha1.ClusterServiceVersion, opts v1.UpdateOptions) (result *v1alpha1.ClusterServiceVersion, err error) {
-	emptyResult := &v1alpha1.ClusterServiceVersion{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(clusterserviceversionsResource, c.ns, clusterServiceVersion, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1alpha1.ClusterServiceVersion), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeClusterServiceVersions) UpdateStatus(ctx context.Context, clusterServiceVersion *v1alpha1.ClusterServiceVersion, opts v1.UpdateOptions) (result *v1alpha1.ClusterServiceVersion, err error) {
-	emptyResult := &v1alpha1.ClusterServiceVersion{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(clusterserviceversionsResource, "status", c.ns, clusterServiceVersion, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1alpha1.ClusterServiceVersion), err
-}
-
-// Delete takes name of the clusterServiceVersion and deletes it. Returns an error if one occurs.
-func (c *FakeClusterServiceVersions) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(clusterserviceversionsResource, c.ns, name, opts), &v1alpha1.ClusterServiceVersion{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeClusterServiceVersions) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(clusterserviceversionsResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1alpha1.ClusterServiceVersionList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched clusterServiceVersion.
-func (c *FakeClusterServiceVersions) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.ClusterServiceVersion, err error) {
-	emptyResult := &v1alpha1.ClusterServiceVersion{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(clusterserviceversionsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1alpha1.ClusterServiceVersion), err
 }

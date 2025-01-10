@@ -19,9 +19,9 @@ limitations under the License.
 package internalversion
 
 import (
-	"net/http"
+	http "net/http"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/internalversion/scheme"
+	scheme "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/internalversion/scheme"
 	rest "k8s.io/client-go/rest"
 )
 
@@ -92,7 +92,7 @@ func setConfigDefaults(config *rest.Config) error {
 		gv := scheme.Scheme.PrioritizedVersionsForGroup("packages.operators.coreos.com")[0]
 		config.GroupVersion = &gv
 	}
-	config.NegotiatedSerializer = scheme.Codecs
+	config.NegotiatedSerializer = rest.CodecFactoryForGeneratedClient(scheme.Scheme, scheme.Codecs)
 
 	if config.QPS == 0 {
 		config.QPS = 5

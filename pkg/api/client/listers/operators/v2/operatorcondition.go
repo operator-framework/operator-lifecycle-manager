@@ -19,10 +19,10 @@ limitations under the License.
 package v2
 
 import (
-	v2 "github.com/operator-framework/api/pkg/operators/v2"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/listers"
-	"k8s.io/client-go/tools/cache"
+	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // OperatorConditionLister helps list OperatorConditions.
@@ -30,7 +30,7 @@ import (
 type OperatorConditionLister interface {
 	// List lists all OperatorConditions in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v2.OperatorCondition, err error)
+	List(selector labels.Selector) (ret []*operatorsv2.OperatorCondition, err error)
 	// OperatorConditions returns an object that can list and get OperatorConditions.
 	OperatorConditions(namespace string) OperatorConditionNamespaceLister
 	OperatorConditionListerExpansion
@@ -38,17 +38,17 @@ type OperatorConditionLister interface {
 
 // operatorConditionLister implements the OperatorConditionLister interface.
 type operatorConditionLister struct {
-	listers.ResourceIndexer[*v2.OperatorCondition]
+	listers.ResourceIndexer[*operatorsv2.OperatorCondition]
 }
 
 // NewOperatorConditionLister returns a new OperatorConditionLister.
 func NewOperatorConditionLister(indexer cache.Indexer) OperatorConditionLister {
-	return &operatorConditionLister{listers.New[*v2.OperatorCondition](indexer, v2.Resource("operatorcondition"))}
+	return &operatorConditionLister{listers.New[*operatorsv2.OperatorCondition](indexer, operatorsv2.Resource("operatorcondition"))}
 }
 
 // OperatorConditions returns an object that can list and get OperatorConditions.
 func (s *operatorConditionLister) OperatorConditions(namespace string) OperatorConditionNamespaceLister {
-	return operatorConditionNamespaceLister{listers.NewNamespaced[*v2.OperatorCondition](s.ResourceIndexer, namespace)}
+	return operatorConditionNamespaceLister{listers.NewNamespaced[*operatorsv2.OperatorCondition](s.ResourceIndexer, namespace)}
 }
 
 // OperatorConditionNamespaceLister helps list and get OperatorConditions.
@@ -56,15 +56,15 @@ func (s *operatorConditionLister) OperatorConditions(namespace string) OperatorC
 type OperatorConditionNamespaceLister interface {
 	// List lists all OperatorConditions in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v2.OperatorCondition, err error)
+	List(selector labels.Selector) (ret []*operatorsv2.OperatorCondition, err error)
 	// Get retrieves the OperatorCondition from the indexer for a given namespace and name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v2.OperatorCondition, error)
+	Get(name string) (*operatorsv2.OperatorCondition, error)
 	OperatorConditionNamespaceListerExpansion
 }
 
 // operatorConditionNamespaceLister implements the OperatorConditionNamespaceLister
 // interface.
 type operatorConditionNamespaceLister struct {
-	listers.ResourceIndexer[*v2.OperatorCondition]
+	listers.ResourceIndexer[*operatorsv2.OperatorCondition]
 }

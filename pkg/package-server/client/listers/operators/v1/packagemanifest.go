@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/listers"
-	"k8s.io/client-go/tools/cache"
+	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // PackageManifestLister helps list PackageManifests.
@@ -30,7 +30,7 @@ import (
 type PackageManifestLister interface {
 	// List lists all PackageManifests in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.PackageManifest, err error)
+	List(selector labels.Selector) (ret []*operatorsv1.PackageManifest, err error)
 	// PackageManifests returns an object that can list and get PackageManifests.
 	PackageManifests(namespace string) PackageManifestNamespaceLister
 	PackageManifestListerExpansion
@@ -38,17 +38,17 @@ type PackageManifestLister interface {
 
 // packageManifestLister implements the PackageManifestLister interface.
 type packageManifestLister struct {
-	listers.ResourceIndexer[*v1.PackageManifest]
+	listers.ResourceIndexer[*operatorsv1.PackageManifest]
 }
 
 // NewPackageManifestLister returns a new PackageManifestLister.
 func NewPackageManifestLister(indexer cache.Indexer) PackageManifestLister {
-	return &packageManifestLister{listers.New[*v1.PackageManifest](indexer, v1.Resource("packagemanifest"))}
+	return &packageManifestLister{listers.New[*operatorsv1.PackageManifest](indexer, operatorsv1.Resource("packagemanifest"))}
 }
 
 // PackageManifests returns an object that can list and get PackageManifests.
 func (s *packageManifestLister) PackageManifests(namespace string) PackageManifestNamespaceLister {
-	return packageManifestNamespaceLister{listers.NewNamespaced[*v1.PackageManifest](s.ResourceIndexer, namespace)}
+	return packageManifestNamespaceLister{listers.NewNamespaced[*operatorsv1.PackageManifest](s.ResourceIndexer, namespace)}
 }
 
 // PackageManifestNamespaceLister helps list and get PackageManifests.
@@ -56,15 +56,15 @@ func (s *packageManifestLister) PackageManifests(namespace string) PackageManife
 type PackageManifestNamespaceLister interface {
 	// List lists all PackageManifests in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.PackageManifest, err error)
+	List(selector labels.Selector) (ret []*operatorsv1.PackageManifest, err error)
 	// Get retrieves the PackageManifest from the indexer for a given namespace and name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.PackageManifest, error)
+	Get(name string) (*operatorsv1.PackageManifest, error)
 	PackageManifestNamespaceListerExpansion
 }
 
 // packageManifestNamespaceLister implements the PackageManifestNamespaceLister
 // interface.
 type packageManifestNamespaceLister struct {
-	listers.ResourceIndexer[*v1.PackageManifest]
+	listers.ResourceIndexer[*operatorsv1.PackageManifest]
 }

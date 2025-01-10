@@ -19,8 +19,8 @@ limitations under the License.
 package internalversion
 
 import (
-	"fmt"
-	"net/http"
+	fmt "fmt"
+	http "net/http"
 
 	packagesinternalversion "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/internalversion/typed/operators/internalversion"
 	discovery "k8s.io/client-go/discovery"

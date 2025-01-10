@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/operator-framework/api/pkg/operators/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/listers"
-	"k8s.io/client-go/tools/cache"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // OperatorLister helps list Operators.
@@ -30,19 +30,19 @@ import (
 type OperatorLister interface {
 	// List lists all Operators in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.Operator, err error)
+	List(selector labels.Selector) (ret []*operatorsv1.Operator, err error)
 	// Get retrieves the Operator from the index for a given name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.Operator, error)
+	Get(name string) (*operatorsv1.Operator, error)
 	OperatorListerExpansion
 }
 
 // operatorLister implements the OperatorLister interface.
 type operatorLister struct {
-	listers.ResourceIndexer[*v1.Operator]
+	listers.ResourceIndexer[*operatorsv1.Operator]
 }
 
 // NewOperatorLister returns a new OperatorLister.
 func NewOperatorLister(indexer cache.Indexer) OperatorLister {
-	return &operatorLister{listers.New[*v1.Operator](indexer, v1.Resource("operator"))}
+	return &operatorLister{listers.New[*operatorsv1.Operator](indexer, operatorsv1.Resource("operator"))}
 }

@@ -19,7 +19,7 @@ limitations under the License.
 package externalversions
 
 import (
-	"fmt"
+	fmt "fmt"
 
 	v1 "github.com/operator-framework/api/pkg/operators/v1"
 	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"

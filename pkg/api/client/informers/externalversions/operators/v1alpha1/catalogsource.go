@@ -19,13 +19,13 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	pkgoperatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	versioned "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -36,7 +36,7 @@ import (
 // CatalogSources.
 type CatalogSourceInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha1.CatalogSourceLister
+	Lister() operatorsv1alpha1.CatalogSourceLister
 }
 
 type catalogSourceInformer struct {
@@ -71,7 +71,7 @@ func NewFilteredCatalogSourceInformer(client versioned.Interface, namespace stri
 				return client.OperatorsV1alpha1().CatalogSources(namespace).Watch(context.TODO(), options)
 			},
 		},
-		&operatorsv1alpha1.CatalogSource{},
+		&pkgoperatorsv1alpha1.CatalogSource{},
 		resyncPeriod,
 		indexers,
 	)
@@ -82,9 +82,9 @@ func (f *catalogSourceInformer) defaultInformer(client versioned.Interface, resy
 }
 
 func (f *catalogSourceInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorsv1alpha1.CatalogSource{}, f.defaultInformer)
+	return f.factory.InformerFor(&pkgoperatorsv1alpha1.CatalogSource{}, f.defaultInformer)
 }
 
-func (f *catalogSourceInformer) Lister() v1alpha1.CatalogSourceLister {
-	return v1alpha1.NewCatalogSourceLister(f.Informer().GetIndexer())
+func (f *catalogSourceInformer) Lister() operatorsv1alpha1.CatalogSourceLister {
+	return operatorsv1alpha1.NewCatalogSourceLister(f.Informer().GetIndexer())
 }

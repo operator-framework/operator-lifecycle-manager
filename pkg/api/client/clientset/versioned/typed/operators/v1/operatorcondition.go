@@ -19,9 +19,9 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
-	v1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	scheme "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,34 @@ type OperatorConditionsGetter interface {
 
 // OperatorConditionInterface has methods to work with OperatorCondition resources.
 type OperatorConditionInterface interface {
-	Create(ctx context.Context, operatorCondition *v1.OperatorCondition, opts metav1.CreateOptions) (*v1.OperatorCondition, error)
-	Update(ctx context.Context, operatorCondition *v1.OperatorCondition, opts metav1.UpdateOptions) (*v1.OperatorCondition, error)
+	Create(ctx context.Context, operatorCondition *operatorsv1.OperatorCondition, opts metav1.CreateOptions) (*operatorsv1.OperatorCondition, error)
+	Update(ctx context.Context, operatorCondition *operatorsv1.OperatorCondition, opts metav1.UpdateOptions) (*operatorsv1.OperatorCondition, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, operatorCondition *v1.OperatorCondition, opts metav1.UpdateOptions) (*v1.OperatorCondition, error)
+	UpdateStatus(ctx context.Context, operatorCondition *operatorsv1.OperatorCondition, opts metav1.UpdateOptions) (*operatorsv1.OperatorCondition, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.OperatorCondition, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.OperatorConditionList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*operatorsv1.OperatorCondition, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*operatorsv1.OperatorConditionList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.OperatorCondition, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *operatorsv1.OperatorCondition, err error)
 	OperatorConditionExpansion
 }
 
 // operatorConditions implements OperatorConditionInterface
 type operatorConditions struct {
-	*gentype.ClientWithList[*v1.OperatorCondition, *v1.OperatorConditionList]
+	*gentype.ClientWithList[*operatorsv1.OperatorCondition, *operatorsv1.OperatorConditionList]
 }
 
 // newOperatorConditions returns a OperatorConditions
 func newOperatorConditions(c *OperatorsV1Client, namespace string) *operatorConditions {
 	return &operatorConditions{
-		gentype.NewClientWithList[*v1.OperatorCondition, *v1.OperatorConditionList](
+		gentype.NewClientWithList[*operatorsv1.OperatorCondition, *operatorsv1.OperatorConditionList](
 			"operatorconditions",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1.OperatorCondition { return &v1.OperatorCondition{} },
-			func() *v1.OperatorConditionList { return &v1.OperatorConditionList{} }),
+			func() *operatorsv1.OperatorCondition { return &operatorsv1.OperatorCondition{} },
+			func() *operatorsv1.OperatorConditionList { return &operatorsv1.OperatorConditionList{} },
+		),
 	}
 }

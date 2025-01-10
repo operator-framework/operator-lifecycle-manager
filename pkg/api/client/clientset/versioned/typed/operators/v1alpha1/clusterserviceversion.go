@@ -19,9 +19,9 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"context"
+	context "context"
 
-	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	scheme "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,36 @@ type ClusterServiceVersionsGetter interface {
 
 // ClusterServiceVersionInterface has methods to work with ClusterServiceVersion resources.
 type ClusterServiceVersionInterface interface {
-	Create(ctx context.Context, clusterServiceVersion *v1alpha1.ClusterServiceVersion, opts v1.CreateOptions) (*v1alpha1.ClusterServiceVersion, error)
-	Update(ctx context.Context, clusterServiceVersion *v1alpha1.ClusterServiceVersion, opts v1.UpdateOptions) (*v1alpha1.ClusterServiceVersion, error)
+	Create(ctx context.Context, clusterServiceVersion *operatorsv1alpha1.ClusterServiceVersion, opts v1.CreateOptions) (*operatorsv1alpha1.ClusterServiceVersion, error)
+	Update(ctx context.Context, clusterServiceVersion *operatorsv1alpha1.ClusterServiceVersion, opts v1.UpdateOptions) (*operatorsv1alpha1.ClusterServiceVersion, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, clusterServiceVersion *v1alpha1.ClusterServiceVersion, opts v1.UpdateOptions) (*v1alpha1.ClusterServiceVersion, error)
+	UpdateStatus(ctx context.Context, clusterServiceVersion *operatorsv1alpha1.ClusterServiceVersion, opts v1.UpdateOptions) (*operatorsv1alpha1.ClusterServiceVersion, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.ClusterServiceVersion, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.ClusterServiceVersionList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*operatorsv1alpha1.ClusterServiceVersion, error)
+	List(ctx context.Context, opts v1.ListOptions) (*operatorsv1alpha1.ClusterServiceVersionList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.ClusterServiceVersion, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *operatorsv1alpha1.ClusterServiceVersion, err error)
 	ClusterServiceVersionExpansion
 }
 
 // clusterServiceVersions implements ClusterServiceVersionInterface
 type clusterServiceVersions struct {
-	*gentype.ClientWithList[*v1alpha1.ClusterServiceVersion, *v1alpha1.ClusterServiceVersionList]
+	*gentype.ClientWithList[*operatorsv1alpha1.ClusterServiceVersion, *operatorsv1alpha1.ClusterServiceVersionList]
 }
 
 // newClusterServiceVersions returns a ClusterServiceVersions
 func newClusterServiceVersions(c *OperatorsV1alpha1Client, namespace string) *clusterServiceVersions {
 	return &clusterServiceVersions{
-		gentype.NewClientWithList[*v1alpha1.ClusterServiceVersion, *v1alpha1.ClusterServiceVersionList](
+		gentype.NewClientWithList[*operatorsv1alpha1.ClusterServiceVersion, *operatorsv1alpha1.ClusterServiceVersionList](
 			"clusterserviceversions",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1alpha1.ClusterServiceVersion { return &v1alpha1.ClusterServiceVersion{} },
-			func() *v1alpha1.ClusterServiceVersionList { return &v1alpha1.ClusterServiceVersionList{} }),
+			func() *operatorsv1alpha1.ClusterServiceVersion { return &operatorsv1alpha1.ClusterServiceVersion{} },
+			func() *operatorsv1alpha1.ClusterServiceVersionList {
+				return &operatorsv1alpha1.ClusterServiceVersionList{}
+			},
+		),
 	}
 }
