@@ -27,7 +27,7 @@ import (
 	{{- end}}
 )
 
-type {{.Name}} struct {
+type {{.Name}}{{.GenericTypeParametersAndConstraints}} struct {
 	{{- range .Methods}}
 	{{.Name}}Stub func({{.Params.AsArgs}}) {{.Returns.AsReturnSignature}}
 	{{UnExport .Name}}Mutex sync.RWMutex
@@ -54,7 +54,7 @@ type {{.Name}} struct {
 }
 
 {{range .Methods -}}
-func (fake *{{$.Name}}) {{.Name}}({{.Params.AsNamedArgsWithTypes}}) {{.Returns.AsReturnSignature}} {
+func (fake *{{$.Name}}{{$.GenericTypeParameters}}) {{.Name}}({{.Params.AsNamedArgsWithTypes}}) {{.Returns.AsReturnSignature}} {
 	{{- range .Params.Slices}}
 	var {{UnExport .Name}}Copy {{.Type}}
 	if {{UnExport .Name}} != nil {
@@ -90,20 +90,20 @@ func (fake *{{$.Name}}) {{.Name}}({{.Params.AsNamedArgsWithTypes}}) {{.Returns.A
 	{{- end}}
 }
 
-func (fake *{{$.Name}}) {{Title .Name}}CallCount() int {
+func (fake *{{$.Name}}{{$.GenericTypeParameters}}) {{Title .Name}}CallCount() int {
 	fake.{{UnExport .Name}}Mutex.RLock()
 	defer fake.{{UnExport .Name}}Mutex.RUnlock()
 	return len(fake.{{UnExport .Name}}ArgsForCall)
 }
 
-func (fake *{{$.Name}}) {{Title .Name}}Calls(stub func({{.Params.AsArgs}}) {{.Returns.AsReturnSignature}}) {
+func (fake *{{$.Name}}{{$.GenericTypeParameters}}) {{Title .Name}}Calls(stub func({{.Params.AsArgs}}) {{.Returns.AsReturnSignature}}) {
 	fake.{{UnExport .Name}}Mutex.Lock()
 	defer fake.{{UnExport .Name}}Mutex.Unlock()
 	fake.{{.Name}}Stub = stub
 }
 
 {{if .Params.HasLength -}}
-func (fake *{{$.Name}}) {{Title .Name}}ArgsForCall(i int) {{.Params.AsReturnSignature}} {
+func (fake *{{$.Name}}{{$.GenericTypeParameters}}) {{Title .Name}}ArgsForCall(i int) {{.Params.AsReturnSignature}} {
 	fake.{{UnExport .Name}}Mutex.RLock()
 	defer fake.{{UnExport .Name}}Mutex.RUnlock()
 	argsForCall := fake.{{UnExport .Name}}ArgsForCall[i]
@@ -112,7 +112,7 @@ func (fake *{{$.Name}}) {{Title .Name}}ArgsForCall(i int) {{.Params.AsReturnSign
 {{- end}}
 
 {{if .Returns.HasLength -}}
-func (fake *{{$.Name}}) {{Title .Name}}Returns({{.Returns.AsNamedArgsWithTypes}}) {
+func (fake *{{$.Name}}{{$.GenericTypeParameters}}) {{Title .Name}}Returns({{.Returns.AsNamedArgsWithTypes}}) {
 	fake.{{UnExport .Name}}Mutex.Lock()
 	defer fake.{{UnExport .Name}}Mutex.Unlock()
 	fake.{{.Name}}Stub = nil
@@ -123,7 +123,7 @@ func (fake *{{$.Name}}) {{Title .Name}}Returns({{.Returns.AsNamedArgsWithTypes}}
 	}{ {{- .Returns.AsNamedArgs -}} }
 }
 
-func (fake *{{$.Name}}) {{Title .Name}}ReturnsOnCall(i int, {{.Returns.AsNamedArgsWithTypes}}) {
+func (fake *{{$.Name}}{{$.GenericTypeParameters}}) {{Title .Name}}ReturnsOnCall(i int, {{.Returns.AsNamedArgsWithTypes}}) {
 	fake.{{UnExport .Name}}Mutex.Lock()
 	defer fake.{{UnExport .Name}}Mutex.Unlock()
 	fake.{{.Name}}Stub = nil
@@ -144,7 +144,7 @@ func (fake *{{$.Name}}) {{Title .Name}}ReturnsOnCall(i int, {{.Returns.AsNamedAr
 {{end -}}
 {{end}}
 
-func (fake *{{.Name}}) Invocations() map[string][][]interface{} {
+func (fake *{{.Name}}{{$.GenericTypeParameters}}) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	{{- range .Methods}}
@@ -158,7 +158,7 @@ func (fake *{{.Name}}) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *{{.Name}}) recordInvocation(key string, args []interface{}) {
+func (fake *{{.Name}}{{$.GenericTypeParameters}}) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -171,6 +171,6 @@ func (fake *{{.Name}}) recordInvocation(key string, args []interface{}) {
 }
 
 {{if IsExported .TargetName -}}
-var _ {{.TargetAlias}}.{{.TargetName}} = new({{.Name}})
+var _ {{.TargetAlias}}.{{.TargetName}}{{.GenericTypeConstraints}} = new({{.Name}}{{.GenericTypeConstraints}})
 {{- end}}
 `

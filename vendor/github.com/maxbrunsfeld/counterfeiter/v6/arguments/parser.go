@@ -91,7 +91,7 @@ func New(args []string, workingDir string, evaler Evaler, stater Stater) (*Parse
 }
 
 func (a *ParsedArguments) PrettyPrint() {
-	b, _ := json.Marshal(a)
+	b, _ := json.MarshalIndent(a, "", " ")
 	fmt.Println(string(b))
 }
 
