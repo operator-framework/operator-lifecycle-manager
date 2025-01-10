@@ -149,7 +149,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	}
 
 	// create a config that validates we're creating objects with labels
-	validatingConfig := validatingroundtripper.Wrap(config)
+	validatingConfig := validatingroundtripper.Wrap(config, scheme)
 
 	// Create a new client for dynamic types (CRs)
 	dynamicClient, err := dynamic.NewForConfig(validatingConfig)
