@@ -19,13 +19,13 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	pkgoperatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	versioned "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/internalinterfaces"
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
+	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -36,7 +36,7 @@ import (
 // OLMConfigs.
 type OLMConfigInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.OLMConfigLister
+	Lister() operatorsv1.OLMConfigLister
 }
 
 type oLMConfigInformer struct {
@@ -70,7 +70,7 @@ func NewFilteredOLMConfigInformer(client versioned.Interface, resyncPeriod time.
 				return client.OperatorsV1().OLMConfigs().Watch(context.TODO(), options)
 			},
 		},
-		&operatorsv1.OLMConfig{},
+		&pkgoperatorsv1.OLMConfig{},
 		resyncPeriod,
 		indexers,
 	)
@@ -81,9 +81,9 @@ func (f *oLMConfigInformer) defaultInformer(client versioned.Interface, resyncPe
 }
 
 func (f *oLMConfigInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorsv1.OLMConfig{}, f.defaultInformer)
+	return f.factory.InformerFor(&pkgoperatorsv1.OLMConfig{}, f.defaultInformer)
 }
 
-func (f *oLMConfigInformer) Lister() v1.OLMConfigLister {
-	return v1.NewOLMConfigLister(f.Informer().GetIndexer())
+func (f *oLMConfigInformer) Lister() operatorsv1.OLMConfigLister {
+	return operatorsv1.NewOLMConfigLister(f.Informer().GetIndexer())
 }

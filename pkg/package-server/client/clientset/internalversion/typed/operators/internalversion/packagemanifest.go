@@ -19,7 +19,7 @@ limitations under the License.
 package internalversion
 
 import (
-	"context"
+	context "context"
 
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
 	scheme "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/internalversion/scheme"
@@ -64,6 +64,7 @@ func newPackageManifests(c *PackagesClient, namespace string) *packageManifests 
 			scheme.ParameterCodec,
 			namespace,
 			func() *operators.PackageManifest { return &operators.PackageManifest{} },
-			func() *operators.PackageManifestList { return &operators.PackageManifestList{} }),
+			func() *operators.PackageManifestList { return &operators.PackageManifestList{} },
+		),
 	}
 }

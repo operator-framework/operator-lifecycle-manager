@@ -19,10 +19,10 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/listers"
-	"k8s.io/client-go/tools/cache"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // CatalogSourceLister helps list CatalogSources.
@@ -30,7 +30,7 @@ import (
 type CatalogSourceLister interface {
 	// List lists all CatalogSources in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1alpha1.CatalogSource, err error)
+	List(selector labels.Selector) (ret []*operatorsv1alpha1.CatalogSource, err error)
 	// CatalogSources returns an object that can list and get CatalogSources.
 	CatalogSources(namespace string) CatalogSourceNamespaceLister
 	CatalogSourceListerExpansion
@@ -38,17 +38,17 @@ type CatalogSourceLister interface {
 
 // catalogSourceLister implements the CatalogSourceLister interface.
 type catalogSourceLister struct {
-	listers.ResourceIndexer[*v1alpha1.CatalogSource]
+	listers.ResourceIndexer[*operatorsv1alpha1.CatalogSource]
 }
 
 // NewCatalogSourceLister returns a new CatalogSourceLister.
 func NewCatalogSourceLister(indexer cache.Indexer) CatalogSourceLister {
-	return &catalogSourceLister{listers.New[*v1alpha1.CatalogSource](indexer, v1alpha1.Resource("catalogsource"))}
+	return &catalogSourceLister{listers.New[*operatorsv1alpha1.CatalogSource](indexer, operatorsv1alpha1.Resource("catalogsource"))}
 }
 
 // CatalogSources returns an object that can list and get CatalogSources.
 func (s *catalogSourceLister) CatalogSources(namespace string) CatalogSourceNamespaceLister {
-	return catalogSourceNamespaceLister{listers.NewNamespaced[*v1alpha1.CatalogSource](s.ResourceIndexer, namespace)}
+	return catalogSourceNamespaceLister{listers.NewNamespaced[*operatorsv1alpha1.CatalogSource](s.ResourceIndexer, namespace)}
 }
 
 // CatalogSourceNamespaceLister helps list and get CatalogSources.
@@ -56,15 +56,15 @@ func (s *catalogSourceLister) CatalogSources(namespace string) CatalogSourceName
 type CatalogSourceNamespaceLister interface {
 	// List lists all CatalogSources in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1alpha1.CatalogSource, err error)
+	List(selector labels.Selector) (ret []*operatorsv1alpha1.CatalogSource, err error)
 	// Get retrieves the CatalogSource from the indexer for a given namespace and name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1alpha1.CatalogSource, error)
+	Get(name string) (*operatorsv1alpha1.CatalogSource, error)
 	CatalogSourceNamespaceListerExpansion
 }
 
 // catalogSourceNamespaceLister implements the CatalogSourceNamespaceLister
 // interface.
 type catalogSourceNamespaceLister struct {
-	listers.ResourceIndexer[*v1alpha1.CatalogSource]
+	listers.ResourceIndexer[*operatorsv1alpha1.CatalogSource]
 }

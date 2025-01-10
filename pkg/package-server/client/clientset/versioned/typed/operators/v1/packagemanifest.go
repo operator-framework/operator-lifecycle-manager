@@ -19,9 +19,9 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1"
+	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1"
 	scheme "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,34 @@ type PackageManifestsGetter interface {
 
 // PackageManifestInterface has methods to work with PackageManifest resources.
 type PackageManifestInterface interface {
-	Create(ctx context.Context, packageManifest *v1.PackageManifest, opts metav1.CreateOptions) (*v1.PackageManifest, error)
-	Update(ctx context.Context, packageManifest *v1.PackageManifest, opts metav1.UpdateOptions) (*v1.PackageManifest, error)
+	Create(ctx context.Context, packageManifest *operatorsv1.PackageManifest, opts metav1.CreateOptions) (*operatorsv1.PackageManifest, error)
+	Update(ctx context.Context, packageManifest *operatorsv1.PackageManifest, opts metav1.UpdateOptions) (*operatorsv1.PackageManifest, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, packageManifest *v1.PackageManifest, opts metav1.UpdateOptions) (*v1.PackageManifest, error)
+	UpdateStatus(ctx context.Context, packageManifest *operatorsv1.PackageManifest, opts metav1.UpdateOptions) (*operatorsv1.PackageManifest, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.PackageManifest, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.PackageManifestList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*operatorsv1.PackageManifest, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*operatorsv1.PackageManifestList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.PackageManifest, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *operatorsv1.PackageManifest, err error)
 	PackageManifestExpansion
 }
 
 // packageManifests implements PackageManifestInterface
 type packageManifests struct {
-	*gentype.ClientWithList[*v1.PackageManifest, *v1.PackageManifestList]
+	*gentype.ClientWithList[*operatorsv1.PackageManifest, *operatorsv1.PackageManifestList]
 }
 
 // newPackageManifests returns a PackageManifests
 func newPackageManifests(c *PackagesV1Client, namespace string) *packageManifests {
 	return &packageManifests{
-		gentype.NewClientWithList[*v1.PackageManifest, *v1.PackageManifestList](
+		gentype.NewClientWithList[*operatorsv1.PackageManifest, *operatorsv1.PackageManifestList](
 			"packagemanifests",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1.PackageManifest { return &v1.PackageManifest{} },
-			func() *v1.PackageManifestList { return &v1.PackageManifestList{} }),
+			func() *operatorsv1.PackageManifest { return &operatorsv1.PackageManifest{} },
+			func() *operatorsv1.PackageManifestList { return &operatorsv1.PackageManifestList{} },
+		),
 	}
 }

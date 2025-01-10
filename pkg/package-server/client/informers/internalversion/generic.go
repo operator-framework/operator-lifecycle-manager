@@ -19,7 +19,7 @@ limitations under the License.
 package internalversion
 
 import (
-	"fmt"
+	fmt "fmt"
 
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

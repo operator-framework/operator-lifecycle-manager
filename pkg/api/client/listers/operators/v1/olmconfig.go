@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/operator-framework/api/pkg/operators/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/listers"
-	"k8s.io/client-go/tools/cache"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // OLMConfigLister helps list OLMConfigs.
@@ -30,19 +30,19 @@ import (
 type OLMConfigLister interface {
 	// List lists all OLMConfigs in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.OLMConfig, err error)
+	List(selector labels.Selector) (ret []*operatorsv1.OLMConfig, err error)
 	// Get retrieves the OLMConfig from the index for a given name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.OLMConfig, error)
+	Get(name string) (*operatorsv1.OLMConfig, error)
 	OLMConfigListerExpansion
 }
 
 // oLMConfigLister implements the OLMConfigLister interface.
 type oLMConfigLister struct {
-	listers.ResourceIndexer[*v1.OLMConfig]
+	listers.ResourceIndexer[*operatorsv1.OLMConfig]
 }
 
 // NewOLMConfigLister returns a new OLMConfigLister.
 func NewOLMConfigLister(indexer cache.Indexer) OLMConfigLister {
-	return &oLMConfigLister{listers.New[*v1.OLMConfig](indexer, v1.Resource("olmconfig"))}
+	return &oLMConfigLister{listers.New[*operatorsv1.OLMConfig](indexer, operatorsv1.Resource("olmconfig"))}
 }

@@ -19,9 +19,9 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
-	v1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	scheme "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,34 @@ type OLMConfigsGetter interface {
 
 // OLMConfigInterface has methods to work with OLMConfig resources.
 type OLMConfigInterface interface {
-	Create(ctx context.Context, oLMConfig *v1.OLMConfig, opts metav1.CreateOptions) (*v1.OLMConfig, error)
-	Update(ctx context.Context, oLMConfig *v1.OLMConfig, opts metav1.UpdateOptions) (*v1.OLMConfig, error)
+	Create(ctx context.Context, oLMConfig *operatorsv1.OLMConfig, opts metav1.CreateOptions) (*operatorsv1.OLMConfig, error)
+	Update(ctx context.Context, oLMConfig *operatorsv1.OLMConfig, opts metav1.UpdateOptions) (*operatorsv1.OLMConfig, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, oLMConfig *v1.OLMConfig, opts metav1.UpdateOptions) (*v1.OLMConfig, error)
+	UpdateStatus(ctx context.Context, oLMConfig *operatorsv1.OLMConfig, opts metav1.UpdateOptions) (*operatorsv1.OLMConfig, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.OLMConfig, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.OLMConfigList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*operatorsv1.OLMConfig, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*operatorsv1.OLMConfigList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.OLMConfig, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *operatorsv1.OLMConfig, err error)
 	OLMConfigExpansion
 }
 
 // oLMConfigs implements OLMConfigInterface
 type oLMConfigs struct {
-	*gentype.ClientWithList[*v1.OLMConfig, *v1.OLMConfigList]
+	*gentype.ClientWithList[*operatorsv1.OLMConfig, *operatorsv1.OLMConfigList]
 }
 
 // newOLMConfigs returns a OLMConfigs
 func newOLMConfigs(c *OperatorsV1Client) *oLMConfigs {
 	return &oLMConfigs{
-		gentype.NewClientWithList[*v1.OLMConfig, *v1.OLMConfigList](
+		gentype.NewClientWithList[*operatorsv1.OLMConfig, *operatorsv1.OLMConfigList](
 			"olmconfigs",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1.OLMConfig { return &v1.OLMConfig{} },
-			func() *v1.OLMConfigList { return &v1.OLMConfigList{} }),
+			func() *operatorsv1.OLMConfig { return &operatorsv1.OLMConfig{} },
+			func() *operatorsv1.OLMConfigList { return &operatorsv1.OLMConfigList{} },
+		),
 	}
 }

@@ -19,9 +19,9 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"context"
+	context "context"
 
-	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	scheme "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,34 @@ type InstallPlansGetter interface {
 
 // InstallPlanInterface has methods to work with InstallPlan resources.
 type InstallPlanInterface interface {
-	Create(ctx context.Context, installPlan *v1alpha1.InstallPlan, opts v1.CreateOptions) (*v1alpha1.InstallPlan, error)
-	Update(ctx context.Context, installPlan *v1alpha1.InstallPlan, opts v1.UpdateOptions) (*v1alpha1.InstallPlan, error)
+	Create(ctx context.Context, installPlan *operatorsv1alpha1.InstallPlan, opts v1.CreateOptions) (*operatorsv1alpha1.InstallPlan, error)
+	Update(ctx context.Context, installPlan *operatorsv1alpha1.InstallPlan, opts v1.UpdateOptions) (*operatorsv1alpha1.InstallPlan, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, installPlan *v1alpha1.InstallPlan, opts v1.UpdateOptions) (*v1alpha1.InstallPlan, error)
+	UpdateStatus(ctx context.Context, installPlan *operatorsv1alpha1.InstallPlan, opts v1.UpdateOptions) (*operatorsv1alpha1.InstallPlan, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.InstallPlan, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.InstallPlanList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*operatorsv1alpha1.InstallPlan, error)
+	List(ctx context.Context, opts v1.ListOptions) (*operatorsv1alpha1.InstallPlanList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.InstallPlan, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *operatorsv1alpha1.InstallPlan, err error)
 	InstallPlanExpansion
 }
 
 // installPlans implements InstallPlanInterface
 type installPlans struct {
-	*gentype.ClientWithList[*v1alpha1.InstallPlan, *v1alpha1.InstallPlanList]
+	*gentype.ClientWithList[*operatorsv1alpha1.InstallPlan, *operatorsv1alpha1.InstallPlanList]
 }
 
 // newInstallPlans returns a InstallPlans
 func newInstallPlans(c *OperatorsV1alpha1Client, namespace string) *installPlans {
 	return &installPlans{
-		gentype.NewClientWithList[*v1alpha1.InstallPlan, *v1alpha1.InstallPlanList](
+		gentype.NewClientWithList[*operatorsv1alpha1.InstallPlan, *operatorsv1alpha1.InstallPlanList](
 			"installplans",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1alpha1.InstallPlan { return &v1alpha1.InstallPlan{} },
-			func() *v1alpha1.InstallPlanList { return &v1alpha1.InstallPlanList{} }),
+			func() *operatorsv1alpha1.InstallPlan { return &operatorsv1alpha1.InstallPlan{} },
+			func() *operatorsv1alpha1.InstallPlanList { return &operatorsv1alpha1.InstallPlanList{} },
+		),
 	}
 }

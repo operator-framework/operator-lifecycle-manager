@@ -29,7 +29,7 @@ type FakePackages struct {
 }
 
 func (c *FakePackages) PackageManifests(namespace string) internalversion.PackageManifestInterface {
-	return &FakePackageManifests{c, namespace}
+	return newFakePackageManifests(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

@@ -19,129 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/operators/v1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakePackageManifests implements PackageManifestInterface
-type FakePackageManifests struct {
+// fakePackageManifests implements PackageManifestInterface
+type fakePackageManifests struct {
+	*gentype.FakeClientWithList[*v1.PackageManifest, *v1.PackageManifestList]
 	Fake *FakePackagesV1
-	ns   string
 }
 
-var packagemanifestsResource = v1.SchemeGroupVersion.WithResource("packagemanifests")
-
-var packagemanifestsKind = v1.SchemeGroupVersion.WithKind("PackageManifest")
-
-// Get takes name of the packageManifest, and returns the corresponding packageManifest object, and an error if there is any.
-func (c *FakePackageManifests) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.PackageManifest, err error) {
-	emptyResult := &v1.PackageManifest{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(packagemanifestsResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakePackageManifests(fake *FakePackagesV1, namespace string) operatorsv1.PackageManifestInterface {
+	return &fakePackageManifests{
+		gentype.NewFakeClientWithList[*v1.PackageManifest, *v1.PackageManifestList](
+			fake.Fake,
+			namespace,
+			v1.SchemeGroupVersion.WithResource("packagemanifests"),
+			v1.SchemeGroupVersion.WithKind("PackageManifest"),
+			func() *v1.PackageManifest { return &v1.PackageManifest{} },
+			func() *v1.PackageManifestList { return &v1.PackageManifestList{} },
+			func(dst, src *v1.PackageManifestList) { dst.ListMeta = src.ListMeta },
+			func(list *v1.PackageManifestList) []*v1.PackageManifest { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1.PackageManifestList, items []*v1.PackageManifest) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1.PackageManifest), err
-}
-
-// List takes label and field selectors, and returns the list of PackageManifests that match those selectors.
-func (c *FakePackageManifests) List(ctx context.Context, opts metav1.ListOptions) (result *v1.PackageManifestList, err error) {
-	emptyResult := &v1.PackageManifestList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(packagemanifestsResource, packagemanifestsKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1.PackageManifestList{ListMeta: obj.(*v1.PackageManifestList).ListMeta}
-	for _, item := range obj.(*v1.PackageManifestList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested packageManifests.
-func (c *FakePackageManifests) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(packagemanifestsResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a packageManifest and creates it.  Returns the server's representation of the packageManifest, and an error, if there is any.
-func (c *FakePackageManifests) Create(ctx context.Context, packageManifest *v1.PackageManifest, opts metav1.CreateOptions) (result *v1.PackageManifest, err error) {
-	emptyResult := &v1.PackageManifest{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(packagemanifestsResource, c.ns, packageManifest, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.PackageManifest), err
-}
-
-// Update takes the representation of a packageManifest and updates it. Returns the server's representation of the packageManifest, and an error, if there is any.
-func (c *FakePackageManifests) Update(ctx context.Context, packageManifest *v1.PackageManifest, opts metav1.UpdateOptions) (result *v1.PackageManifest, err error) {
-	emptyResult := &v1.PackageManifest{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(packagemanifestsResource, c.ns, packageManifest, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.PackageManifest), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakePackageManifests) UpdateStatus(ctx context.Context, packageManifest *v1.PackageManifest, opts metav1.UpdateOptions) (result *v1.PackageManifest, err error) {
-	emptyResult := &v1.PackageManifest{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(packagemanifestsResource, "status", c.ns, packageManifest, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.PackageManifest), err
-}
-
-// Delete takes name of the packageManifest and deletes it. Returns an error if one occurs.
-func (c *FakePackageManifests) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(packagemanifestsResource, c.ns, name, opts), &v1.PackageManifest{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakePackageManifests) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(packagemanifestsResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1.PackageManifestList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched packageManifest.
-func (c *FakePackageManifests) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.PackageManifest, err error) {
-	emptyResult := &v1.PackageManifest{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(packagemanifestsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.PackageManifest), err
 }

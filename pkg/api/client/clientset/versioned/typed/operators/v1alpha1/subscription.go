@@ -19,9 +19,9 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"context"
+	context "context"
 
-	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	scheme "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,34 @@ type SubscriptionsGetter interface {
 
 // SubscriptionInterface has methods to work with Subscription resources.
 type SubscriptionInterface interface {
-	Create(ctx context.Context, subscription *v1alpha1.Subscription, opts v1.CreateOptions) (*v1alpha1.Subscription, error)
-	Update(ctx context.Context, subscription *v1alpha1.Subscription, opts v1.UpdateOptions) (*v1alpha1.Subscription, error)
+	Create(ctx context.Context, subscription *operatorsv1alpha1.Subscription, opts v1.CreateOptions) (*operatorsv1alpha1.Subscription, error)
+	Update(ctx context.Context, subscription *operatorsv1alpha1.Subscription, opts v1.UpdateOptions) (*operatorsv1alpha1.Subscription, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, subscription *v1alpha1.Subscription, opts v1.UpdateOptions) (*v1alpha1.Subscription, error)
+	UpdateStatus(ctx context.Context, subscription *operatorsv1alpha1.Subscription, opts v1.UpdateOptions) (*operatorsv1alpha1.Subscription, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.Subscription, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.SubscriptionList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*operatorsv1alpha1.Subscription, error)
+	List(ctx context.Context, opts v1.ListOptions) (*operatorsv1alpha1.SubscriptionList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.Subscription, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *operatorsv1alpha1.Subscription, err error)
 	SubscriptionExpansion
 }
 
 // subscriptions implements SubscriptionInterface
 type subscriptions struct {
-	*gentype.ClientWithList[*v1alpha1.Subscription, *v1alpha1.SubscriptionList]
+	*gentype.ClientWithList[*operatorsv1alpha1.Subscription, *operatorsv1alpha1.SubscriptionList]
 }
 
 // newSubscriptions returns a Subscriptions
 func newSubscriptions(c *OperatorsV1alpha1Client, namespace string) *subscriptions {
 	return &subscriptions{
-		gentype.NewClientWithList[*v1alpha1.Subscription, *v1alpha1.SubscriptionList](
+		gentype.NewClientWithList[*operatorsv1alpha1.Subscription, *operatorsv1alpha1.SubscriptionList](
 			"subscriptions",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1alpha1.Subscription { return &v1alpha1.Subscription{} },
-			func() *v1alpha1.SubscriptionList { return &v1alpha1.SubscriptionList{} }),
+			func() *operatorsv1alpha1.Subscription { return &operatorsv1alpha1.Subscription{} },
+			func() *operatorsv1alpha1.SubscriptionList { return &operatorsv1alpha1.SubscriptionList{} },
+		),
 	}
 }

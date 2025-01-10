@@ -19,13 +19,13 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	pkgoperatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	versioned "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -36,7 +36,7 @@ import (
 // InstallPlans.
 type InstallPlanInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha1.InstallPlanLister
+	Lister() operatorsv1alpha1.InstallPlanLister
 }
 
 type installPlanInformer struct {
@@ -71,7 +71,7 @@ func NewFilteredInstallPlanInformer(client versioned.Interface, namespace string
 				return client.OperatorsV1alpha1().InstallPlans(namespace).Watch(context.TODO(), options)
 			},
 		},
-		&operatorsv1alpha1.InstallPlan{},
+		&pkgoperatorsv1alpha1.InstallPlan{},
 		resyncPeriod,
 		indexers,
 	)
@@ -82,9 +82,9 @@ func (f *installPlanInformer) defaultInformer(client versioned.Interface, resync
 }
 
 func (f *installPlanInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorsv1alpha1.InstallPlan{}, f.defaultInformer)
+	return f.factory.InformerFor(&pkgoperatorsv1alpha1.InstallPlan{}, f.defaultInformer)
 }
 
-func (f *installPlanInformer) Lister() v1alpha1.InstallPlanLister {
-	return v1alpha1.NewInstallPlanLister(f.Informer().GetIndexer())
+func (f *installPlanInformer) Lister() operatorsv1alpha1.InstallPlanLister {
+	return operatorsv1alpha1.NewInstallPlanLister(f.Informer().GetIndexer())
 }
