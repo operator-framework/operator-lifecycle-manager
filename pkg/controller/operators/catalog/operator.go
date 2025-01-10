@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/labeller"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/validatingroundtripper"
 	errorwrap "github.com/pkg/errors"
@@ -149,7 +151,9 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	}
 
 	// create a config that validates we're creating objects with labels
-	validatingConfig := validatingroundtripper.Wrap(config)
+	_ = apiextensionsv1.AddToScheme(scheme)   // required by opClient
+	_ = apiregistrationv1.AddToScheme(scheme) // required by opClient
+	validatingConfig := validatingroundtripper.Wrap(config, scheme)
 
 	// Create a new client for dynamic types (CRs)
 	dynamicClient, err := dynamic.NewForConfig(validatingConfig)

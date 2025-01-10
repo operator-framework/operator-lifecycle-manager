@@ -172,25 +172,25 @@ func NewClientFromConfig(kubeconfig string, logger *logrus.Logger) ClientInterfa
 }
 
 func NewClientFromRestConfig(config *rest.Config) (client ClientInterface, err error) {
-	kubernetes, err := kubernetes.NewForConfig(config)
+	k8s, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return
 	}
 
-	apiextensions, err := apiextensions.NewForConfig(config)
+	apiext, err := apiextensions.NewForConfig(config)
 	if err != nil {
 		return
 	}
 
-	apiregistration, err := apiregistration.NewForConfig(config)
+	apireg, err := apiregistration.NewForConfig(config)
 	if err != nil {
 		return
 	}
 
 	client = &Client{
-		kubernetes,
-		apiextensions,
-		apiregistration,
+		k8s,
+		apiext,
+		apireg,
 	}
 
 	return
