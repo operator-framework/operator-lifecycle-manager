@@ -25,19 +25,22 @@ const (
 
 // Fake is used to generate a Fake implementation of an interface.
 type Fake struct {
-	Packages           []*packages.Package
-	Package            *packages.Package
-	Target             *types.TypeName
-	Mode               FakeMode
-	DestinationPackage string
-	Name               string
-	TargetAlias        string
-	TargetName         string
-	TargetPackage      string
-	Imports            Imports
-	Methods            []Method
-	Function           Method
-	Header             string
+	Packages                            []*packages.Package
+	Package                             *packages.Package
+	Target                              *types.TypeName
+	Mode                                FakeMode
+	DestinationPackage                  string
+	Name                                string
+	GenericTypeParametersAndConstraints string
+	GenericTypeParameters               string
+	GenericTypeConstraints              string
+	TargetAlias                         string
+	TargetName                          string
+	TargetPackage                       string
+	Imports                             Imports
+	Methods                             []Method
+	Function                            Method
+	Header                              string
 }
 
 // Method is a method of the interface.
