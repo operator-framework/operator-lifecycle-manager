@@ -49,31 +49,29 @@ func (rt *validatingRoundTripper) decodeProtobuf(body io.Reader) (*unstructured.
 	return &unstructured.Unstructured{Object: unstructuredObj}, nil
 }
 
-func (rt *validatingRoundTripper) decodeRequestBody(req *http.Request) *unstructured.Unstructured {
+func (rt *validatingRoundTripper) decodeRequestBody(req *http.Request) (*unstructured.Unstructured, error) {
 	b, err := req.GetBody()
 	if err != nil {
 		panic(fmt.Errorf("failed to get request body: %w", err))
 	}
 	defer b.Close()
 
-	var unstructuredObject *unstructured.Unstructured
 	switch req.Header.Get("Content-Type") {
 	case "application/vnd.kubernetes.protobuf":
-		unstructuredObject, err = rt.decodeProtobuf(b)
+		return rt.decodeProtobuf(b)
 	default:
-		unstructuredObject, err = rt.decodeYAMLOrJSON(b)
+		return rt.decodeYAMLOrJSON(b)
 	}
-
-	if err != nil {
-		panic(fmt.Errorf("failed to decode request body: %w", err))
-	}
-
-	return unstructuredObject
 }
 
 func (rt *validatingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req.Method == "POST" {
-		unstructuredObject := rt.decodeRequestBody(req)
+		unstructuredObject, err := rt.decodeRequestBody(req)
+
+		if err != nil {
+			return nil, err
+		}
+
 		gvk := unstructuredObject.GroupVersionKind()
 		if gvk.Kind != "Event" {
 			labels := unstructuredObject.GetLabels()
