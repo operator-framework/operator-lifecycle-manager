@@ -46,7 +46,7 @@ type AnnotationMetadata struct {
 // @channels: The list of channels that bundle image belongs to
 // @channelDefault: The default channel for the bundle image
 // @overwrite: Boolean flag to enable overwriting annotations.yaml locally if existed
-func GenerateFunc(directory, outputDir, packageName, channels, channelDefault string, overwrite bool) error {
+func GenerateFunc(directory, outputDir, packageName, channels, channelDefault string, overwrite bool, baseImage string) error {
 	// clean the input so that we know the absolute paths of input directories
 	directory, err := filepath.Abs(directory)
 	if err != nil {
@@ -132,7 +132,7 @@ func GenerateFunc(directory, outputDir, packageName, channels, channelDefault st
 	log.Info("Building Dockerfile")
 
 	// Generate Dockerfile
-	content, err = GenerateDockerfile(mediaType, ManifestsDir, MetadataDir, outManifestDir, outMetadataDir, workingDir, packageName, channels, channelDefault)
+	content, err = GenerateDockerfile(mediaType, ManifestsDir, MetadataDir, outManifestDir, outMetadataDir, workingDir, packageName, channels, channelDefault, baseImage)
 	if err != nil {
 		return err
 	}
@@ -319,7 +319,7 @@ func GenerateAnnotations(mediaType, manifests, metadata, packageName, channels, 
 // GenerateDockerfile builds Dockerfile with mediatype, manifests &
 // metadata directories in bundle image, package name, channels and default
 // channels information in LABEL section.
-func GenerateDockerfile(mediaType, manifests, metadata, copyManifestDir, copyMetadataDir, workingDir, packageName, channels, channelDefault string) ([]byte, error) {
+func GenerateDockerfile(mediaType, manifests, metadata, copyManifestDir, copyMetadataDir, workingDir, packageName, channels, channelDefault string, baseImage string) ([]byte, error) {
 	var fileContent string
 
 	relativeManifestDirectory, err := filepath.Rel(workingDir, copyManifestDir)
@@ -335,7 +335,7 @@ func GenerateDockerfile(mediaType, manifests, metadata, copyManifestDir, copyMet
 	relativeMetadataDirectory = filepath.ToSlash(relativeMetadataDirectory)
 
 	// FROM
-	fileContent += "FROM scratch\n\n"
+	fileContent += fmt.Sprintf("FROM %s\n\n", baseImage)
 
 	// LABEL
 	fileContent += fmt.Sprintf("LABEL %s=%s\n", MediatypeLabel, mediaType)
