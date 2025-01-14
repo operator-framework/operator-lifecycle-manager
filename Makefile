@@ -185,6 +185,13 @@ vendor: #HELP Update vendored dependencies
 	go mod tidy
 	go mod vendor
 
+.PHONY: bingo-upgrade
+bingo-upgrade: $(BINGO) #EXHELP Upgrade tools
+	@for pkg in $$($(BINGO) list | awk '{ print $$3 }' | tail -n +3 | sed 's/@.*//'); do \
+		echo -e "Upgrading \033[35m$$pkg\033[0m to latest..."; \
+		$(BINGO) get "$$pkg@latest"; \
+	done
+
 #SECTION Testing
 
 # Note: We want to use TESTCMD = because we need it to be re-evaluated every time it is used
