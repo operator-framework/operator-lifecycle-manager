@@ -141,7 +141,7 @@ func main() {
 	config := mgr.GetConfig()
 
 	// create a config that validates we're creating objects with labels
-	validatingConfig := validatingroundtripper.Wrap(config)
+	validatingConfig := validatingroundtripper.Wrap(config, mgr.GetScheme())
 
 	versionedConfigClient, err := configclientset.NewForConfig(config)
 	if err != nil {

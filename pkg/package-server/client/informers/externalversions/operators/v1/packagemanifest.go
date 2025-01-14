@@ -19,13 +19,13 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1"
+	apisoperatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1"
 	versioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
 	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/informers/externalversions/internalinterfaces"
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/listers/operators/v1"
+	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/listers/operators/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -36,7 +36,7 @@ import (
 // PackageManifests.
 type PackageManifestInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.PackageManifestLister
+	Lister() operatorsv1.PackageManifestLister
 }
 
 type packageManifestInformer struct {
@@ -71,7 +71,7 @@ func NewFilteredPackageManifestInformer(client versioned.Interface, namespace st
 				return client.PackagesV1().PackageManifests(namespace).Watch(context.TODO(), options)
 			},
 		},
-		&operatorsv1.PackageManifest{},
+		&apisoperatorsv1.PackageManifest{},
 		resyncPeriod,
 		indexers,
 	)
@@ -82,9 +82,9 @@ func (f *packageManifestInformer) defaultInformer(client versioned.Interface, re
 }
 
 func (f *packageManifestInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorsv1.PackageManifest{}, f.defaultInformer)
+	return f.factory.InformerFor(&apisoperatorsv1.PackageManifest{}, f.defaultInformer)
 }
 
-func (f *packageManifestInformer) Lister() v1.PackageManifestLister {
-	return v1.NewPackageManifestLister(f.Informer().GetIndexer())
+func (f *packageManifestInformer) Lister() operatorsv1.PackageManifestLister {
+	return operatorsv1.NewPackageManifestLister(f.Informer().GetIndexer())
 }

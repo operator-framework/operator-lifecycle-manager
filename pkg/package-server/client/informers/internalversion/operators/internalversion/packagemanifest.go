@@ -19,13 +19,13 @@ limitations under the License.
 package internalversion
 
 import (
-	"context"
+	context "context"
 	time "time"
 
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
 	clientsetinternalversion "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/internalversion"
 	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/informers/internalversion/internalinterfaces"
-	internalversion "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/listers/operators/internalversion"
+	operatorsinternalversion "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/listers/operators/internalversion"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -36,7 +36,7 @@ import (
 // PackageManifests.
 type PackageManifestInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() internalversion.PackageManifestLister
+	Lister() operatorsinternalversion.PackageManifestLister
 }
 
 type packageManifestInformer struct {
@@ -85,6 +85,6 @@ func (f *packageManifestInformer) Informer() cache.SharedIndexInformer {
 	return f.factory.InformerFor(&operators.PackageManifest{}, f.defaultInformer)
 }
 
-func (f *packageManifestInformer) Lister() internalversion.PackageManifestLister {
-	return internalversion.NewPackageManifestLister(f.Informer().GetIndexer())
+func (f *packageManifestInformer) Lister() operatorsinternalversion.PackageManifestLister {
+	return operatorsinternalversion.NewPackageManifestLister(f.Informer().GetIndexer())
 }

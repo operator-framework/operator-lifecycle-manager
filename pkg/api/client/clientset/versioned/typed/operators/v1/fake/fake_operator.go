@@ -19,120 +19,30 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
 	v1 "github.com/operator-framework/api/pkg/operators/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeOperators implements OperatorInterface
-type FakeOperators struct {
+// fakeOperators implements OperatorInterface
+type fakeOperators struct {
+	*gentype.FakeClientWithList[*v1.Operator, *v1.OperatorList]
 	Fake *FakeOperatorsV1
 }
 
-var operatorsResource = v1.SchemeGroupVersion.WithResource("operators")
-
-var operatorsKind = v1.SchemeGroupVersion.WithKind("Operator")
-
-// Get takes name of the operator, and returns the corresponding operator object, and an error if there is any.
-func (c *FakeOperators) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.Operator, err error) {
-	emptyResult := &v1.Operator{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetActionWithOptions(operatorsResource, name, options), emptyResult)
-	if obj == nil {
-		return emptyResult, err
+func newFakeOperators(fake *FakeOperatorsV1) operatorsv1.OperatorInterface {
+	return &fakeOperators{
+		gentype.NewFakeClientWithList[*v1.Operator, *v1.OperatorList](
+			fake.Fake,
+			"",
+			v1.SchemeGroupVersion.WithResource("operators"),
+			v1.SchemeGroupVersion.WithKind("Operator"),
+			func() *v1.Operator { return &v1.Operator{} },
+			func() *v1.OperatorList { return &v1.OperatorList{} },
+			func(dst, src *v1.OperatorList) { dst.ListMeta = src.ListMeta },
+			func(list *v1.OperatorList) []*v1.Operator { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1.OperatorList, items []*v1.Operator) { list.Items = gentype.FromPointerSlice(items) },
+		),
+		fake,
 	}
-	return obj.(*v1.Operator), err
-}
-
-// List takes label and field selectors, and returns the list of Operators that match those selectors.
-func (c *FakeOperators) List(ctx context.Context, opts metav1.ListOptions) (result *v1.OperatorList, err error) {
-	emptyResult := &v1.OperatorList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListActionWithOptions(operatorsResource, operatorsKind, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1.OperatorList{ListMeta: obj.(*v1.OperatorList).ListMeta}
-	for _, item := range obj.(*v1.OperatorList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested operators.
-func (c *FakeOperators) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchActionWithOptions(operatorsResource, opts))
-}
-
-// Create takes the representation of a operator and creates it.  Returns the server's representation of the operator, and an error, if there is any.
-func (c *FakeOperators) Create(ctx context.Context, operator *v1.Operator, opts metav1.CreateOptions) (result *v1.Operator, err error) {
-	emptyResult := &v1.Operator{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateActionWithOptions(operatorsResource, operator, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.Operator), err
-}
-
-// Update takes the representation of a operator and updates it. Returns the server's representation of the operator, and an error, if there is any.
-func (c *FakeOperators) Update(ctx context.Context, operator *v1.Operator, opts metav1.UpdateOptions) (result *v1.Operator, err error) {
-	emptyResult := &v1.Operator{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateActionWithOptions(operatorsResource, operator, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.Operator), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeOperators) UpdateStatus(ctx context.Context, operator *v1.Operator, opts metav1.UpdateOptions) (result *v1.Operator, err error) {
-	emptyResult := &v1.Operator{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(operatorsResource, "status", operator, opts), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.Operator), err
-}
-
-// Delete takes name of the operator and deletes it. Returns an error if one occurs.
-func (c *FakeOperators) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(operatorsResource, name, opts), &v1.Operator{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeOperators) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionActionWithOptions(operatorsResource, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1.OperatorList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched operator.
-func (c *FakeOperators) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Operator, err error) {
-	emptyResult := &v1.Operator{}
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceActionWithOptions(operatorsResource, name, pt, data, opts, subresources...), emptyResult)
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.Operator), err
 }

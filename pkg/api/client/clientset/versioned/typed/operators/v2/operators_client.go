@@ -19,10 +19,10 @@ limitations under the License.
 package v2
 
 import (
-	"net/http"
+	http "net/http"
 
-	v2 "github.com/operator-framework/api/pkg/operators/v2"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/scheme"
+	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
+	scheme "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )
 
@@ -85,10 +85,10 @@ func New(c rest.Interface) *OperatorsV2Client {
 }
 
 func setConfigDefaults(config *rest.Config) error {
-	gv := v2.SchemeGroupVersion
+	gv := operatorsv2.SchemeGroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
+	config.NegotiatedSerializer = rest.CodecFactoryForGeneratedClient(scheme.Scheme, scheme.Codecs).WithoutConversion()
 
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()

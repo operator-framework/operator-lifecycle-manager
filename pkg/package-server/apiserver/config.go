@@ -19,8 +19,8 @@ import (
 
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
 	genericapiserver "k8s.io/apiserver/pkg/server"
-	utilversion "k8s.io/apiserver/pkg/util/version"
 	"k8s.io/client-go/informers"
+	utilversion "k8s.io/component-base/version"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver/generic"
 	generatedopenapi "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/openapi"

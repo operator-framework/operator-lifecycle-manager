@@ -7,6 +7,9 @@ import (
 	"os"
 	"time"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/sirupsen/logrus"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
@@ -88,6 +91,14 @@ func (o *options) run(ctx context.Context, logger *logrus.Logger) error {
 	if o.setWorkloadUserID {
 		workloadUserID = defaultWorkLoadUserID
 	}
+
+	// the scheme is used by the catalog operator to create
+	// a validatingroundtripper that ensures that all created
+	// resources are appropriately labeled
+	scheme := k8sscheme.Scheme
+	_ = apiextensionsv1.AddToScheme(scheme)   // required by opClient
+	_ = apiregistrationv1.AddToScheme(scheme) // required by opClient
+
 	// TODO(tflannag): Use options pattern for catalog operator
 	// Create a new instance of the operator.
 	op, err := catalog.NewOperator(
@@ -100,7 +111,7 @@ func (o *options) run(ctx context.Context, logger *logrus.Logger) error {
 		o.opmImage,
 		o.utilImage,
 		o.catalogNamespace,
-		k8sscheme.Scheme,
+		scheme,
 		o.installPlanTimeout,
 		o.bundleUnpackTimeout,
 		workloadUserID,

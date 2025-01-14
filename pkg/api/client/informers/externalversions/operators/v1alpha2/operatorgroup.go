@@ -19,13 +19,13 @@ limitations under the License.
 package v1alpha2
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	operatorsv1alpha2 "github.com/operator-framework/api/pkg/operators/v1alpha2"
+	pkgoperatorsv1alpha2 "github.com/operator-framework/api/pkg/operators/v1alpha2"
 	versioned "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/internalinterfaces"
-	v1alpha2 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha2"
+	operatorsv1alpha2 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -36,7 +36,7 @@ import (
 // OperatorGroups.
 type OperatorGroupInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha2.OperatorGroupLister
+	Lister() operatorsv1alpha2.OperatorGroupLister
 }
 
 type operatorGroupInformer struct {
@@ -71,7 +71,7 @@ func NewFilteredOperatorGroupInformer(client versioned.Interface, namespace stri
 				return client.OperatorsV1alpha2().OperatorGroups(namespace).Watch(context.TODO(), options)
 			},
 		},
-		&operatorsv1alpha2.OperatorGroup{},
+		&pkgoperatorsv1alpha2.OperatorGroup{},
 		resyncPeriod,
 		indexers,
 	)
@@ -82,9 +82,9 @@ func (f *operatorGroupInformer) defaultInformer(client versioned.Interface, resy
 }
 
 func (f *operatorGroupInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorsv1alpha2.OperatorGroup{}, f.defaultInformer)
+	return f.factory.InformerFor(&pkgoperatorsv1alpha2.OperatorGroup{}, f.defaultInformer)
 }
 
-func (f *operatorGroupInformer) Lister() v1alpha2.OperatorGroupLister {
-	return v1alpha2.NewOperatorGroupLister(f.Informer().GetIndexer())
+func (f *operatorGroupInformer) Lister() operatorsv1alpha2.OperatorGroupLister {
+	return operatorsv1alpha2.NewOperatorGroupLister(f.Informer().GetIndexer())
 }

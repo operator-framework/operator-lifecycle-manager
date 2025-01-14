@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/operator-framework/api/pkg/operators/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/listers"
-	"k8s.io/client-go/tools/cache"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // OperatorGroupLister helps list OperatorGroups.
@@ -30,7 +30,7 @@ import (
 type OperatorGroupLister interface {
 	// List lists all OperatorGroups in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.OperatorGroup, err error)
+	List(selector labels.Selector) (ret []*operatorsv1.OperatorGroup, err error)
 	// OperatorGroups returns an object that can list and get OperatorGroups.
 	OperatorGroups(namespace string) OperatorGroupNamespaceLister
 	OperatorGroupListerExpansion
@@ -38,17 +38,17 @@ type OperatorGroupLister interface {
 
 // operatorGroupLister implements the OperatorGroupLister interface.
 type operatorGroupLister struct {
-	listers.ResourceIndexer[*v1.OperatorGroup]
+	listers.ResourceIndexer[*operatorsv1.OperatorGroup]
 }
 
 // NewOperatorGroupLister returns a new OperatorGroupLister.
 func NewOperatorGroupLister(indexer cache.Indexer) OperatorGroupLister {
-	return &operatorGroupLister{listers.New[*v1.OperatorGroup](indexer, v1.Resource("operatorgroup"))}
+	return &operatorGroupLister{listers.New[*operatorsv1.OperatorGroup](indexer, operatorsv1.Resource("operatorgroup"))}
 }
 
 // OperatorGroups returns an object that can list and get OperatorGroups.
 func (s *operatorGroupLister) OperatorGroups(namespace string) OperatorGroupNamespaceLister {
-	return operatorGroupNamespaceLister{listers.NewNamespaced[*v1.OperatorGroup](s.ResourceIndexer, namespace)}
+	return operatorGroupNamespaceLister{listers.NewNamespaced[*operatorsv1.OperatorGroup](s.ResourceIndexer, namespace)}
 }
 
 // OperatorGroupNamespaceLister helps list and get OperatorGroups.
@@ -56,15 +56,15 @@ func (s *operatorGroupLister) OperatorGroups(namespace string) OperatorGroupName
 type OperatorGroupNamespaceLister interface {
 	// List lists all OperatorGroups in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.OperatorGroup, err error)
+	List(selector labels.Selector) (ret []*operatorsv1.OperatorGroup, err error)
 	// Get retrieves the OperatorGroup from the indexer for a given namespace and name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.OperatorGroup, error)
+	Get(name string) (*operatorsv1.OperatorGroup, error)
 	OperatorGroupNamespaceListerExpansion
 }
 
 // operatorGroupNamespaceLister implements the OperatorGroupNamespaceLister
 // interface.
 type operatorGroupNamespaceLister struct {
-	listers.ResourceIndexer[*v1.OperatorGroup]
+	listers.ResourceIndexer[*operatorsv1.OperatorGroup]
 }

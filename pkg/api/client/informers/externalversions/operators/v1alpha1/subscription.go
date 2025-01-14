@@ -19,13 +19,13 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	pkgoperatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	versioned "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -36,7 +36,7 @@ import (
 // Subscriptions.
 type SubscriptionInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha1.SubscriptionLister
+	Lister() operatorsv1alpha1.SubscriptionLister
 }
 
 type subscriptionInformer struct {
@@ -71,7 +71,7 @@ func NewFilteredSubscriptionInformer(client versioned.Interface, namespace strin
 				return client.OperatorsV1alpha1().Subscriptions(namespace).Watch(context.TODO(), options)
 			},
 		},
-		&operatorsv1alpha1.Subscription{},
+		&pkgoperatorsv1alpha1.Subscription{},
 		resyncPeriod,
 		indexers,
 	)
@@ -82,9 +82,9 @@ func (f *subscriptionInformer) defaultInformer(client versioned.Interface, resyn
 }
 
 func (f *subscriptionInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorsv1alpha1.Subscription{}, f.defaultInformer)
+	return f.factory.InformerFor(&pkgoperatorsv1alpha1.Subscription{}, f.defaultInformer)
 }
 
-func (f *subscriptionInformer) Lister() v1alpha1.SubscriptionLister {
-	return v1alpha1.NewSubscriptionLister(f.Informer().GetIndexer())
+func (f *subscriptionInformer) Lister() operatorsv1alpha1.SubscriptionLister {
+	return operatorsv1alpha1.NewSubscriptionLister(f.Informer().GetIndexer())
 }

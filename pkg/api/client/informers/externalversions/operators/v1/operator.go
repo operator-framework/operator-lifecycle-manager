@@ -19,13 +19,13 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	pkgoperatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	versioned "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/internalinterfaces"
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
+	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -36,7 +36,7 @@ import (
 // Operators.
 type OperatorInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.OperatorLister
+	Lister() operatorsv1.OperatorLister
 }
 
 type operatorInformer struct {
@@ -70,7 +70,7 @@ func NewFilteredOperatorInformer(client versioned.Interface, resyncPeriod time.D
 				return client.OperatorsV1().Operators().Watch(context.TODO(), options)
 			},
 		},
-		&operatorsv1.Operator{},
+		&pkgoperatorsv1.Operator{},
 		resyncPeriod,
 		indexers,
 	)
@@ -81,9 +81,9 @@ func (f *operatorInformer) defaultInformer(client versioned.Interface, resyncPer
 }
 
 func (f *operatorInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorsv1.Operator{}, f.defaultInformer)
+	return f.factory.InformerFor(&pkgoperatorsv1.Operator{}, f.defaultInformer)
 }
 
-func (f *operatorInformer) Lister() v1.OperatorLister {
-	return v1.NewOperatorLister(f.Informer().GetIndexer())
+func (f *operatorInformer) Lister() operatorsv1.OperatorLister {
+	return operatorsv1.NewOperatorLister(f.Informer().GetIndexer())
 }

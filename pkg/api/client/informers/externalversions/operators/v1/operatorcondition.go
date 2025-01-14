@@ -19,13 +19,13 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	pkgoperatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	versioned "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/internalinterfaces"
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
+	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -36,7 +36,7 @@ import (
 // OperatorConditions.
 type OperatorConditionInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.OperatorConditionLister
+	Lister() operatorsv1.OperatorConditionLister
 }
 
 type operatorConditionInformer struct {
@@ -71,7 +71,7 @@ func NewFilteredOperatorConditionInformer(client versioned.Interface, namespace 
 				return client.OperatorsV1().OperatorConditions(namespace).Watch(context.TODO(), options)
 			},
 		},
-		&operatorsv1.OperatorCondition{},
+		&pkgoperatorsv1.OperatorCondition{},
 		resyncPeriod,
 		indexers,
 	)
@@ -82,9 +82,9 @@ func (f *operatorConditionInformer) defaultInformer(client versioned.Interface, 
 }
 
 func (f *operatorConditionInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorsv1.OperatorCondition{}, f.defaultInformer)
+	return f.factory.InformerFor(&pkgoperatorsv1.OperatorCondition{}, f.defaultInformer)
 }
 
-func (f *operatorConditionInformer) Lister() v1.OperatorConditionLister {
-	return v1.NewOperatorConditionLister(f.Informer().GetIndexer())
+func (f *operatorConditionInformer) Lister() operatorsv1.OperatorConditionLister {
+	return operatorsv1.NewOperatorConditionLister(f.Informer().GetIndexer())
 }
