@@ -28,7 +28,7 @@ type syncerConfig struct {
 	reconcilers               kubestate.ReconcilerChain
 	registryReconcilerFactory reconciler.RegistryReconcilerFactory
 	globalCatalogNamespace    string
-	sourceProvider            resolverCache.SourceProvider
+	operatorCacheProvider     resolverCache.OperatorCacheProvider
 }
 
 // SyncerOption is a configuration option for a subscription syncer.
@@ -131,9 +131,9 @@ func WithGlobalCatalogNamespace(namespace string) SyncerOption {
 	}
 }
 
-func WithSourceProvider(provider resolverCache.SourceProvider) SyncerOption {
+func WithOperatorCacheProvider(provider resolverCache.OperatorCacheProvider) SyncerOption {
 	return func(config *syncerConfig) {
-		config.sourceProvider = provider
+		config.operatorCacheProvider = provider
 	}
 }
 
