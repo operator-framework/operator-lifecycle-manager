@@ -11,6 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	genericfeatures "k8s.io/apiserver/pkg/features"
 	genericserver "k8s.io/apiserver/pkg/server"
@@ -35,7 +36,7 @@ const DefaultWakeupInterval = 12 * time.Hour
 
 type Operator struct {
 	queueinformer.Operator
-	olmConfigQueue workqueue.TypedRateLimitingInterface[any]
+	olmConfigQueue workqueue.TypedRateLimitingInterface[types.NamespacedName]
 	options        *PackageServerOptions
 }
 
@@ -239,9 +240,9 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 
 	op := &Operator{
 		Operator: queueOperator,
-		olmConfigQueue: workqueue.NewTypedRateLimitingQueueWithConfig[any](
-			workqueue.DefaultTypedControllerRateLimiter[any](),
-			workqueue.TypedRateLimitingQueueConfig[any]{
+		olmConfigQueue: workqueue.NewTypedRateLimitingQueueWithConfig[types.NamespacedName](
+			workqueue.DefaultTypedControllerRateLimiter[types.NamespacedName](),
+			workqueue.TypedRateLimitingQueueConfig[types.NamespacedName]{
 				Name: "olmConfig",
 			}),
 		options: o,

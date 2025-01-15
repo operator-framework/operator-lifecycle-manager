@@ -4,6 +4,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	utilclock "k8s.io/utils/clock"
@@ -23,7 +24,7 @@ type syncerConfig struct {
 	subscriptionInformer      cache.SharedIndexInformer
 	catalogInformer           cache.SharedIndexInformer
 	installPlanInformer       cache.SharedIndexInformer
-	subscriptionQueue         workqueue.TypedRateLimitingInterface[any]
+	subscriptionQueue         workqueue.TypedRateLimitingInterface[types.NamespacedName]
 	reconcilers               kubestate.ReconcilerChain
 	registryReconcilerFactory reconciler.RegistryReconcilerFactory
 	globalCatalogNamespace    string
@@ -97,7 +98,7 @@ func WithOperatorLister(lister operatorlister.OperatorLister) SyncerOption {
 }
 
 // WithSubscriptionQueue sets a syncer's subscription queue.
-func WithSubscriptionQueue(subscriptionQueue workqueue.TypedRateLimitingInterface[any]) SyncerOption {
+func WithSubscriptionQueue(subscriptionQueue workqueue.TypedRateLimitingInterface[types.NamespacedName]) SyncerOption {
 	return func(config *syncerConfig) {
 		config.subscriptionQueue = subscriptionQueue
 	}

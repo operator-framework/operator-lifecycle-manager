@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	utilclock "k8s.io/utils/clock"
 
@@ -46,9 +49,9 @@ func (s *subscriptionSyncer) now() *metav1.Time {
 
 // Sync reconciles Subscription events by invoking a sequence of reconcilers, passing the result of each
 // successful reconciliation as an argument to its successor.
-func (s *subscriptionSyncer) Sync(ctx context.Context, event kubestate.ResourceEvent) error {
+func (s *subscriptionSyncer) Sync(ctx context.Context, obj client.Object) error {
 	res := &v1alpha1.Subscription{}
-	if err := scheme.Convert(event.Resource(), res, nil); err != nil {
+	if err := scheme.Convert(obj, res, nil); err != nil {
 		return err
 	}
 
@@ -57,24 +60,13 @@ func (s *subscriptionSyncer) Sync(ctx context.Context, event kubestate.ResourceE
 	logger := s.logger.WithFields(logrus.Fields{
 		"reconciling": fmt.Sprintf("%T", res),
 		"selflink":    res.GetSelfLink(),
-		"event":       event.Type(),
 	})
 	logger.Info("syncing")
 
 	// Enter initial state based on subscription and event type
 	// TODO: Consider generalizing initial generic add, update, delete transitions in the kubestate package.
 	// 		 Possibly make a resource event aware bridge between Sync and reconciler.
-	initial := NewSubscriptionState(res.DeepCopy())
-	switch event.Type() {
-	case kubestate.ResourceAdded:
-		initial = initial.Add()
-	case kubestate.ResourceUpdated:
-		initial = initial.Update()
-		metrics.UpdateSubsSyncCounterStorage(res)
-	case kubestate.ResourceDeleted:
-		initial = initial.Delete()
-		metrics.DeleteSubsMetric(res)
-	}
+	initial := NewSubscriptionState(res.DeepCopy()).Update()
 
 	reconciled, err := s.reconcilers.Reconcile(ctx, initial)
 	if err != nil {
@@ -89,18 +81,28 @@ func (s *subscriptionSyncer) Sync(ctx context.Context, event kubestate.ResourceE
 	return nil
 }
 
-func (s *subscriptionSyncer) Notify(event kubestate.ResourceEvent) {
+func (s *subscriptionSyncer) Notify(event types.NamespacedName) {
 	s.notify(event)
 }
 
 // catalogSubscriptionKeys returns the set of explicit subscription keys, cluster-wide, that are possibly affected by catalogs in the given namespace.
-func (s *subscriptionSyncer) catalogSubscriptionKeys(namespace string) ([]string, error) {
-	var keys []string
+func (s *subscriptionSyncer) catalogSubscriptionKeys(namespace string) ([]types.NamespacedName, error) {
+	var cacheKeys []string
 	var err error
 	if namespace == s.globalCatalogNamespace {
-		keys = s.subscriptionCache.ListKeys()
+		cacheKeys = s.subscriptionCache.ListKeys()
 	} else {
-		keys, err = s.subscriptionCache.IndexKeys(cache.NamespaceIndex, namespace)
+		cacheKeys, err = s.subscriptionCache.IndexKeys(cache.NamespaceIndex, namespace)
+	}
+
+	keys := make([]types.NamespacedName, 0, len(cacheKeys))
+	for _, k := range cacheKeys {
+		ns, name, err := cache.SplitMetaNamespaceKey(k)
+		if err != nil {
+			s.logger.Warnf("could not split meta key %q", k)
+			continue
+		}
+		keys = append(keys, types.NamespacedName{Namespace: ns, Name: name})
 	}
 
 	return keys, err
@@ -132,7 +134,7 @@ func (s *subscriptionSyncer) notifyOnCatalog(ctx context.Context, obj interface{
 	logger.Trace("notifing dependent subscriptions")
 	for _, subKey := range dependentKeys {
 		logger.Tracef("notifying subscription %s", subKey)
-		s.Notify(kubestate.NewResourceEvent(kubestate.ResourceUpdated, subKey))
+		s.Notify(subKey)
 	}
 	logger.Trace("dependent subscriptions notified")
 }
@@ -177,9 +179,9 @@ func (s *subscriptionSyncer) notifyOnInstallPlan(ctx context.Context, obj interf
 	// Notify dependent owner Subscriptions
 	owners := ownerutil.GetOwnersByKind(plan, v1alpha1.SubscriptionKind)
 	for _, owner := range owners {
-		subKey := fmt.Sprintf("%s/%s", plan.GetNamespace(), owner.Name)
+		subKey := types.NamespacedName{Namespace: plan.GetNamespace(), Name: owner.Name}
 		logger.Tracef("notifying subscription %s", subKey)
-		s.Notify(kubestate.NewResourceEvent(kubestate.ResourceUpdated, cache.ExplicitKey(subKey)))
+		s.Notify(subKey)
 	}
 }
 
@@ -217,11 +219,28 @@ func newSyncerWithConfig(ctx context.Context, config *syncerConfig) (kubestate.S
 		subscriptionCache: config.subscriptionInformer.GetIndexer(),
 		installPlanLister: config.lister.OperatorsV1alpha1().InstallPlanLister(),
 		sourceProvider:    config.sourceProvider,
-		notify: func(event kubestate.ResourceEvent) {
+		notify: func(event types.NamespacedName) {
 			// Notify Subscriptions by enqueuing to the Subscription queue.
 			config.subscriptionQueue.Add(event)
 		},
 	}
+
+	// Add metrics handler to subscription informer
+	// NOTE: This is different from how metrics are handled for other resources (install plan, catalog source, etc.)
+	// which use metrics provider and through the QueueInformer
+	config.subscriptionInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			if sub, ok := newObj.(*v1alpha1.Subscription); ok {
+				metrics.UpdateSubsSyncCounterStorage(sub)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			if sub, ok := obj.(*v1alpha1.Subscription); ok {
+				metrics.DeleteSubsMetric(sub)
+			}
+		},
+	})
 
 	// Build a reconciler chain from the default and configured reconcilers
 	// Default reconcilers should always come first in the chain

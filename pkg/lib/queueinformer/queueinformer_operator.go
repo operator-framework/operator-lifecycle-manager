@@ -3,12 +3,13 @@ package queueinformer
 import (
 	"context"
 	"fmt"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sync"
 	"time"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/tools/cache"
@@ -261,6 +262,13 @@ func (o *operator) worker(ctx context.Context, loop *QueueInformer) {
 	}
 }
 
+func keyForNamespacedName(item types.NamespacedName) string {
+	if item.Namespace == "" {
+		return item.Name
+	}
+	return item.String()
+}
+
 func (o *operator) processNextWorkItem(ctx context.Context, loop *QueueInformer) bool {
 	queue := loop.queue
 	item, quit := queue.Get()
@@ -273,48 +281,33 @@ func (o *operator) processNextWorkItem(ctx context.Context, loop *QueueInformer)
 	logger := o.logger.WithField("item", item)
 	logger.WithField("queue-length", queue.Len()).Trace("popped queue")
 
-	event, ok := item.(kubestate.ResourceEvent)
-	if !ok || event.Type() != kubestate.ResourceDeleted {
-		// Get the key
-		key, keyable := loop.key(item)
-		if !keyable {
-			logger.WithField("item", item).Warn("could not form key")
-			queue.Forget(item)
-			return true
-		}
+	key := keyForNamespacedName(item)
+	logger = logger.WithField("cache-key", key)
 
-		logger = logger.WithField("cache-key", key)
-
-		var resource interface{}
-		if loop.indexer == nil {
-			resource = event.Resource()
-		} else {
-			// Get the current cached version of the resource
-			var exists bool
-			var err error
-			resource, exists, err = loop.indexer.GetByKey(key)
-			if err != nil {
-				logger.WithError(err).Error("cache get failed")
-				queue.Forget(item)
-				return true
-			}
-			if !exists {
-				logger.WithField("existing-cache-keys", loop.indexer.ListKeys()).Debug("cache get failed, key not in cache")
-				queue.Forget(item)
-				return true
-			}
-		}
-
-		if !ok {
-			event = kubestate.NewResourceEvent(kubestate.ResourceUpdated, resource)
-		} else {
-			event = kubestate.NewResourceEvent(event.Type(), resource)
-		}
+	// Get the current cached version of the resource
+	var exists bool
+	var err error
+	resource, exists, err := loop.indexer.GetByKey(key)
+	if err != nil {
+		logger.WithError(err).Error("cache get failed")
+		queue.Forget(item)
+		return true
+	}
+	if !exists {
+		logger.WithField("existing-cache-keys", loop.indexer.ListKeys()).Debug("cache get failed, key not in cache")
+		queue.Forget(item)
+		return true
+	}
+	obj, ok := resource.(client.Object)
+	if !ok {
+		logger.Warn("cached object is not a kubernetes resource (client.Object)")
+		queue.Forget(item)
+		return true
 	}
 
-	// Sync and requeue on error (throw out failed deletion syncs)
-	err := loop.Sync(ctx, event)
-	if requeues := queue.NumRequeues(item); err != nil && requeues < 8 && event.Type() != kubestate.ResourceDeleted {
+	// Sync and requeue on error
+	err = loop.Sync(ctx, obj)
+	if requeues := queue.NumRequeues(item); err != nil && requeues < 8 {
 		logger.WithField("requeues", requeues).Trace("requeuing with rate limiting")
 		utilruntime.HandleError(errors.Wrap(err, fmt.Sprintf("sync %q failed", item)))
 		queue.AddRateLimited(item)
