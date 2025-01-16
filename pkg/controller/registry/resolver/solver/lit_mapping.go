@@ -1,7 +1,9 @@
 package solver
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/go-air/gini/inter"
@@ -203,5 +205,8 @@ func (d *litMapping) Conflicts(g inter.Assumable) []AppliedConstraint {
 			as = append(as, a)
 		}
 	}
+	slices.SortFunc(as, func(a, b AppliedConstraint) int {
+		return cmp.Compare(a.String(), b.String())
+	})
 	return as
 }

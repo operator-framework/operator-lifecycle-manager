@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -513,11 +514,13 @@ func (r *Resolver) addInvariants(namespacedCache cache.MultiCatalogOperatorFinde
 	}
 
 	for gvk, is := range gvkConflictToVariable {
+		slices.Sort(is)
 		s := NewSingleAPIProviderVariable(gvk.Group, gvk.Version, gvk.Kind, is)
 		variables[s.Identifier()] = s
 	}
 
 	for pkg, is := range packageConflictToVariable {
+		slices.Sort(is)
 		s := NewSinglePackageInstanceVariable(pkg, is)
 		variables[s.Identifier()] = s
 	}
