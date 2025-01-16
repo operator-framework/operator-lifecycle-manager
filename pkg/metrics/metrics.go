@@ -152,6 +152,14 @@ var (
 		[]string{NamespaceLabel, NameLabel},
 	)
 
+	catalogSourceSnapshotsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "catalog_source_snapshots_total",
+			Help: "The number of times the catalog operator has requested a snapshot of data from a catalog source",
+		},
+		[]string{NamespaceLabel, NameLabel},
+	)
+
 	// exported since it's not handled by HandleMetrics
 	CSVUpgradeCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -250,6 +258,7 @@ func RegisterCatalog() {
 	prometheus.MustRegister(subscriptionCount)
 	prometheus.MustRegister(catalogSourceCount)
 	prometheus.MustRegister(catalogSourceReady)
+	prometheus.MustRegister(catalogSourceSnapshotsTotal)
 	prometheus.MustRegister(SubscriptionSyncCount)
 	prometheus.MustRegister(dependencyResolutionSummary)
 	prometheus.MustRegister(installPlanWarningCount)
@@ -270,6 +279,18 @@ func RegisterCatalogSourceState(name, namespace string, state connectivity.State
 
 func DeleteCatalogSourceStateMetric(name, namespace string) {
 	catalogSourceReady.DeleteLabelValues(namespace, name)
+}
+
+func RegisterCatalogSourceSnapshotsTotal(name, namespace string) {
+	catalogSourceSnapshotsTotal.WithLabelValues(namespace, name).Add(0)
+}
+
+func IncrementCatalogSourceSnapshotsTotal(name, namespace string) {
+	catalogSourceSnapshotsTotal.WithLabelValues(namespace, name).Inc()
+}
+
+func DeleteCatalogSourceSnapshotsTotal(name, namespace string) {
+	catalogSourceSnapshotsTotal.DeleteLabelValues(namespace, name)
 }
 
 func DeleteCSVMetric(oldCSV *operatorsv1alpha1.ClusterServiceVersion) {

@@ -781,6 +781,7 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 
 	o.logger.Infof("state.Key.Namespace=%s state.Key.Name=%s state.State=%s", state.Key.Namespace, state.Key.Name, state.State.String())
 	metrics.RegisterCatalogSourceState(state.Key.Name, state.Key.Namespace, state.State)
+	metrics.RegisterCatalogSourceSnapshotsTotal(state.Key.Name, state.Key.Namespace)
 
 	switch state.State {
 	case connectivity.Ready:
@@ -896,6 +897,7 @@ func (o *Operator) handleCatSrcDeletion(obj interface{}) {
 	o.logger.WithField("source", sourceKey).Info("removed client for deleted catalogsource")
 
 	metrics.DeleteCatalogSourceStateMetric(catsrc.GetName(), catsrc.GetNamespace())
+	metrics.DeleteCatalogSourceSnapshotsTotal(catsrc.GetName(), catsrc.GetNamespace())
 }
 
 func validateSourceType(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, _ error) {
