@@ -57,7 +57,8 @@ type catalogHealthReconciler struct {
 	catalogLister             listers.CatalogSourceLister
 	registryReconcilerFactory reconciler.RegistryReconcilerFactory
 	globalCatalogNamespace    string
-	sourceProvider            cache.SourceProvider
+	operatorCacheProvider     cache.OperatorCacheProvider
+	logger                    logrus.StdLogger
 }
 
 // Reconcile reconciles subscription catalog health conditions.
@@ -126,21 +127,16 @@ func (c *catalogHealthReconciler) Reconcile(ctx context.Context, in kubestate.St
 // updateDeprecatedStatus adds deprecation status conditions to the subscription when present in the cache entry then
 // returns a bool value of true if any changes to the existing subscription have occurred.
 func (c *catalogHealthReconciler) updateDeprecatedStatus(ctx context.Context, sub *v1alpha1.Subscription) (bool, error) {
-	if c.sourceProvider == nil {
+	if c.operatorCacheProvider == nil {
 		return false, nil
 	}
-	source, ok := c.sourceProvider.Sources(sub.Spec.CatalogSourceNamespace)[cache.SourceKey{
+
+	entries := c.operatorCacheProvider.Namespaced(sub.Spec.CatalogSourceNamespace).Catalog(cache.SourceKey{
 		Name:      sub.Spec.CatalogSource,
 		Namespace: sub.Spec.CatalogSourceNamespace,
-	}]
-	if !ok {
-		return false, nil
-	}
-	snapshot, err := source.Snapshot(ctx)
-	if err != nil {
-		return false, err
-	}
-	if len(snapshot.Entries) == 0 {
+	}).Find(cache.PkgPredicate(sub.Spec.Package), cache.ChannelPredicate(sub.Spec.Channel))
+
+	if len(entries) == 0 {
 		return false, nil
 	}
 
@@ -149,12 +145,9 @@ func (c *catalogHealthReconciler) updateDeprecatedStatus(ctx context.Context, su
 	var deprecations *cache.Deprecations
 
 	found := false
-	for _, entry := range snapshot.Entries {
+	for _, entry := range entries {
 		// Find the cache entry that matches this subscription
-		if entry.SourceInfo == nil || entry.Package() != sub.Spec.Package {
-			continue
-		}
-		if sub.Spec.Channel != "" && entry.Channel() != sub.Spec.Channel {
+		if entry.SourceInfo == nil {
 			continue
 		}
 		if sub.Status.InstalledCSV != entry.Name {

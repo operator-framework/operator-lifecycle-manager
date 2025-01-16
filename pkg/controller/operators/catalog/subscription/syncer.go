@@ -16,7 +16,6 @@ import (
 	"github.com/operator-framework/api/pkg/operators/install"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
-	resolverCache "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
@@ -38,7 +37,6 @@ type subscriptionSyncer struct {
 	installPlanLister      listers.InstallPlanLister
 	globalCatalogNamespace string
 	notify                 kubestate.NotifyFunc
-	sourceProvider         resolverCache.SourceProvider
 }
 
 // now returns the Syncer's current time.
@@ -218,7 +216,6 @@ func newSyncerWithConfig(ctx context.Context, config *syncerConfig) (kubestate.S
 		reconcilers:       config.reconcilers,
 		subscriptionCache: config.subscriptionInformer.GetIndexer(),
 		installPlanLister: config.lister.OperatorsV1alpha1().InstallPlanLister(),
-		sourceProvider:    config.sourceProvider,
 		notify: func(event types.NamespacedName) {
 			// Notify Subscriptions by enqueuing to the Subscription queue.
 			config.subscriptionQueue.Add(event)
@@ -256,7 +253,8 @@ func newSyncerWithConfig(ctx context.Context, config *syncerConfig) (kubestate.S
 			catalogLister:             config.lister.OperatorsV1alpha1().CatalogSourceLister(),
 			registryReconcilerFactory: config.registryReconcilerFactory,
 			globalCatalogNamespace:    config.globalCatalogNamespace,
-			sourceProvider:            config.sourceProvider,
+			operatorCacheProvider:     config.operatorCacheProvider,
+			logger:                    config.logger,
 		},
 	}
 	s.reconcilers = append(defaultReconcilers, s.reconcilers...)

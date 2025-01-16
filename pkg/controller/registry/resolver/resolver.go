@@ -29,15 +29,15 @@ type constraintProvider interface {
 }
 
 type Resolver struct {
-	cache                     *cache.Cache
+	cache                     cache.OperatorCacheProvider
 	log                       logrus.FieldLogger
 	pc                        *predicateConverter
 	systemConstraintsProvider constraintProvider
 }
 
-func NewDefaultResolver(rcp cache.SourceProvider, sourcePriorityProvider cache.SourcePriorityProvider, logger logrus.FieldLogger) *Resolver {
+func NewDefaultResolver(cacheProvider cache.OperatorCacheProvider, logger logrus.FieldLogger) *Resolver {
 	return &Resolver{
-		cache: cache.New(rcp, cache.WithLogger(logger), cache.WithSourcePriorityProvider(sourcePriorityProvider)),
+		cache: cacheProvider,
 		log:   logger,
 		pc: &predicateConverter{
 			celEnv: constraints.NewCelEnvironment(),

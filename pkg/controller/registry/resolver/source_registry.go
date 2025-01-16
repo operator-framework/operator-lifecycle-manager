@@ -12,6 +12,7 @@ import (
 	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
@@ -143,6 +144,9 @@ type registrySource struct {
 }
 
 func (s *registrySource) Snapshot(ctx context.Context) (*cache.Snapshot, error) {
+	s.logger.Printf("requesting snapshot for catalog source %s/%s", s.key.Namespace, s.key.Name)
+	metrics.IncrementCatalogSourceSnapshotsTotal(s.key.Name, s.key.Namespace)
+
 	// Fetching default channels this way makes many round trips
 	// -- may need to either add a new API to fetch all at once,
 	// or embed the information into Bundle.

@@ -131,6 +131,7 @@ type Operator struct {
 	clientFactory            clients.Factory
 	muInstallPlan            sync.Mutex
 	resolverSourceProvider   *resolver.RegistrySourceProvider
+	operatorCacheProvider    resolvercache.OperatorCacheProvider
 }
 
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
@@ -217,8 +218,9 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.resolverSourceProvider = resolver.SourceProviderFromRegistryClientProvider(op.sources, lister.OperatorsV1alpha1().CatalogSourceLister(), logger)
+	op.operatorCacheProvider = resolver.NewOperatorCacheProvider(lister, crClient, op.resolverSourceProvider, logger)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now, ssaClient, workloadUserID, opmImage, utilImage)
-	res := resolver.NewOperatorStepResolver(lister, crClient, operatorNamespace, op.resolverSourceProvider, logger)
+	res := resolver.NewOperatorStepResolver(lister, crClient, operatorNamespace, op.operatorCacheProvider, logger)
 	op.resolver = resolver.NewInstrumentedResolver(res, metrics.RegisterDependencyResolutionSuccess, metrics.RegisterDependencyResolutionFailure)
 
 	// Wire OLM CR sharedIndexInformers
@@ -360,7 +362,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		subscription.WithAppendedReconcilers(subscription.ReconcilerFromLegacySyncHandler(op.syncSubscriptions)),
 		subscription.WithRegistryReconcilerFactory(op.reconciler),
 		subscription.WithGlobalCatalogNamespace(op.namespace),
-		subscription.WithSourceProvider(op.resolverSourceProvider),
+		subscription.WithOperatorCacheProvider(op.operatorCacheProvider),
 	)
 	if err != nil {
 		return nil, err
@@ -781,6 +783,7 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 
 	o.logger.Infof("state.Key.Namespace=%s state.Key.Name=%s state.State=%s", state.Key.Namespace, state.Key.Name, state.State.String())
 	metrics.RegisterCatalogSourceState(state.Key.Name, state.Key.Namespace, state.State)
+	metrics.RegisterCatalogSourceSnapshotsTotal(state.Key.Name, state.Key.Namespace)
 
 	switch state.State {
 	case connectivity.Ready:
@@ -896,6 +899,7 @@ func (o *Operator) handleCatSrcDeletion(obj interface{}) {
 	o.logger.WithField("source", sourceKey).Info("removed client for deleted catalogsource")
 
 	metrics.DeleteCatalogSourceStateMetric(catsrc.GetName(), catsrc.GetNamespace())
+	metrics.DeleteCatalogSourceSnapshotsTotal(catsrc.GetName(), catsrc.GetNamespace())
 }
 
 func validateSourceType(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, _ error) {
