@@ -918,6 +918,7 @@ func validateSourceType(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *
 		err = fmt.Errorf("unknown sourcetype: %s", sourceType)
 	}
 	if err != nil {
+		logger.WithError(err).Error("error validating catalog source type")
 		out.SetError(v1alpha1.CatalogSourceSpecInvalidError, err)
 		return
 	}
@@ -929,7 +930,6 @@ func validateSourceType(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *
 		}
 	}
 	continueSync = true
-
 	return
 }
 
@@ -942,27 +942,22 @@ func (o *Operator) syncConfigMap(logger *logrus.Entry, in *v1alpha1.CatalogSourc
 
 	out = in.DeepCopy()
 
-	logger = logger.WithFields(logrus.Fields{
-		"configmap.namespace": in.Namespace,
-		"configmap.name":      in.Spec.ConfigMap,
-	})
-	logger.Info("checking catsrc configmap state")
-
 	var updateLabel bool
 	// Get the catalog source's config map
 	configMap, err := o.lister.CoreV1().ConfigMapLister().ConfigMaps(in.GetNamespace()).Get(in.Spec.ConfigMap)
 	// Attempt to look up the CM via api call if there is a cache miss
 	if apierrors.IsNotFound(err) {
+		// TODO: Don't reach out via live client if its not found in the cache (https://github.com/operator-framework/operator-lifecycle-manager/issues/3415)
 		configMap, err = o.opClient.KubernetesInterface().CoreV1().ConfigMaps(in.GetNamespace()).Get(context.TODO(), in.Spec.ConfigMap, metav1.GetOptions{})
 		// Found cm in the cluster, add managed label to configmap
 		if err == nil {
-			labels := configMap.GetLabels()
-			if labels == nil {
-				labels = make(map[string]string)
+			cmLabels := configMap.GetLabels()
+			if cmLabels == nil {
+				cmLabels = make(map[string]string)
 			}
 
-			labels[install.OLMManagedLabelKey] = "false"
-			configMap.SetLabels(labels)
+			cmLabels[install.OLMManagedLabelKey] = "false"
+			configMap.SetLabels(cmLabels)
 			updateLabel = true
 		}
 	}
@@ -979,12 +974,9 @@ func (o *Operator) syncConfigMap(logger *logrus.Entry, in *v1alpha1.CatalogSourc
 			out.SetError(v1alpha1.CatalogSourceConfigMapError, syncError)
 			return
 		}
-
-		logger.Info("adopted configmap")
 	}
 
 	if in.Status.ConfigMapResource == nil || !in.Status.ConfigMapResource.IsAMatch(&configMap.ObjectMeta) {
-		logger.Info("updating catsrc configmap state")
 		// configmap ref nonexistent or updated, write out the new configmap ref to status and exit
 		out.Status.ConfigMapResource = &v1alpha1.ConfigMapResourceReference{
 			Name:            configMap.GetName(),
@@ -1004,7 +996,6 @@ func (o *Operator) syncConfigMap(logger *logrus.Entry, in *v1alpha1.CatalogSourc
 func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error) {
 	out = in.DeepCopy()
 
-	logger.Info("synchronizing registry server")
 	sourceKey := registry.CatalogKey{Name: in.GetName(), Namespace: in.GetNamespace()}
 	srcReconciler := o.reconciler.ReconcilerForSource(in)
 	if srcReconciler == nil {
@@ -1021,21 +1012,15 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 		return
 	}
 
-	logger.WithField("health", healthy).Infof("checked registry server health")
-
 	if healthy && in.Status.RegistryServiceStatus != nil {
-		logger.Info("registry state good")
 		continueSync = true
 		// return here if catalog does not have polling enabled
 		if !out.Poll() {
-			logger.Info("polling not enabled, nothing more to do")
 			return
 		}
 	}
 
 	// Registry pod hasn't been created or hasn't been updated since the last configmap update, recreate it
-	logger.Info("ensuring registry server")
-
 	err = srcReconciler.EnsureRegistryServer(logger, out)
 	if err != nil {
 		if _, ok := err.(reconciler.UpdateNotReadyErr); ok {
@@ -1048,8 +1033,6 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 		return
 	}
 
-	logger.Info("ensured registry server")
-
 	// requeue the catalog sync based on the polling interval, for accurate syncs of catalogs with polling enabled
 	if out.Spec.UpdateStrategy != nil && out.Spec.UpdateStrategy.RegistryPoll != nil {
 		if out.Spec.UpdateStrategy.Interval == nil {
@@ -1058,16 +1041,17 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 			return
 		}
 		if out.Spec.UpdateStrategy.RegistryPoll.ParsingError != "" && out.Status.Reason != v1alpha1.CatalogSourceIntervalInvalidError {
-			out.SetError(v1alpha1.CatalogSourceIntervalInvalidError, errors.New(out.Spec.UpdateStrategy.RegistryPoll.ParsingError))
+			err := errors.New(out.Spec.UpdateStrategy.RegistryPoll.ParsingError)
+			logger.WithError(err).Error("registry server sync error: failed to parse registry poll interval")
+			out.SetError(v1alpha1.CatalogSourceIntervalInvalidError, err)
 		}
-		logger.Infof("requeuing registry server sync based on polling interval %s", out.Spec.UpdateStrategy.Interval.Duration.String())
 		resyncPeriod := reconciler.SyncRegistryUpdateInterval(out, time.Now())
 		o.catsrcQueueSet.RequeueAfter(out.GetNamespace(), out.GetName(), queueinformer.ResyncWithJitter(resyncPeriod, 0.1)())
 		return
 	}
 
 	if err := o.sources.Remove(sourceKey); err != nil {
-		o.logger.WithError(err).Debug("error closing client connection")
+		o.logger.WithError(err).Error("registry server sync error: error closing client connection")
 	}
 
 	return
@@ -1158,7 +1142,6 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		"catalogsource.name":      catsrc.Name,
 		"id":                      queueinformer.NewLoopID(),
 	})
-	logger.Info("syncing catalog source")
 
 	syncFunc := func(in *v1alpha1.CatalogSource, chain []CatalogSourceSyncFunc) (out *v1alpha1.CatalogSource, syncErr error) {
 		out = in
