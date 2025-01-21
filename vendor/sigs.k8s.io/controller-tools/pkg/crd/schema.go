@@ -268,7 +268,7 @@ func localNamedToSchema(ctx *schemaContext, ident *ast.Ident) *apiext.JSONSchema
 	// This reproduces the behavior we had pre gotypesalias=1 (needed if this
 	// project is compiled with default settings and Go >= 1.23).
 	if aliasInfo, isAlias := typeInfo.(*types.Alias); isAlias {
-		typeInfo = aliasInfo.Underlying()
+		typeInfo = aliasInfo.Rhs()
 	}
 	if basicInfo, isBasic := typeInfo.(*types.Basic); isBasic {
 		typ, fmt, err := builtinToType(basicInfo, ctx.allowDangerousTypes)
