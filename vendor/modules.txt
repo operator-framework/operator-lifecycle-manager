@@ -144,7 +144,7 @@ github.com/containers/common/pkg/auth
 github.com/containers/common/pkg/capabilities
 github.com/containers/common/pkg/completion
 github.com/containers/common/pkg/password
-# github.com/containers/image/v5 v5.33.0
+# github.com/containers/image/v5 v5.33.1
 ## explicit; go 1.22.6
 github.com/containers/image/v5/docker
 github.com/containers/image/v5/docker/policyconfiguration
@@ -186,7 +186,7 @@ github.com/containers/libtrust
 # github.com/containers/ocicrypt v1.2.0
 ## explicit; go 1.21
 github.com/containers/ocicrypt/spec
-# github.com/containers/storage v1.56.0
+# github.com/containers/storage v1.56.1
 ## explicit; go 1.22.0
 github.com/containers/storage/pkg/fileutils
 github.com/containers/storage/pkg/homedir
