@@ -583,9 +583,13 @@ github.com/operator-framework/operator-registry/pkg/registry
 github.com/operator-framework/operator-registry/pkg/server
 github.com/operator-framework/operator-registry/pkg/sqlite
 github.com/operator-framework/operator-registry/pkg/sqlite/migrations
-# github.com/otiai10/copy v1.14.0
+# github.com/otiai10/copy v1.14.1
 ## explicit; go 1.18
 github.com/otiai10/copy
+# github.com/otiai10/mint v1.6.3
+## explicit; go 1.18
+github.com/otiai10/mint
+github.com/otiai10/mint/mquery
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
