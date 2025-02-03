@@ -9,7 +9,7 @@ require (
 	github.com/containers/image/v5 v5.33.1
 	github.com/coreos/go-semver v0.3.1
 	github.com/distribution/reference v0.6.0
-	github.com/evanphx/json-patch v5.9.0+incompatible
+	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-air/gini v1.0.4
