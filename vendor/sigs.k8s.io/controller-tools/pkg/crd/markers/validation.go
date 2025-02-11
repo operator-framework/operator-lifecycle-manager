@@ -316,6 +316,10 @@ func hasNumericType(schema *apiext.JSONSchemaProps) bool {
 	return schema.Type == "integer" || schema.Type == "number"
 }
 
+func hasTextualType(schema *apiext.JSONSchemaProps) bool {
+	return schema.Type == "string" || schema.XIntOrString
+}
+
 func isIntegral(value float64) bool {
 	return value == math.Trunc(value) && !math.IsNaN(value) && !math.IsInf(value, 0)
 }
@@ -394,8 +398,8 @@ func (m MultipleOf) ApplyToSchema(schema *apiext.JSONSchemaProps) error {
 }
 
 func (m MaxLength) ApplyToSchema(schema *apiext.JSONSchemaProps) error {
-	if schema.Type != "string" {
-		return fmt.Errorf("must apply maxlength to a string")
+	if !hasTextualType(schema) {
+		return fmt.Errorf("must apply maxlength to a textual value, found type %q", schema.Type)
 	}
 	val := int64(m)
 	schema.MaxLength = &val
@@ -403,8 +407,8 @@ func (m MaxLength) ApplyToSchema(schema *apiext.JSONSchemaProps) error {
 }
 
 func (m MinLength) ApplyToSchema(schema *apiext.JSONSchemaProps) error {
-	if schema.Type != "string" {
-		return fmt.Errorf("must apply minlength to a string")
+	if !hasTextualType(schema) {
+		return fmt.Errorf("must apply minlength to a textual value, found type %q", schema.Type)
 	}
 	val := int64(m)
 	schema.MinLength = &val
@@ -412,11 +416,8 @@ func (m MinLength) ApplyToSchema(schema *apiext.JSONSchemaProps) error {
 }
 
 func (m Pattern) ApplyToSchema(schema *apiext.JSONSchemaProps) error {
-	// Allow string types or IntOrStrings. An IntOrString will still
-	// apply the pattern validation when a string is detected, the pattern
-	// will not apply to ints though.
-	if schema.Type != "string" && !schema.XIntOrString {
-		return fmt.Errorf("must apply pattern to a `string` or `IntOrString`")
+	if !hasTextualType(schema) {
+		return fmt.Errorf("must apply pattern to a textual value, found type %q", schema.Type)
 	}
 	schema.Pattern = string(m)
 	return nil
