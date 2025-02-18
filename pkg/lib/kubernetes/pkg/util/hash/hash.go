@@ -20,7 +20,10 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"hash"
 	"math/big"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 // DeepHashObject writes specified object to hash using the spew library
@@ -52,4 +55,15 @@ func DeepHashObject(obj interface{}) (string, error) {
 	var i big.Int
 	i.SetBytes(hash[:])
 	return i.Text(62), nil
+}
+
+func LegacyDeepHashObject(hasher hash.Hash, objectToWrite interface{}) {
+	hasher.Reset()
+	printer := spew.ConfigState{
+		Indent:         " ",
+		SortKeys:       true,
+		DisableMethods: true,
+		SpewKeys:       true,
+	}
+	printer.Fprintf(hasher, "%#v", objectToWrite)
 }
