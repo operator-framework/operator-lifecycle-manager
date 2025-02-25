@@ -541,37 +541,12 @@ func imageChanged(logger *logrus.Entry, updatePod *corev1.Pod, servingPods []*co
 	return false
 }
 
+// isPodDead checks if the pod has the DisruptionTarget condition set to true,
+// which indicates that the Pod is about to be deleted due to a disruption.
+// ref: https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-conditions
 func isPodDead(pod *corev1.Pod) bool {
-	for _, check := range []func(*corev1.Pod) bool{
-		isPodDeletedByTaintManager,
-		isPodTerminatedByKubelet,
-	} {
-		if check(pod) {
-			return true
-		}
-	}
-	return false
-}
-
-func isPodDeletedByTaintManager(pod *corev1.Pod) bool {
-	if pod.DeletionTimestamp == nil {
-		return false
-	}
 	for _, condition := range pod.Status.Conditions {
-		if condition.Type == corev1.DisruptionTarget && condition.Reason == "DeletionByTaintManager" && condition.Status == corev1.ConditionTrue {
-			return true
-		}
-	}
-	return false
-}
-
-// This reason is set when the Pod was evicted due to resource pressure on the Node
-func isPodTerminatedByKubelet(pod *corev1.Pod) bool {
-	if pod.DeletionTimestamp == nil {
-		return false
-	}
-	for _, condition := range pod.Status.Conditions {
-		if condition.Type == corev1.DisruptionTarget && condition.Reason == "TerminationByKubelet" && condition.Status == corev1.ConditionTrue {
+		if condition.Type == corev1.DisruptionTarget && condition.Status == corev1.ConditionTrue {
 			return true
 		}
 	}
