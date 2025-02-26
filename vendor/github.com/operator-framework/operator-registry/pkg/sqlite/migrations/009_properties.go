@@ -75,12 +75,12 @@ var propertiesMigration = &Migration{
 		}
 
 		// update the serialized value to omit the dependency type
-		updateDependencySql := `
+		updateDependencySQL := `
 		UPDATE dependencies
 		SET value = (SELECT json_remove(value, "$.type")
 					FROM dependencies
 					WHERE operatorbundle_name=dependencies.operatorbundle_name)`
-		_, err = tx.ExecContext(ctx, updateDependencySql)
+		_, err = tx.ExecContext(ctx, updateDependencySQL)
 		if err != nil {
 			return err
 		}
@@ -111,6 +111,7 @@ func getPackageForBundle(ctx context.Context, name string, tx *sql.Tx) (string, 
 		if !pkg.Valid {
 			return "", err
 		}
+		// nolint: staticcheck
 		return pkg.String, nil
 	}
 	return "", err

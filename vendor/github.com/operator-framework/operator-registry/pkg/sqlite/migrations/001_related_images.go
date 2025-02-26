@@ -45,25 +45,25 @@ func getCSV(ctx context.Context, tx *sql.Tx, name string) (*registry.ClusterServ
 		return nil, err
 	}
 
-	var csvJson sql.NullString
+	var csvJSON sql.NullString
 	if !rows.Next() {
 		return nil, fmt.Errorf("bundle %s not found", name)
 	}
-	if err := rows.Scan(&csvJson); err != nil {
+	if err := rows.Scan(&csvJSON); err != nil {
 		return nil, err
 	}
-	if !csvJson.Valid {
+	if !csvJSON.Valid {
 		return nil, fmt.Errorf("bad value for csv")
 	}
 	csv := &registry.ClusterServiceVersion{}
-	if err := json.Unmarshal([]byte(csvJson.String), csv); err != nil {
+	if err := json.Unmarshal([]byte(csvJSON.String), csv); err != nil {
 		return nil, err
 	}
 	return csv, nil
 }
 
 func extractRelatedImages(ctx context.Context, tx *sql.Tx, name string) error {
-	addSql := `insert into related_image(image, operatorbundle_name) values(?,?)`
+	addSQL := `insert into related_image(image, operatorbundle_name) values(?,?)`
 	csv, err := getCSV(ctx, tx, name)
 	if err != nil {
 		logrus.Warnf("error backfilling related images: %v", err)
@@ -83,7 +83,7 @@ func extractRelatedImages(ctx context.Context, tx *sql.Tx, name string) error {
 		images[k] = struct{}{}
 	}
 	for img := range images {
-		if _, err := tx.ExecContext(ctx, addSql, img, name); err != nil {
+		if _, err := tx.ExecContext(ctx, addSQL, img, name); err != nil {
 			logrus.Warnf("error backfilling related images: %v", err)
 			continue
 		}
@@ -101,7 +101,7 @@ var relatedImagesMigration = &Migration{
      		FOREIGN KEY(operatorbundle_name) REFERENCES operatorbundle(name)
 		);
 		`
-		_, err := tx.ExecContext(ctx, sql)
+		_, _ = tx.ExecContext(ctx, sql)
 
 		bundles, err := listBundles(ctx, tx)
 		if err != nil {

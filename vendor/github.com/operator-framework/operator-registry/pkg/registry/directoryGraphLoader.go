@@ -51,7 +51,7 @@ func NewPackageGraphLoaderFromDir(packageDir string) (*DirGraphLoader, error) {
 func (g *DirGraphLoader) Generate() (*Package, error) {
 	err := g.loadBundleCsvPathMap()
 	if err != nil {
-		return nil, fmt.Errorf("error geting CSVs from bundles in the package directory, %v", err)
+		return nil, fmt.Errorf("error getting CSVs from bundles in the package directory, %v", err)
 	}
 
 	pkg, err := g.parsePackageYAMLFile()
@@ -76,6 +76,7 @@ func (g *DirGraphLoader) loadBundleCsvPathMap() error {
 	}
 	CsvNameAndReplaceMap := make(map[string]csvReplaces)
 	for _, bundlePath := range bundleDirs {
+		//nolint:nestif
 		if bundlePath.IsDir() {
 			csvStruct, err := ReadCSVFromBundleDirectory(filepath.Join(g.PackageDir, bundlePath.Name()))
 			if err != nil {
@@ -131,7 +132,7 @@ func (g *DirGraphLoader) getChannelNodes(channelHeadCsv string) *map[BundleKey]m
 	// Iterate through remainingCSVsInChannel and add replaces of each encountered CSVs if not already in nodes.
 	// Loop only exit after all remaining csvs are visited/deleted.
 	for len(remainingCSVsInChannel) > 0 {
-		for bk, _ := range remainingCSVsInChannel {
+		for bk := range remainingCSVsInChannel {
 			if _, ok := nodes[BundleKey{CsvName: bk.CsvName}]; !ok {
 				nodes[BundleKey{CsvName: bk.CsvName}] = func() map[BundleKey]struct{} {
 					subNode := make(map[BundleKey]struct{})
@@ -203,5 +204,4 @@ func convertFromPackageManifest(pkgManifest PackageManifest) *Package {
 		DefaultChannel: pkgManifest.GetDefaultChannel(),
 		Channels:       pkgChannels,
 	}
-
 }

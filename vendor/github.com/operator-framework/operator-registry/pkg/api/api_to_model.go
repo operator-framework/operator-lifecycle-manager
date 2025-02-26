@@ -42,6 +42,7 @@ func ConvertAPIBundleToModelBundle(b *Bundle) (*model.Bundle, error) {
 }
 
 func convertAPIBundleToModelProperties(b *Bundle) ([]property.Property, error) {
+	// nolint:prealloc
 	var out []property.Property
 
 	providedGVKs := map[property.GVK]struct{}{}

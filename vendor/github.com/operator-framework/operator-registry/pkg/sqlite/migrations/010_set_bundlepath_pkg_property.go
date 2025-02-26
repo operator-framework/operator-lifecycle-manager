@@ -15,12 +15,12 @@ func init() {
 var bundlePathPkgPropertyMigration = &Migration{
 	Id: BundlePathPkgMigrationKey,
 	Up: func(ctx context.Context, tx *sql.Tx) error {
-		updatePropertiesSql := `
+		updatePropertiesSQL := `
 		UPDATE properties
 		SET operatorbundle_path = (SELECT bundlepath
 							FROM operatorbundle
 							WHERE operatorbundle_name = operatorbundle.name AND operatorbundle_version = operatorbundle.version)`
-		_, err := tx.ExecContext(ctx, updatePropertiesSql)
+		_, err := tx.ExecContext(ctx, updatePropertiesSQL)
 		if err != nil {
 			return err
 		}
@@ -28,11 +28,11 @@ var bundlePathPkgPropertyMigration = &Migration{
 		return nil
 	},
 	Down: func(ctx context.Context, tx *sql.Tx) error {
-		updatePropertiesSql := `
+		updatePropertiesSQL := `
 		UPDATE properties
 		SET operatorbundle_path = null
 		WHERE type = "olm.package"`
-		_, err := tx.ExecContext(ctx, updatePropertiesSql)
+		_, err := tx.ExecContext(ctx, updatePropertiesSQL)
 		if err != nil {
 			return err
 		}

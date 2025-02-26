@@ -2,6 +2,7 @@
 package containertools
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -83,13 +84,14 @@ func (r *ContainerCommandRunner) GetToolName() string {
 func (r *ContainerCommandRunner) Pull(image string) error {
 	args := r.argsForCmd("pull", image)
 
+	// nolint:gosec
 	command := exec.Command(r.containerTool.String(), args...)
 
 	r.logger.Infof("running %s", command.String())
 
 	out, err := command.CombinedOutput()
 	if err != nil {
-		r.logger.Errorf(string(out))
+		r.logger.Error(string(out))
 		return fmt.Errorf("error pulling image: %s. %v", string(out), err)
 	}
 
@@ -114,7 +116,7 @@ func (r *ContainerCommandRunner) Build(dockerfile, tag string) error {
 
 	out, err := command.CombinedOutput()
 	if err != nil {
-		r.logger.Errorf(string(out))
+		r.logger.Error(string(out))
 		return fmt.Errorf("error building image: %s. %v", string(out), err)
 	}
 
@@ -125,6 +127,7 @@ func (r *ContainerCommandRunner) Build(dockerfile, tag string) error {
 func (r *ContainerCommandRunner) Unpack(image, src, dst string) error {
 	args := r.argsForCmd("create", image, "")
 
+	// nolint:gosec
 	command := exec.Command(r.containerTool.String(), args...)
 
 	r.logger.Infof("running %s create", r.containerTool)
@@ -133,7 +136,8 @@ func (r *ContainerCommandRunner) Unpack(image, src, dst string) error {
 	out, err := command.Output()
 	if err != nil {
 		msg := err.Error()
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			msg = fmt.Sprintf("%s: %s", err, exitErr.Stderr)
 		}
 		return fmt.Errorf("error creating container %s: %s", string(out), msg)
@@ -141,6 +145,7 @@ func (r *ContainerCommandRunner) Unpack(image, src, dst string) error {
 
 	id := strings.TrimSuffix(string(out), "\n")
 	args = r.argsForCmd("cp", id+":"+src, dst)
+	// nolint:gosec
 	command = exec.Command(r.containerTool.String(), args...)
 
 	r.logger.Infof("running %s cp", r.containerTool)
@@ -148,11 +153,12 @@ func (r *ContainerCommandRunner) Unpack(image, src, dst string) error {
 
 	out, err = command.CombinedOutput()
 	if err != nil {
-		r.logger.Errorf(string(out))
+		r.logger.Error(string(out))
 		return fmt.Errorf("error copying container directory %s: %v", string(out), err)
 	}
 
 	args = r.argsForCmd("rm", id)
+	// nolint:gosec
 	command = exec.Command(r.containerTool.String(), args...)
 
 	r.logger.Infof("running %s rm", r.containerTool)
@@ -160,7 +166,7 @@ func (r *ContainerCommandRunner) Unpack(image, src, dst string) error {
 
 	out, err = command.CombinedOutput()
 	if err != nil {
-		r.logger.Errorf(string(out))
+		r.logger.Error(string(out))
 		return fmt.Errorf("error removing container %s: %v", string(out), err)
 	}
 
@@ -172,6 +178,7 @@ func (r *ContainerCommandRunner) Unpack(image, src, dst string) error {
 func (r *ContainerCommandRunner) Inspect(image string) ([]byte, error) {
 	args := r.argsForCmd("inspect", image)
 
+	// nolint:gosec
 	command := exec.Command(r.containerTool.String(), args...)
 
 	r.logger.Infof("running %s inspect", r.containerTool)
@@ -179,7 +186,7 @@ func (r *ContainerCommandRunner) Inspect(image string) ([]byte, error) {
 
 	out, err := command.Output()
 	if err != nil {
-		r.logger.Errorf(string(out))
+		r.logger.Error(string(out))
 		return nil, err
 	}
 

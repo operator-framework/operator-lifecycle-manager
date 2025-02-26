@@ -12,6 +12,7 @@ type ValidationError struct {
 }
 
 func (v ValidationError) Error() string {
+	// nolint:prealloc
 	var errs []string
 	for _, err := range v.Errors {
 		errs = append(errs, err.Error())

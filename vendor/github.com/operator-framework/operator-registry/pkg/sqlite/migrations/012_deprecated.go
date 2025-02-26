@@ -29,6 +29,7 @@ var deprecatedMigration = &Migration{
 			return err
 		}
 
+		// nolint: gosec
 		initDeprecated := fmt.Sprintf(`INSERT OR REPLACE INTO deprecated(operatorbundle_name) SELECT operatorbundle_name FROM properties WHERE properties.type='%s'`, registry.DeprecatedType)
 		_, err := tx.ExecContext(ctx, initDeprecated)
 

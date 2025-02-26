@@ -10,7 +10,7 @@ const noticeColor = "\033[1;33m%s\033[0m"
 
 func LogSqliteDeprecation() {
 	log := logrus.New()
-	log.Warnf(DeprecationMessage)
+	log.Warn(DeprecationMessage)
 }
 
 var DeprecationMessage = fmt.Sprintf(noticeColor, `DEPRECATION NOTICE:

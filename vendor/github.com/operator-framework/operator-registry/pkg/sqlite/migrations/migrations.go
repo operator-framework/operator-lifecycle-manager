@@ -8,6 +8,7 @@ import (
 )
 
 type Migration struct {
+	// nolint:stylecheck
 	Id   int
 	Up   func(context.Context, *sql.Tx) error
 	Down func(context.Context, *sql.Tx) error

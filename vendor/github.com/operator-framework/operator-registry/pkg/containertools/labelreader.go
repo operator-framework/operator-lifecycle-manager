@@ -71,5 +71,6 @@ func (r ImageLabelReader) GetLabelsFromImage(image string) (map[string]string, e
 		return data[0].Labels, nil
 	}
 
+	// nolint:stylecheck
 	return nil, fmt.Errorf("Unable to parse label data from container")
 }

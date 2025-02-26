@@ -11,7 +11,7 @@ const AssociateApisWithBundleMigrationKey = 6
 
 // Register this migration
 func init() {
-	registerMigration(AssociateApisWithBundleMigrationKey, bundleApiMigration)
+	registerMigration(AssociateApisWithBundleMigrationKey, bundleAPIMigration)
 }
 
 // This migration moves the link between the provided and required apis table from the channel_entry to the
@@ -24,7 +24,7 @@ func init() {
 // api_provider: FOREIGN KEY(operatorbundle_name, operatorbundle_version, operatorbundle_path) REFERENCES operatorbundle(name, version, bundlepath),
 // api_requirer: FOREIGN KEY(operatorbundle_name, operatorbundle_version, operatorbundle_path) REFERENCES operatorbundle(name, version, bundlepath),
 
-var bundleApiMigration = &Migration{
+var bundleAPIMigration = &Migration{
 	Id: AssociateApisWithBundleMigrationKey,
 	Up: func(ctx context.Context, tx *sql.Tx) error {
 		createNew := `
