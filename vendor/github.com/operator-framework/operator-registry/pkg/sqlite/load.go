@@ -69,7 +69,7 @@ func (s *sqlLoader) AddOperatorBundle(bundle *registry.Bundle) error {
 		return err
 	}
 	defer func() {
-		tx.Rollback()
+		_ = tx.Rollback()
 	}()
 
 	if err := s.addOperatorBundle(tx, bundle); err != nil {
@@ -123,6 +123,7 @@ func (s *sqlLoader) addOperatorBundle(tx *sql.Tx, bundle *registry.Bundle) error
 	}
 
 	if substitutesFor != "" && !s.enableAlpha {
+		// nolint:stylecheck
 		return fmt.Errorf("SubstitutesFor is an alpha-only feature. You must enable alpha features with the flag --enable-alpha in order to use this feature.")
 	}
 
@@ -162,7 +163,6 @@ func (s *sqlLoader) addOperatorBundle(tx *sql.Tx, bundle *registry.Bundle) error
 }
 
 func (s *sqlLoader) addSubstitutesFor(tx *sql.Tx, bundle *registry.Bundle) error {
-
 	updateBundleReplaces, err := tx.Prepare("update operatorbundle set replaces = ? where replaces = ?")
 	if err != nil {
 		return err
@@ -205,6 +205,7 @@ func (s *sqlLoader) addSubstitutesFor(tx *sql.Tx, bundle *registry.Bundle) error
 	if err != nil {
 		return fmt.Errorf("failed to obtain substitutes : %s", err)
 	}
+	// nolint:nestif
 	if substitutesFor != "" {
 		// Update any replaces that reference the substituted-for bundle
 		_, err = updateBundleReplaces.Exec(csvName, substitutesFor)
@@ -407,7 +408,7 @@ func (s *sqlLoader) AddPackageChannelsFromGraph(graph *registry.Package) error {
 		return fmt.Errorf("unable to start a transaction: %s", err)
 	}
 	defer func() {
-		tx.Rollback()
+		_ = tx.Rollback()
 	}()
 
 	var errs []error
@@ -507,6 +508,7 @@ func (s *sqlLoader) AddPackageChannelsFromGraph(graph *registry.Package) error {
 				// If the number of nodes is 5 and the startDepth is 3, the expected depth is 7 (3, 4, 5, 6, 7)
 				expectedDepth := len(channel.Nodes) + startDepth - 1
 				if expectedDepth != depth {
+					// nolint:stylecheck
 					err := fmt.Errorf("Invalid graph: some (non-bottom) nodes defined in the graph were not mentioned as replacements of any node (%d != %d)", expectedDepth, depth)
 					errs = append(errs, err)
 				}
@@ -533,7 +535,7 @@ func (s *sqlLoader) AddPackageChannels(manifest registry.PackageManifest) error 
 		return fmt.Errorf("unable to start a transaction: %s", err)
 	}
 	defer func() {
-		tx.Rollback()
+		_ = tx.Rollback()
 	}()
 
 	if err := s.rmPackage(tx, manifest.PackageName); err != nil {
@@ -591,6 +593,7 @@ func (s *sqlLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 		return fmt.Errorf("failed to add package %q: %s", manifest.PackageName, err.Error())
 	}
 
+	// nolint:prealloc
 	var (
 		errs       []error
 		channels   []registry.PackageChannel
@@ -717,6 +720,7 @@ func (s *sqlLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 
 			// If we find 'replaces' in the circuit list then we've seen it already, break out
 			if _, ok := replaceCycle[replaces]; ok {
+				// nolint:stylecheck
 				errs = append(errs, fmt.Errorf("Cycle detected, %s replaces %s", channelEntryCSVName, replaces))
 				break
 			}
@@ -732,6 +736,7 @@ func (s *sqlLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 				break
 			}
 			if _, _, _, err := s.getBundleSkipsReplacesVersion(tx, replaces); err != nil {
+				// nolint:stylecheck
 				errs = append(errs, fmt.Errorf("Invalid bundle %s, replaces nonexistent bundle %s", c.CurrentCSVName, replaces))
 				break
 			}
@@ -750,7 +755,7 @@ func (s *sqlLoader) ClearNonHeadBundles() error {
 		return err
 	}
 	defer func() {
-		tx.Rollback()
+		_ = tx.Rollback()
 	}()
 
 	removeNonHeadBundles, err := tx.Prepare(`
@@ -773,34 +778,37 @@ func (s *sqlLoader) ClearNonHeadBundles() error {
 	return tx.Commit()
 }
 
-func (s *sqlLoader) getBundleSkipsReplacesVersion(tx *sql.Tx, bundleName string) (replaces string, skips []string, version string, err error) {
+func (s *sqlLoader) getBundleSkipsReplacesVersion(tx *sql.Tx, bundleName string) (string, []string, string, error) {
 	getReplacesSkipsAndVersions, err := tx.Prepare(`
 	  SELECT replaces, skips, version
 	  FROM operatorbundle
 	  WHERE operatorbundle.name=? LIMIT 1`)
 	if err != nil {
-		return
+		return "", nil, "", err
 	}
 	defer getReplacesSkipsAndVersions.Close()
 
 	rows, rerr := getReplacesSkipsAndVersions.Query(bundleName)
 	if err != nil {
 		err = rerr
-		return
+		return "", nil, "", err
 	}
 	defer rows.Close()
 	if !rows.Next() {
 		err = fmt.Errorf("no bundle found for bundlename %s", bundleName)
-		return
+		return "", nil, "", err
 	}
 
 	var replacesStringSQL sql.NullString
 	var skipsStringSQL sql.NullString
 	var versionStringSQL sql.NullString
 	if err = rows.Scan(&replacesStringSQL, &skipsStringSQL, &versionStringSQL); err != nil {
-		return
+		return "", nil, "", err
 	}
 
+	var replaces string
+	var skips []string
+	var version string
 	if replacesStringSQL.Valid {
 		replaces = replacesStringSQL.String
 	}
@@ -811,40 +819,41 @@ func (s *sqlLoader) getBundleSkipsReplacesVersion(tx *sql.Tx, bundleName string)
 		version = versionStringSQL.String
 	}
 
-	return
+	return replaces, skips, version, nil
 }
 
-func (s *sqlLoader) getBundlePathIfExists(tx *sql.Tx, bundleName string) (bundlePath string, err error) {
+func (s *sqlLoader) getBundlePathIfExists(tx *sql.Tx, bundleName string) (string, error) {
 	getBundlePath, err := tx.Prepare(`
 	  SELECT bundlepath
 	  FROM operatorbundle
 	  WHERE operatorbundle.name=? LIMIT 1`)
 	if err != nil {
-		return
+		return "", err
 	}
 	defer getBundlePath.Close()
 
 	rows, rerr := getBundlePath.Query(bundleName)
 	if err != nil {
 		err = rerr
-		return
+		return "", err
 	}
 	defer rows.Close()
 	if !rows.Next() {
 		// no bundlepath set
-		return
+		return "", nil
 	}
 
 	var bundlePathSQL sql.NullString
 	if err = rows.Scan(&bundlePathSQL); err != nil {
-		return
+		return "", err
 	}
 
+	var bundlePath string
 	if bundlePathSQL.Valid {
 		bundlePath = bundlePathSQL.String
 	}
 
-	return
+	return bundlePath, nil
 }
 
 func (s *sqlLoader) addAPIs(tx *sql.Tx, bundle *registry.Bundle) error {
@@ -950,7 +959,7 @@ func (s *sqlLoader) RemovePackage(packageName string) error {
 			return err
 		}
 		defer func() {
-			tx.Rollback()
+			_ = tx.Rollback()
 		}()
 
 		csvNames, err := s.getCSVNames(tx, packageName)
@@ -1059,7 +1068,7 @@ func (s *sqlLoader) AddBundlePackageChannels(manifest registry.PackageManifest, 
 		return err
 	}
 	defer func() {
-		tx.Rollback()
+		_ = tx.Rollback()
 	}()
 
 	if err := s.addOperatorBundle(tx, bundle); err != nil {
@@ -1343,7 +1352,7 @@ type tailBundle struct {
 	replacedBy []string // to handle any chain where a skipped entry may be a part of another channel that should not be truncated
 }
 
-func getTailFromBundle(tx *sql.Tx, head string) (bundles map[string]tailBundle, err error) {
+func getTailFromBundle(tx *sql.Tx, head string) (map[string]tailBundle, error) {
 	// traverse replaces chain and collect channel list for each bundle.
 	// This assumes that replaces chain for a bundle is the same across channels.
 	// only real bundles with entries in the operator_bundle table are returned.
@@ -1392,7 +1401,7 @@ func getTailFromBundle(tx *sql.Tx, head string) (bundles map[string]tailBundle, 
 		return nil, fmt.Errorf("could not find default channel head for %s", head)
 	}
 	var defaultChannelHead sql.NullString
-	err = row.Scan(&defaultChannelHead)
+	err := row.Scan(&defaultChannelHead)
 	if err != nil {
 		return nil, fmt.Errorf("error getting default channel head for %s: %v", head, err)
 	}
@@ -1481,7 +1490,7 @@ func (s *sqlLoader) DeprecateBundle(path string) error {
 		return err
 	}
 	defer func() {
-		tx.Rollback()
+		_ = tx.Rollback()
 	}()
 
 	name, version, err := getBundleNameAndVersionForImage(tx, path)
@@ -1550,7 +1559,6 @@ deprecate:
 		if err := s.rmBundle(tx, bundle); err != nil {
 			return err
 		}
-
 	}
 	// remove links to deprecated/truncated bundles to avoid regenerating these on add/overwrite
 	_, err = tx.Exec(`UPDATE channel_entry SET replaces=NULL WHERE operatorbundle_name=?`, name)
@@ -1592,7 +1600,7 @@ func (s *sqlLoader) RemoveStrandedBundles() error {
 		return err
 	}
 	defer func() {
-		tx.Rollback()
+		_ = tx.Rollback()
 	}()
 
 	if err := s.rmStrandedBundles(tx); err != nil {
@@ -1742,7 +1750,7 @@ func (d *DeprecationAwareLoader) clearLastDeprecatedInPackage(pkg string) error 
 		return err
 	}
 	defer func() {
-		tx.Rollback()
+		_ = tx.Rollback()
 	}()
 
 	// The last deprecated bundles for a package will still have "tombstone" records in channel_entry (among other tables).
@@ -1770,7 +1778,7 @@ func (s sqlLoader) RemoveOverwrittenChannelHead(pkg, bundle string) error {
 		return err
 	}
 	defer func() {
-		tx.Rollback()
+		_ = tx.Rollback()
 	}()
 	// check if bundle has anything that replaces it
 	getBundlesThatReplaceHeadQuery := `SELECT DISTINCT operatorbundle.name AS replaces, channel_entry.channel_name
@@ -1795,6 +1803,7 @@ func (s sqlLoader) RemoveOverwrittenChannelHead(pkg, bundle string) error {
 				return err
 			}
 			// This is not a head bundle for all channels it is a member of. Cannot remove
+			// nolint: staticcheck
 			return fmt.Errorf("cannot overwrite bundle %s from package %s: replaced by %s on channel %s", bundle, pkg, replaces.String, channel.String)
 		}
 	}

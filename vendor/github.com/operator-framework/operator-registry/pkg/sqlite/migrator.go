@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -86,12 +87,12 @@ func (m *SQLLiteMigrator) Up(ctx context.Context, migrations migrations.Migratio
 	}
 
 	for _, migration := range migrations {
-		current_version, err := m.version(ctx, tx)
+		currentVersion, err := m.version(ctx, tx)
 		if err != nil {
 			return err
 		}
 
-		if migration.Id != current_version+1 {
+		if migration.Id != currentVersion+1 {
 			return fmt.Errorf("migration applied out of order")
 		}
 
@@ -127,12 +128,12 @@ func (m *SQLLiteMigrator) Down(ctx context.Context, migrations migrations.Migrat
 	}
 
 	for _, migration := range migrations {
-		current_version, err := m.version(ctx, tx)
+		currentVersion, err := m.version(ctx, tx)
 		if err != nil {
 			return err
 		}
 
-		if migration.Id != current_version {
+		if migration.Id != currentVersion {
 			return fmt.Errorf("migration applied out of order")
 		}
 
@@ -175,7 +176,7 @@ func (m *SQLLiteMigrator) tableExists(tx *sql.Tx, table string) (bool, error) {
 	return exists, nil
 }
 
-func (m *SQLLiteMigrator) version(ctx context.Context, tx *sql.Tx) (version int, err error) {
+func (m *SQLLiteMigrator) version(ctx context.Context, tx *sql.Tx) (int, error) {
 	tableExists, err := m.tableExists(tx, m.migrationsTable)
 	if err != nil {
 		return NilVersion, err
@@ -185,9 +186,10 @@ func (m *SQLLiteMigrator) version(ctx context.Context, tx *sql.Tx) (version int,
 	}
 
 	query := `SELECT version FROM ` + m.migrationsTable + ` LIMIT 1`
+	var version int
 	err = tx.QueryRowContext(ctx, query).Scan(&version)
 	switch {
-	case err == sql.ErrNoRows:
+	case errors.Is(err, sql.ErrNoRows):
 		return NilVersion, nil
 	case err != nil:
 		return NilVersion, err
@@ -200,10 +202,12 @@ func (m *SQLLiteMigrator) setVersion(ctx context.Context, tx *sql.Tx, version in
 	if err := m.ensureMigrationTable(ctx, tx); err != nil {
 		return err
 	}
+	// nolint: gosec
 	_, err := tx.ExecContext(ctx, "DELETE FROM "+m.migrationsTable)
 	if err != nil {
 		return err
 	}
+	// nolint: gosec
 	_, err = tx.ExecContext(ctx, "INSERT INTO "+m.migrationsTable+"(version) values(?)", version)
 	return err
 }

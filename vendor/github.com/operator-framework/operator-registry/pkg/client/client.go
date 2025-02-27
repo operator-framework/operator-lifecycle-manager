@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"io"
 	"time"
 
@@ -49,7 +50,7 @@ func (it *BundleIterator) Next() *api.Bundle {
 		return nil
 	}
 	next, err := it.stream.Recv()
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return nil
 	}
 	if err != nil {
@@ -67,6 +68,7 @@ func (c *Client) GetBundle(ctx context.Context, packageName, channelName, csvNam
 }
 
 func (c *Client) GetBundleInPackageChannel(ctx context.Context, packageName, channelName string) (*api.Bundle, error) {
+	// nolint:staticcheck
 	return c.Registry.GetBundleForChannel(ctx, &api.GetBundleInChannelRequest{PkgName: packageName, ChannelName: channelName})
 }
 
@@ -116,6 +118,7 @@ func (c *Client) HealthCheck(ctx context.Context, reconnectTimeout time.Duration
 }
 
 func NewClient(address string) (*Client, error) {
+	// nolint:staticcheck
 	conn, err := grpc.Dial(address, grpc.WithInsecure())
 	if err != nil {
 		return nil, err

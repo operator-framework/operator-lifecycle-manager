@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -47,7 +47,7 @@ func NewSQLLoaderForConfigMapData(logger *logrus.Entry, store registry.Load, con
 	}
 }
 
-func NewSQLLoaderForConfigMap(store registry.Load, configMap v1.ConfigMap) *ConfigMapLoader {
+func NewSQLLoaderForConfigMap(store registry.Load, configMap corev1.ConfigMap) *ConfigMapLoader {
 	logger := logrus.WithFields(logrus.Fields{"configmap": configMap.GetName(), "ns": configMap.GetNamespace()})
 	return &ConfigMapLoader{
 		log:           logger,
@@ -66,14 +66,14 @@ func (c *ConfigMapLoader) Populate() error {
 		return fmt.Errorf("couldn't find expected key %s in configmap", ConfigMapCRDName)
 	}
 
-	crdListJson, err := yaml.YAMLToJSON([]byte(crdListYaml))
+	crdListJSON, err := yaml.YAMLToJSON([]byte(crdListYaml))
 	if err != nil {
 		c.log.WithError(err).Debug("error loading CRD list")
 		return err
 	}
 
 	var parsedCRDList []v1beta1.CustomResourceDefinition
-	if err := json.Unmarshal(crdListJson, &parsedCRDList); err != nil {
+	if err := json.Unmarshal(crdListJSON, &parsedCRDList); err != nil {
 		c.log.WithError(err).Debug("error parsing CRD list")
 		return err
 	}
@@ -106,14 +106,14 @@ func (c *ConfigMapLoader) Populate() error {
 		errs = append(errs, fmt.Errorf("couldn't find expected key %s in configmap", ConfigMapCSVName))
 		return utilerrors.NewAggregate(errs)
 	}
-	csvListJson, err := yaml.YAMLToJSON([]byte(csvListYaml))
+	csvListJSON, err := yaml.YAMLToJSON([]byte(csvListYaml))
 	if err != nil {
 		errs = append(errs, fmt.Errorf("error loading CSV list: %s", err))
 		return utilerrors.NewAggregate(errs)
 	}
 
 	var parsedCSVList []registry.ClusterServiceVersion
-	err = json.Unmarshal(csvListJson, &parsedCSVList)
+	err = json.Unmarshal(csvListJSON, &parsedCSVList)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("error parsing CSV list: %s", err))
 		return utilerrors.NewAggregate(errs)
@@ -164,14 +164,14 @@ func (c *ConfigMapLoader) Populate() error {
 		return utilerrors.NewAggregate(errs)
 	}
 
-	packageListJson, err := yaml.YAMLToJSON([]byte(packageListYaml))
+	packageListJSON, err := yaml.YAMLToJSON([]byte(packageListYaml))
 	if err != nil {
 		errs = append(errs, fmt.Errorf("error loading package list: %s", err))
 		return utilerrors.NewAggregate(errs)
 	}
 
 	var parsedPackageManifests []registry.PackageManifest
-	err = json.Unmarshal(packageListJson, &parsedPackageManifests)
+	err = json.Unmarshal(packageListJSON, &parsedPackageManifests)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("error parsing package list: %s", err))
 		return utilerrors.NewAggregate(errs)

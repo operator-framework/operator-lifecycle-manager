@@ -40,7 +40,7 @@ func (EmptyQuery) GetBundleForChannel(ctx context.Context, pkgName string, chann
 	return nil, errors.New("empty querier: cannot get bundle for channel")
 }
 
-func (EmptyQuery) GetChannelEntriesThatReplace(ctx context.Context, name string) (entries []*ChannelEntry, err error) {
+func (EmptyQuery) GetChannelEntriesThatReplace(ctx context.Context, name string) ([]*ChannelEntry, error) {
 	return nil, errors.New("empty querier: cannot get channel entries that replace")
 }
 
@@ -48,11 +48,11 @@ func (EmptyQuery) GetBundleThatReplaces(ctx context.Context, name, pkgName, chan
 	return nil, errors.New("empty querier: cannot get bundle that replaces")
 }
 
-func (EmptyQuery) GetChannelEntriesThatProvide(ctx context.Context, group, version, kind string) (entries []*ChannelEntry, err error) {
+func (EmptyQuery) GetChannelEntriesThatProvide(ctx context.Context, group, version, kind string) ([]*ChannelEntry, error) {
 	return nil, errors.New("empty querier: cannot get channel entries that provide")
 }
 
-func (EmptyQuery) GetLatestChannelEntriesThatProvide(ctx context.Context, group, version, kind string) (entries []*ChannelEntry, err error) {
+func (EmptyQuery) GetLatestChannelEntriesThatProvide(ctx context.Context, group, version, kind string) ([]*ChannelEntry, error) {
 	return nil, errors.New("empty querier: cannot get latest channel entries that provide")
 }
 
@@ -68,7 +68,8 @@ func (EmptyQuery) GetImagesForBundle(ctx context.Context, bundleName string) ([]
 	return nil, errors.New("empty querier: cannot get image list")
 }
 
-func (EmptyQuery) GetApisForEntry(ctx context.Context, entryId int64) (provided []*api.GroupVersionKind, required []*api.GroupVersionKind, err error) {
+// nolint:stylecheck
+func (EmptyQuery) GetApisForEntry(ctx context.Context, entryId int64) ([]*api.GroupVersionKind, []*api.GroupVersionKind, error) {
 	return nil, nil, errors.New("empty querier: cannot apis")
 }
 
@@ -104,11 +105,11 @@ func (EmptyQuery) SendBundles(ctx context.Context, stream BundleSender) error {
 	return errors.New("empty querier: cannot stream bundles")
 }
 
-func (EmptyQuery) GetDependenciesForBundle(ctx context.Context, name, version, path string) (dependencies []*api.Dependency, err error) {
+func (EmptyQuery) GetDependenciesForBundle(ctx context.Context, name, version, path string) ([]*api.Dependency, error) {
 	return nil, errors.New("empty querier: cannot get dependencies for bundle")
 }
 
-func (EmptyQuery) GetBundlePathIfExists(ctx context.Context, csvName string) (bundlePath string, err error) {
+func (EmptyQuery) GetBundlePathIfExists(ctx context.Context, csvName string) (string, error) {
 	return "", errors.New("empty querier: cannot get bundle path for bundle")
 }
 

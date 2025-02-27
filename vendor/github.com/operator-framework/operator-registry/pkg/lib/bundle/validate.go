@@ -22,6 +22,7 @@ import (
 	"github.com/operator-framework/api/pkg/manifests"
 	v1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	v "github.com/operator-framework/api/pkg/validation"
+
 	"github.com/operator-framework/operator-registry/pkg/image"
 	validation "github.com/operator-framework/operator-registry/pkg/lib/validation"
 	"github.com/operator-framework/operator-registry/pkg/registry"
@@ -99,10 +100,12 @@ func (i imageValidator) ValidateBundleFormat(directory string) error {
 		}
 	}
 
-	if manifestsFound == false {
+	if !manifestsFound {
+		// nolint:stylecheck
 		validationErrors = append(validationErrors, fmt.Errorf("Unable to locate manifests directory"))
 	}
-	if metadataFound == false {
+	if !metadataFound {
+		// nolint:stylecheck
 		validationErrors = append(validationErrors, fmt.Errorf("Unable to locate metadata directory"))
 	}
 
@@ -144,6 +147,7 @@ func (i imageValidator) ValidateBundleFormat(directory string) error {
 	}
 
 	if !annotationsFound {
+		// nolint:stylecheck
 		validationErrors = append(validationErrors, fmt.Errorf("Could not find annotations file"))
 	} else {
 		i.logger.Debug("Found annotations file")
@@ -185,6 +189,7 @@ func validateAnnotations(mediaType string, fileAnnotations *AnnotationMetadata) 
 	for label, item := range annotations {
 		val, ok := fileAnnotations.Annotations[label]
 		if !ok && label != ChannelDefaultLabel {
+			// nolint:stylecheck
 			aErr := fmt.Errorf("Missing annotation %q", label)
 			validationErrors = append(validationErrors, aErr)
 		}
@@ -192,26 +197,31 @@ func validateAnnotations(mediaType string, fileAnnotations *AnnotationMetadata) 
 		switch label {
 		case MediatypeLabel:
 			if item != val {
+				// nolint:stylecheck
 				aErr := fmt.Errorf("Expecting annotation %q to have value %q instead of %q", label, item, val)
 				validationErrors = append(validationErrors, aErr)
 			}
 		case ManifestsLabel:
 			if item != ManifestsDir {
+				// nolint:stylecheck
 				aErr := fmt.Errorf("Expecting annotation %q to have value %q instead of %q", label, ManifestsDir, val)
 				validationErrors = append(validationErrors, aErr)
 			}
 		case MetadataDir:
 			if item != MetadataLabel {
+				// nolint:stylecheck
 				aErr := fmt.Errorf("Expecting annotation %q to have value %q instead of %q", label, MetadataDir, val)
 				validationErrors = append(validationErrors, aErr)
 			}
 		case ChannelsLabel:
 			if val == "" {
+				// nolint:stylecheck
 				aErr := fmt.Errorf("Expecting annotation %q to have non-empty value", label)
 				validationErrors = append(validationErrors, aErr)
 			}
 		case ChannelDefaultLabel:
 			if ok && val == "" {
+				// nolint:stylecheck
 				aErr := fmt.Errorf("Expecting annotation %q to have non-empty value", label)
 				validationErrors = append(validationErrors, aErr)
 			}
@@ -291,6 +301,7 @@ func (i imageValidator) ValidateBundleContent(manifestDir string) error {
 		fileWithPath := filepath.Join(manifestDir, item.Name())
 		data, err := os.ReadFile(fileWithPath)
 		if err != nil {
+			// nolint:stylecheck
 			validationErrors = append(validationErrors, fmt.Errorf("Unable to read file %s in supported types", fileWithPath))
 			continue
 		}
@@ -313,6 +324,7 @@ func (i imageValidator) ValidateBundleContent(manifestDir string) error {
 			continue
 		}
 
+		// nolint:nestif
 		if gvk.Kind == CSVKind {
 			err := runtime.DefaultUnstructuredConverter.FromUnstructured(k8sFile.Object, csv)
 			if err != nil {
@@ -361,6 +373,7 @@ func (i imageValidator) ValidateBundleContent(manifestDir string) error {
 					}
 				}
 			default:
+				// nolint:stylecheck
 				validationErrors = append(validationErrors, fmt.Errorf("Unsupported api version of CRD: %s", gv))
 			}
 		} else {
@@ -390,6 +403,7 @@ func (i imageValidator) ValidateBundleContent(manifestDir string) error {
 	if _, ok := optionalValidators[validateOperatorHubKey]; ok {
 		i.logger.Debug("Performing operatorhub validation")
 		bundle := &manifests.Bundle{Name: csvName, CSV: csv}
+		// nolint:staticcheck
 		results := v.OperatorHubValidator.Validate(bundle)
 		if len(results) > 0 {
 			for _, err := range results[0].Errors {

@@ -13,36 +13,34 @@ import (
 
 // DecodeUnstructured decodes a raw stream into a an
 // unstructured.Unstructured instance.
-func DecodeUnstructured(reader io.Reader) (obj *unstructured.Unstructured, err error) {
+func DecodeUnstructured(reader io.Reader) (*unstructured.Unstructured, error) {
 	decoder := yaml.NewYAMLOrJSONDecoder(reader, 30)
 
 	t := &unstructured.Unstructured{}
-	if err = decoder.Decode(t); err != nil {
-		return
+	if err := decoder.Decode(t); err != nil {
+		return nil, err
 	}
 
-	obj = t
-	return
+	return t, nil
 }
 
 // DecodePackageManifest decodes a raw stream into a a PackageManifest instance.
 // If a package name is empty we consider the object invalid!
-func DecodePackageManifest(reader io.Reader) (manifest *PackageManifest, err error) {
+func DecodePackageManifest(reader io.Reader) (*PackageManifest, error) {
 	decoder := yaml.NewYAMLOrJSONDecoder(reader, 30)
 
 	obj := &PackageManifest{}
 	if decodeErr := decoder.Decode(obj); decodeErr != nil {
-		err = fmt.Errorf("could not decode contents into package manifest - %v", decodeErr)
-		return
+		err := fmt.Errorf("could not decode contents into package manifest - %v", decodeErr)
+		return nil, err
 	}
 
 	if obj.PackageName == "" {
-		err = errors.New("name of package (packageName) is missing")
-		return
+		err := errors.New("name of package (packageName) is missing")
+		return nil, err
 	}
 
-	manifest = obj
-	return
+	return obj, nil
 }
 
 func decodeFileFS(root fs.FS, path string, into interface{}, log *logrus.Entry) error {

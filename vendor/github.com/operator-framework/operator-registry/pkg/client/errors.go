@@ -51,6 +51,7 @@ func IsErrorUnrecoverable(err error) bool {
 }
 
 func reasonForError(err error) HealthErrorReason {
+	// nolint:errorlint
 	switch t := err.(type) {
 	case HealthError:
 		return t.Reason

@@ -47,7 +47,7 @@ func ObjectsAndPropertiesFromBundle(b *Bundle) ([]string, []property.Property, e
 			if err := json.Unmarshal(p.Value, &v); err != nil {
 				return nil, nil, property.ParseError{Idx: i, Typ: p.Type, Err: err}
 			}
-			k := property.GVKRequired{Group: v.Group, Kind: v.Kind, Version: v.Version}
+			k := property.GVKRequired(v)
 			requiredGVKs[k] = struct{}{}
 		case property.TypePackage:
 			var v property.Package
@@ -90,6 +90,7 @@ func ObjectsAndPropertiesFromBundle(b *Bundle) ([]string, []property.Property, e
 		}
 	}
 
+	// nolint:prealloc
 	var (
 		props   []property.Property
 		objects []string

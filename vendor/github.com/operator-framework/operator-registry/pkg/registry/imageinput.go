@@ -4,8 +4,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/operator-framework/operator-registry/pkg/image"
 	"github.com/sirupsen/logrus"
+
+	"github.com/operator-framework/operator-registry/pkg/image"
 )
 
 type ImageInput struct {

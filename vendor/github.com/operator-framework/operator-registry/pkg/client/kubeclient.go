@@ -10,13 +10,14 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-func NewKubeClient(kubeconfig string, logger *logrus.Logger) (clientset *kubernetes.Clientset, err error) {
+func NewKubeClient(kubeconfig string, logger *logrus.Logger) (*kubernetes.Clientset, error) {
 	var config *rest.Config
 
 	if overrideConfig := os.Getenv(clientcmd.RecommendedConfigPathEnvVar); overrideConfig != "" {
 		kubeconfig = overrideConfig
 	}
 
+	var err error
 	if kubeconfig != "" {
 		logger.Infof("Loading kube client config from path %q", kubeconfig)
 		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
@@ -26,10 +27,11 @@ func NewKubeClient(kubeconfig string, logger *logrus.Logger) (clientset *kuberne
 	}
 
 	if err != nil {
+		// nolint:stylecheck
 		err = fmt.Errorf("Cannot load config for REST client: %v", err)
-		return
+		return nil, err
 	}
 
-	clientset, err = kubernetes.NewForConfig(config)
-	return
+	clientset, err := kubernetes.NewForConfig(config)
+	return clientset, err
 }

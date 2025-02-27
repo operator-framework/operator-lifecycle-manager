@@ -75,7 +75,7 @@ var versionSkipRangeMigration = &Migration{
 }
 
 func extractVersioning(ctx context.Context, tx *sql.Tx, name string) error {
-	addSql := `insert into operatorbundle(version, skiprange) values(?,?)`
+	addSQL := `insert into operatorbundle(version, skiprange) values(?,?)`
 	csv, err := getCSV(ctx, tx, name)
 	if err != nil {
 		logrus.Warnf("error backfilling versioning: %v", err)
@@ -89,6 +89,6 @@ func extractVersioning(ctx context.Context, tx *sql.Tx, name string) error {
 	if err != nil {
 		version = ""
 	}
-	_, err = tx.ExecContext(ctx, addSql, version, skiprange)
+	_, err = tx.ExecContext(ctx, addSQL, version, skiprange)
 	return err
 }

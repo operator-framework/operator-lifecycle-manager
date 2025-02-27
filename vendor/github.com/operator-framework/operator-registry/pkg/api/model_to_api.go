@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/operator-registry/alpha/model"
 	"github.com/operator-framework/operator-registry/alpha/property"
@@ -20,8 +21,8 @@ func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
 		return nil, fmt.Errorf("parse properties: %v", err)
 	}
 
-	csvJson := b.CsvJSON
-	if csvJson == "" && len(props.CSVMetadatas) == 1 {
+	csvJSON := b.CsvJSON
+	if csvJSON == "" && len(props.CSVMetadatas) == 1 {
 		var icons []v1alpha1.Icon
 		if b.Package.Icon != nil {
 			icons = []v1alpha1.Icon{{
@@ -37,7 +38,7 @@ func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
 			// attemptint to write to a nil map.
 			StrategyName: "deployment",
 		}
-		csv.Spec.Version = version.OperatorVersion{b.Version}
+		csv.Spec.Version = version.OperatorVersion{Version: b.Version}
 		csv.Spec.RelatedImages = convertModelRelatedImagesToCSVRelatedImages(b.RelatedImages)
 		if csv.Spec.Description == "" {
 			csv.Spec.Description = b.Package.Description
@@ -46,9 +47,9 @@ func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
 		if err != nil {
 			return nil, err
 		}
-		csvJson = string(csvData)
+		csvJSON = string(csvData)
 		if len(b.Objects) == 0 {
-			b.Objects = []string{csvJson}
+			b.Objects = []string{csvJSON}
 		}
 	}
 
@@ -76,7 +77,7 @@ func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
 		Properties:   convertModelPropertiesToAPIProperties(b.Properties),
 		Replaces:     b.Replaces,
 		Skips:        b.Skips,
-		CsvJson:      csvJson,
+		CsvJson:      csvJSON,
 		Object:       b.Objects,
 		Deprecation:  deprecation,
 	}, nil
@@ -127,6 +128,7 @@ func csvMetadataToCsv(m property.CSVMetadata) v1alpha1.ClusterServiceVersion {
 }
 
 func gvksProvidedtoAPIGVKs(in []property.GVK) []*GroupVersionKind {
+	// nolint:prealloc
 	var out []*GroupVersionKind
 	for _, gvk := range in {
 		out = append(out, &GroupVersionKind{
@@ -138,6 +140,7 @@ func gvksProvidedtoAPIGVKs(in []property.GVK) []*GroupVersionKind {
 	return out
 }
 func gvksRequirestoAPIGVKs(in []property.GVKRequired) []*GroupVersionKind {
+	// nolint:prealloc
 	var out []*GroupVersionKind
 	for _, gvk := range in {
 		out = append(out, &GroupVersionKind{
@@ -150,9 +153,9 @@ func gvksRequirestoAPIGVKs(in []property.GVKRequired) []*GroupVersionKind {
 }
 
 func convertModelPropertiesToAPIProperties(props []property.Property) []*Property {
+	// nolint:prealloc
 	var out []*Property
 	for _, prop := range props {
-
 		// NOTE: This is a special case filter to prevent problems with existing client implementations that
 		//       project bundle properties into CSV annotations and store those CSVs in a size-constrained
 		//       storage backend (e.g. etcd via kube-apiserver). If the bundle object property has data inlined
@@ -172,6 +175,7 @@ func convertModelPropertiesToAPIProperties(props []property.Property) []*Propert
 }
 
 func convertModelPropertiesToAPIDependencies(props []property.Property) ([]*Dependency, error) {
+	// nolint:prealloc
 	var out []*Dependency
 	for _, prop := range props {
 		switch prop.Type {
@@ -196,6 +200,7 @@ func convertModelPropertiesToAPIDependencies(props []property.Property) ([]*Depe
 }
 
 func convertModelRelatedImagesToCSVRelatedImages(in []model.RelatedImage) []v1alpha1.RelatedImage {
+	// nolint:prealloc
 	var out []v1alpha1.RelatedImage
 	for _, ri := range in {
 		out = append(out, v1alpha1.RelatedImage{

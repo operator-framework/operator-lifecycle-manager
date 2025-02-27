@@ -60,28 +60,31 @@ func defaultConfig() *RegistryConfig {
 
 // NewRegistry returns a new containerd Registry and a function to destroy it after use.
 // The destroy function is safe to call more than once, but is a no-op after the first call.
-func NewRegistry(options ...RegistryOption) (registry *Registry, err error) {
+func NewRegistry(options ...RegistryOption) (*Registry, error) {
+	var registry *Registry
+
 	config := defaultConfig()
 	config.apply(options)
-	if err = config.complete(); err != nil {
-		return
+	if err := config.complete(); err != nil {
+		return nil, err
 	}
 
 	cs, err := contentlocal.NewStore(config.CacheDir)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	var bdb *bolt.DB
 	bdb, err = bolt.Open(config.DBPath, 0644, nil)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	var once sync.Once
+	// nolint:nonamedreturns
 	destroy := func() (destroyErr error) {
 		once.Do(func() {
-			if destroyErr = bdb.Close(); destroyErr != nil {
+			if err := bdb.Close(); err != nil {
 				return
 			}
 			if config.PreserveCache {
@@ -102,12 +105,13 @@ func NewRegistry(options ...RegistryOption) (registry *Registry, err error) {
 		resolverFunc: func(repo string) (remotes.Resolver, error) {
 			return NewResolver(httpClient, config.ResolverConfigDir, config.PlainHTTP, repo)
 		},
+		// nolint: staticcheck
 		platform: platforms.Ordered(platforms.DefaultSpec(), specs.Platform{
 			OS:           "linux",
 			Architecture: "amd64",
 		}),
 	}
-	return
+	return registry, nil
 }
 
 type RegistryOption func(config *RegistryConfig)
@@ -168,12 +172,15 @@ func newClient(skipTlSVerify bool, roots *x509.CertPool) *http.Client {
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: false,
 			RootCAs:            roots,
+			MinVersion:         tls.VersionTLS12,
 		},
 	}
 
 	if skipTlSVerify {
 		transport.TLSClientConfig = &tls.Config{
+			// nolint:gosec
 			InsecureSkipVerify: true,
+			MinVersion:         tls.VersionTLS12,
 		}
 	}
 	headers := http.Header{}

@@ -151,6 +151,7 @@ func (i *DirectoryPopulator) loadManifests(imagesToAdd []*ImageInput, mode Mode)
 		// globalSanityCheck should have verified this to be a head without anything replacing it
 		// and that we have a single overwrite per package
 
+		// nolint:nestif
 		if len(i.overwrittenImages) > 0 {
 			if overwriter, ok := i.loader.(HeadOverwriter); ok {
 				// Assume loader has some way to handle overwritten heads if HeadOverwriter isn't implemented explicitly
@@ -180,6 +181,7 @@ func (i *DirectoryPopulator) loadManifests(imagesToAdd []*ImageInput, mode Mode)
 			}
 		}
 	default:
+		// nolint:stylecheck
 		return fmt.Errorf("Unsupported update mode")
 	}
 
@@ -195,6 +197,7 @@ var packageContextKey = "package"
 
 // ContextWithPackage adds a package value to a context.
 func ContextWithPackage(ctx context.Context, pkg string) context.Context {
+	// nolint:staticcheck
 	return context.WithValue(ctx, packageContextKey, pkg)
 }
 
@@ -262,6 +265,7 @@ func (i *DirectoryPopulator) loadManifestsSemver(bundle *Bundle, skippatch bool)
 }
 
 // loadOperatorBundle adds the package information to the loader's store
+// nolint:unused
 func (i *DirectoryPopulator) loadOperatorBundle(manifest PackageManifest, bundle *Bundle) error {
 	if manifest.PackageName == "" {
 		return nil

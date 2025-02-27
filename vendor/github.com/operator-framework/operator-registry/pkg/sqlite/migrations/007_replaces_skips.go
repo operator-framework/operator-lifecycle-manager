@@ -97,12 +97,12 @@ func extractReplaces(ctx context.Context, tx *sql.Tx, name string) error {
 	if err != nil {
 		return err
 	}
-	updateSql := `update operatorbundle SET replaces = ?, skips = ? WHERE name = ?;`
-	_, err = tx.ExecContext(ctx, updateSql, replaces, strings.Join(skips, ","), name)
+	updateSQL := `update operatorbundle SET replaces = ?, skips = ? WHERE name = ?;`
+	_, err = tx.ExecContext(ctx, updateSQL, replaces, strings.Join(skips, ","), name)
 	return err
 }
 
-func getReplacesAndSkips(ctx context.Context, tx *sql.Tx, name string) (replaces string, skips []string, err error) {
+func getReplacesAndSkips(ctx context.Context, tx *sql.Tx, name string) (string, []string, error) {
 	getReplacees := `
 		SELECT DISTINCT replaces.operatorbundle_name
 		FROM channel_entry
@@ -117,26 +117,28 @@ func getReplacesAndSkips(ctx context.Context, tx *sql.Tx, name string) (replaces
 	}
 	defer rows.Close()
 
+	var replaces string
 	if rows.Next() {
 		var replaceeName sql.NullString
 		if err = rows.Scan(&replaceeName); err != nil {
-			return
+			return "", nil, err
 		}
 		if replaceeName.Valid {
 			replaces = replaceeName.String
 		}
 	}
 
+	var skips []string
 	skips = []string{}
 	for rows.Next() {
 		var skipName sql.NullString
 		if err = rows.Scan(&skipName); err != nil {
-			return
+			return "", nil, err
 		}
 		if !skipName.Valid {
 			continue
 		}
 		skips = append(skips, skipName.String)
 	}
-	return
+	return replaces, skips, nil
 }

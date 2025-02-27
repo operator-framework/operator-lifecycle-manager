@@ -35,7 +35,7 @@ type Channel struct {
 
 func (c *Channel) String() string {
 	var b strings.Builder
-	for node, _ := range c.Nodes {
+	for node := range c.Nodes {
 		b.WriteString(node.String())
 		b.WriteString("\n")
 	}

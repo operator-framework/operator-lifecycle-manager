@@ -26,7 +26,7 @@ type Registry struct {
 var _ image.Registry = &Registry{}
 
 // NewRegistry instantiates and returns a new registry which manipulates images via exec podman/docker commands.
-func NewRegistry(tool containertools.ContainerTool, logger *logrus.Entry, opts ...containertools.RunnerOption) (registry *Registry, err error) {
+func NewRegistry(tool containertools.ContainerTool, logger *logrus.Entry, opts ...containertools.RunnerOption) (*Registry, error) {
 	return &Registry{
 		log: logger,
 		cmd: containertools.NewCommandRunner(tool, logger, opts...),

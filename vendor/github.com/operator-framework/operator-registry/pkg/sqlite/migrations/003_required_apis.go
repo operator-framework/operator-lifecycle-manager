@@ -9,14 +9,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// nolint:stylecheck
 const RequiredApiMigrationKey = 3
 
 // Register this migration
 func init() {
-	registerMigration(RequiredApiMigrationKey, requiredApiMigration)
+	registerMigration(RequiredApiMigrationKey, requiredAPIMigration)
 }
 
-var requiredApiMigration = &Migration{
+var requiredAPIMigration = &Migration{
 	Id: RequiredApiMigrationKey,
 	Up: func(ctx context.Context, tx *sql.Tx) error {
 		sql := `
@@ -37,8 +38,8 @@ var requiredApiMigration = &Migration{
 		if err != nil {
 			return err
 		}
-		for entryId, bundle := range bundles {
-			if err := extractRequiredApis(ctx, tx, entryId, bundle); err != nil {
+		for entryID, bundle := range bundles {
+			if err := extractRequiredApis(ctx, tx, entryID, bundle); err != nil {
 				logrus.Warnf("error backfilling required apis: %v", err)
 				continue
 			}
@@ -67,20 +68,20 @@ func getChannelEntryBundles(ctx context.Context, tx *sql.Tx) (map[int64]string, 
 	entries := map[int64]string{}
 
 	for rows.Next() {
-		var entryId sql.NullInt64
+		var entryID sql.NullInt64
 		var name sql.NullString
-		if err = rows.Scan(&entryId, &name); err != nil {
+		if err = rows.Scan(&entryID, &name); err != nil {
 			return nil, err
 		}
-		if !entryId.Valid || !name.Valid {
+		if !entryID.Valid || !name.Valid {
 			continue
 		}
-		entries[entryId.Int64] = name.String
+		entries[entryID.Int64] = name.String
 	}
 	return entries, nil
 }
 
-func extractRequiredApis(ctx context.Context, tx *sql.Tx, entryId int64, name string) error {
+func extractRequiredApis(ctx context.Context, tx *sql.Tx, entryID int64, name string) error {
 	addAPI, err := tx.Prepare("insert or replace into api(group_name, version, kind, plural) values(?, ?, ?, ?)")
 	if err != nil {
 		return err
@@ -91,12 +92,12 @@ func extractRequiredApis(ctx context.Context, tx *sql.Tx, entryId int64, name st
 		}
 	}()
 
-	addApiRequirer, err := tx.Prepare("insert into api_requirer(group_name, version, kind, channel_entry_id) values(?, ?, ?, ?)")
+	addAPIRequirer, err := tx.Prepare("insert into api_requirer(group_name, version, kind, channel_entry_id) values(?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
 	defer func() {
-		if err := addApiRequirer.Close(); err != nil {
+		if err := addAPIRequirer.Close(); err != nil {
 			logrus.WithError(err).Warningf("error closing prepared statement")
 		}
 	}()
@@ -107,7 +108,7 @@ func extractRequiredApis(ctx context.Context, tx *sql.Tx, entryId int64, name st
 		return err
 	}
 
-	_, requiredCRDs, err := csv.GetCustomResourceDefintions()
+	_, requiredCRDs, _ := csv.GetCustomResourceDefintions()
 	for _, crd := range requiredCRDs {
 		plural, group, err := SplitCRDName(crd.Name)
 		if err != nil {
@@ -116,17 +117,17 @@ func extractRequiredApis(ctx context.Context, tx *sql.Tx, entryId int64, name st
 		if _, err := addAPI.Exec(group, crd.Version, crd.Kind, plural); err != nil {
 			return err
 		}
-		if _, err := addApiRequirer.Exec(group, crd.Version, crd.Kind, entryId); err != nil {
+		if _, err := addAPIRequirer.Exec(group, crd.Version, crd.Kind, entryID); err != nil {
 			return err
 		}
 	}
 
-	_, requiredAPIs, err := csv.GetApiServiceDefinitions()
+	_, requiredAPIs, _ := csv.GetApiServiceDefinitions()
 	for _, api := range requiredAPIs {
 		if _, err := addAPI.Exec(api.Group, api.Version, api.Kind, api.Name); err != nil {
 			return err
 		}
-		if _, err := addApiRequirer.Exec(api.Group, api.Version, api.Kind, entryId); err != nil {
+		if _, err := addAPIRequirer.Exec(api.Group, api.Version, api.Kind, entryID); err != nil {
 			return err
 		}
 	}
@@ -134,14 +135,13 @@ func extractRequiredApis(ctx context.Context, tx *sql.Tx, entryId int64, name st
 	return nil
 }
 
-func SplitCRDName(crdName string) (plural, group string, err error) {
+func SplitCRDName(crdName string) (string, string, error) {
+	var err error
 	pluralGroup := strings.SplitN(crdName, ".", 2)
 	if len(pluralGroup) != 2 {
 		err = fmt.Errorf("can't split bad CRD name %s", crdName)
-		return
+		return "", "", err
 	}
 
-	plural = pluralGroup[0]
-	group = pluralGroup[1]
-	return
+	return pluralGroup[0], pluralGroup[1], nil
 }

@@ -139,7 +139,7 @@ func (c *ConfigMapWriter) Populate(maxDataSizeLimit uint64) error {
 				logrus.WithFields(logrus.Fields{
 					"file.Name":         file.Name(),
 					"validConfigMapKey": validConfigMapKey,
-				}).Info("translated filename for configmap comptability")
+				}).Info("translated filename for configmap compatibility")
 			}
 
 			if c.gzip {

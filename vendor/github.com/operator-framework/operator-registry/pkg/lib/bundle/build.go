@@ -31,6 +31,7 @@ func ExecuteCommand(cmd *exec.Cmd) error {
 	log.Debugf("Running %#v", cmd.Args)
 
 	if err := cmd.Run(); err != nil {
+		// nolint:stylecheck
 		return fmt.Errorf("Failed to exec %#v: %v", cmd.Args, err)
 	}
 

@@ -72,6 +72,7 @@ func (d *PackageDeprecator) MaybeRemovePackages() error {
 
 	var errs []error
 	var removedBundlePaths []string
+	// nolint:prealloc
 	var remainingBundlePaths []string
 
 	// Iterate over bundles list - see if any bundle is the head of a default channel in a package

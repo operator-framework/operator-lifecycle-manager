@@ -63,6 +63,7 @@ func NewSQLLiteQuerier(dbFilename string, opts ...SQLiteQuerierOption) (*SQLQuer
 	return NewSQLLiteQuerierFromDb(db, opts...), nil
 }
 
+// nolint:stylecheck
 func NewSQLLiteQuerierFromDb(db *sql.DB, opts ...SQLiteQuerierOption) *SQLQuerier {
 	return NewSQLLiteQuerierFromDBQuerier(dbQuerierAdapter{db}, opts...)
 }
@@ -241,13 +242,13 @@ func (s *SQLQuerier) GetBundle(ctx context.Context, pkgName, channelName, csvNam
 	if !rows.Next() {
 		return nil, fmt.Errorf("no entry found for %s %s %s", pkgName, channelName, csvName)
 	}
-	var entryId sql.NullInt64
+	var entryID sql.NullInt64
 	var name sql.NullString
 	var bundle sql.NullString
 	var bundlePath sql.NullString
 	var version sql.NullString
 	var skipRange sql.NullString
-	if err := rows.Scan(&entryId, &name, &bundle, &bundlePath, &version, &skipRange); err != nil {
+	if err := rows.Scan(&entryID, &name, &bundle, &bundlePath, &version, &skipRange); err != nil {
 		return nil, err
 	}
 
@@ -265,7 +266,7 @@ func (s *SQLQuerier) GetBundle(ctx context.Context, pkgName, channelName, csvNam
 	out.Version = version.String
 	out.SkipRange = skipRange.String
 
-	provided, required, err := s.GetApisForEntry(ctx, entryId.Int64)
+	provided, required, err := s.GetApisForEntry(ctx, entryID.Int64)
 	if err != nil {
 		return nil, err
 	}
@@ -315,18 +316,18 @@ WHERE channel.name = :channel AND channel.package_name = :package`
 	}, nil
 }
 
-func (s *SQLQuerier) GetChannelEntriesThatReplace(ctx context.Context, name string) (entries []*registry.ChannelEntry, err error) {
+func (s *SQLQuerier) GetChannelEntriesThatReplace(ctx context.Context, name string) ([]*registry.ChannelEntry, error) {
 	query := `SELECT DISTINCT channel_entry.package_name, channel_entry.channel_name, channel_entry.operatorbundle_name
 			  FROM channel_entry
 			  LEFT OUTER JOIN channel_entry replaces ON channel_entry.replaces = replaces.entry_id
               WHERE replaces.operatorbundle_name = ?`
 	rows, err := s.db.QueryContext(ctx, query, name)
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer rows.Close()
 
-	entries = []*registry.ChannelEntry{}
+	var entries []*registry.ChannelEntry
 
 	for rows.Next() {
 		var pkgNameSQL sql.NullString
@@ -334,7 +335,7 @@ func (s *SQLQuerier) GetChannelEntriesThatReplace(ctx context.Context, name stri
 		var bundleNameSQL sql.NullString
 
 		if err = rows.Scan(&pkgNameSQL, &channelNameSQL, &bundleNameSQL); err != nil {
-			return
+			return nil, err
 		}
 		entries = append(entries, &registry.ChannelEntry{
 			PackageName: pkgNameSQL.String,
@@ -345,9 +346,9 @@ func (s *SQLQuerier) GetChannelEntriesThatReplace(ctx context.Context, name stri
 	}
 	if len(entries) == 0 {
 		err = fmt.Errorf("no channel entries found that replace %s", name)
-		return
+		return nil, err
 	}
-	return
+	return entries, nil
 }
 
 func (s *SQLQuerier) GetBundleThatReplaces(ctx context.Context, name, pkgName, channelName string) (*api.Bundle, error) {
@@ -365,13 +366,13 @@ func (s *SQLQuerier) GetBundleThatReplaces(ctx context.Context, name, pkgName, c
 	if !rows.Next() {
 		return nil, fmt.Errorf("no entry found for %s %s", pkgName, channelName)
 	}
-	var entryId sql.NullInt64
+	var entryID sql.NullInt64
 	var outName sql.NullString
 	var bundle sql.NullString
 	var bundlePath sql.NullString
 	var version sql.NullString
 	var skipRange sql.NullString
-	if err := rows.Scan(&entryId, &outName, &bundle, &bundlePath, &version, &skipRange); err != nil {
+	if err := rows.Scan(&entryID, &outName, &bundle, &bundlePath, &version, &skipRange); err != nil {
 		return nil, err
 	}
 
@@ -389,7 +390,7 @@ func (s *SQLQuerier) GetBundleThatReplaces(ctx context.Context, name, pkgName, c
 	out.Version = version.String
 	out.SkipRange = skipRange.String
 
-	provided, required, err := s.GetApisForEntry(ctx, entryId.Int64)
+	provided, required, err := s.GetApisForEntry(ctx, entryID.Int64)
 	if err != nil {
 		return nil, err
 	}
@@ -411,7 +412,7 @@ func (s *SQLQuerier) GetBundleThatReplaces(ctx context.Context, name, pkgName, c
 	return out, nil
 }
 
-func (s *SQLQuerier) GetChannelEntriesThatProvide(ctx context.Context, group, version, kind string) (entries []*registry.ChannelEntry, err error) {
+func (s *SQLQuerier) GetChannelEntriesThatProvide(ctx context.Context, group, version, kind string) ([]*registry.ChannelEntry, error) {
 	// TODO: join on full fk, not just operatorbundlename
 	query := `SELECT DISTINCT channel_entry.package_name, channel_entry.channel_name, channel_entry.operatorbundle_name, replaces.operatorbundle_name
           FROM channel_entry
@@ -433,7 +434,7 @@ func (s *SQLQuerier) GetChannelEntriesThatProvide(ctx context.Context, group, ve
 	}
 	defer rows.Close()
 
-	entries = []*registry.ChannelEntry{}
+	var entries []*registry.ChannelEntry
 
 	for rows.Next() {
 		var pkgNameSQL sql.NullString
@@ -441,7 +442,7 @@ func (s *SQLQuerier) GetChannelEntriesThatProvide(ctx context.Context, group, ve
 		var bundleNameSQL sql.NullString
 		var replacesSQL sql.NullString
 		if err = rows.Scan(&pkgNameSQL, &channelNameSQL, &bundleNameSQL, &replacesSQL); err != nil {
-			return
+			return nil, err
 		}
 
 		entries = append(entries, &registry.ChannelEntry{
@@ -453,13 +454,13 @@ func (s *SQLQuerier) GetChannelEntriesThatProvide(ctx context.Context, group, ve
 	}
 	if len(entries) == 0 {
 		err = fmt.Errorf("no channel entries found that provide %s %s %s", group, version, kind)
-		return
+		return nil, err
 	}
-	return
+	return entries, nil
 }
 
 // Get latest channel entries that provide an api
-func (s *SQLQuerier) GetLatestChannelEntriesThatProvide(ctx context.Context, group, version, kind string) (entries []*registry.ChannelEntry, err error) {
+func (s *SQLQuerier) GetLatestChannelEntriesThatProvide(ctx context.Context, group, version, kind string) ([]*registry.ChannelEntry, error) {
 	query := `SELECT DISTINCT channel_entry.package_name, channel_entry.channel_name, channel_entry.operatorbundle_name, replaces.operatorbundle_name, MIN(channel_entry.depth)
           FROM channel_entry
           INNER JOIN properties ON channel_entry.operatorbundle_name = properties.operatorbundle_name
@@ -482,15 +483,15 @@ func (s *SQLQuerier) GetLatestChannelEntriesThatProvide(ctx context.Context, gro
 	}
 	defer rows.Close()
 
-	entries = []*registry.ChannelEntry{}
+	var entries []*registry.ChannelEntry
 
 	for rows.Next() {
 		var pkgNameSQL sql.NullString
 		var channelNameSQL sql.NullString
 		var bundleNameSQL sql.NullString
 		var replacesSQL sql.NullString
-		var min_depth sql.NullInt64
-		if err = rows.Scan(&pkgNameSQL, &channelNameSQL, &bundleNameSQL, &replacesSQL, &min_depth); err != nil {
+		var minDepth sql.NullInt64
+		if err = rows.Scan(&pkgNameSQL, &channelNameSQL, &bundleNameSQL, &replacesSQL, &minDepth); err != nil {
 			return nil, err
 		}
 
@@ -518,7 +519,7 @@ func (s *SQLQuerier) GetBundleThatProvides(ctx context.Context, group, apiVersio
 		  WHERE properties.type = ? AND properties.value = ? AND package.default_channel = channel_entry.channel_name
 		  GROUP BY channel_entry.package_name, channel_entry.channel_name`
 
-	value, err := json.Marshal(map[string]string{
+	value, _ := json.Marshal(map[string]string{
 		"group":   group,
 		"version": apiVersion,
 		"kind":    kind,
@@ -532,17 +533,17 @@ func (s *SQLQuerier) GetBundleThatProvides(ctx context.Context, group, apiVersio
 	if !rows.Next() {
 		return nil, fmt.Errorf("no entry found that provides %s %s %s", group, apiVersion, kind)
 	}
-	var entryId sql.NullInt64
+	var entryID sql.NullInt64
 	var bundle sql.NullString
 	var bundlePath sql.NullString
-	var min_depth sql.NullInt64
+	var minDepth sql.NullInt64
 	var bundleName sql.NullString
 	var pkgName sql.NullString
 	var channelName sql.NullString
 	var replaces sql.NullString
 	var version sql.NullString
 	var skipRange sql.NullString
-	if err := rows.Scan(&entryId, &bundle, &bundlePath, &min_depth, &bundleName, &pkgName, &channelName, &replaces, &version, &skipRange); err != nil {
+	if err := rows.Scan(&entryID, &bundle, &bundlePath, &minDepth, &bundleName, &pkgName, &channelName, &replaces, &version, &skipRange); err != nil {
 		return nil, err
 	}
 
@@ -564,7 +565,7 @@ func (s *SQLQuerier) GetBundleThatProvides(ctx context.Context, group, apiVersio
 	out.Version = version.String
 	out.SkipRange = skipRange.String
 
-	provided, required, err := s.GetApisForEntry(ctx, entryId.Int64)
+	provided, required, err := s.GetApisForEntry(ctx, entryID.Int64)
 	if err != nil {
 		return nil, err
 	}
@@ -627,7 +628,7 @@ func (s *SQLQuerier) GetImagesForBundle(ctx context.Context, csvName string) ([]
 	return images, nil
 }
 
-func (s *SQLQuerier) GetApisForEntry(ctx context.Context, entryID int64) (provided []*api.GroupVersionKind, required []*api.GroupVersionKind, err error) {
+func (s *SQLQuerier) GetApisForEntry(ctx context.Context, entryID int64) ([]*api.GroupVersionKind, []*api.GroupVersionKind, error) {
 	groups := map[string]struct{}{}
 	kinds := map[string]struct{}{}
 	versions := map[string]struct{}{}
@@ -642,7 +643,7 @@ func (s *SQLQuerier) GetApisForEntry(ctx context.Context, entryID int64) (provid
 	}
 	defer providedRows.Close()
 
-	provided = []*api.GroupVersionKind{}
+	var provided []*api.GroupVersionKind
 	for providedRows.Next() {
 		var value sql.NullString
 
@@ -678,7 +679,7 @@ func (s *SQLQuerier) GetApisForEntry(ctx context.Context, entryID int64) (provid
 	}
 	defer requiredRows.Close()
 
-	required = []*api.GroupVersionKind{}
+	var required []*api.GroupVersionKind
 	for requiredRows.Next() {
 		var value sql.NullString
 
@@ -770,7 +771,7 @@ func (s *SQLQuerier) GetApisForEntry(ctx context.Context, entryID int64) (provid
 		}
 		required[i].Plural = plural
 	}
-	return
+	return provided, required, nil
 }
 
 func (s *SQLQuerier) GetBundleVersion(ctx context.Context, image string) (string, error) {
@@ -809,6 +810,7 @@ func (s *SQLQuerier) GetBundlePathsForPackage(ctx context.Context, pkgName strin
 			return nil, err
 		}
 		if imgName.Valid && imgName.String == "" {
+			// nolint: stylecheck
 			return nil, fmt.Errorf("Index malformed: cannot find paths to bundle images")
 		}
 		images = append(images, imgName.String)
@@ -844,6 +846,7 @@ func (s *SQLQuerier) GetBundlesForPackage(ctx context.Context, pkgName string) (
 			key.Version = version.String
 		}
 		if key.IsEmpty() {
+			// nolint: stylecheck
 			return nil, fmt.Errorf("Index malformed: cannot find identifier for bundle in package %s", pkgName)
 		}
 		bundles[key] = struct{}{}
@@ -1047,7 +1050,7 @@ func (s *SQLQuerier) SendBundles(ctx context.Context, stream registry.BundleSend
 				return err
 			}
 		}
-		buildLegacyRequiredAPIs(out.Dependencies, &out.RequiredApis)
+		_ = buildLegacyRequiredAPIs(out.Dependencies, &out.RequiredApis)
 		out.Dependencies = uniqueDeps(out.Dependencies)
 
 		if props.Valid {
@@ -1055,7 +1058,7 @@ func (s *SQLQuerier) SendBundles(ctx context.Context, stream registry.BundleSend
 				return err
 			}
 		}
-		buildLegacyProvidedAPIs(out.Properties, &out.ProvidedApis)
+		_ = buildLegacyProvidedAPIs(out.Properties, &out.ProvidedApis)
 		out.Properties = uniqueProps(out.Properties)
 		if err := stream.Send(out); err != nil {
 			return err
@@ -1079,7 +1082,6 @@ func (s *SQLQuerier) ListBundles(ctx context.Context) ([]*api.Bundle, error) {
 		return nil, err
 	}
 	return bundleSender, nil
-
 }
 
 func buildLegacyRequiredAPIs(src []*api.Dependency, dst *[]*api.GroupVersionKind) error {
@@ -1150,7 +1152,7 @@ func uniqueProps(props []*api.Property) []*api.Property {
 	return list
 }
 
-func (s *SQLQuerier) GetDependenciesForBundle(ctx context.Context, name, version, path string) (dependencies []*api.Dependency, err error) {
+func (s *SQLQuerier) GetDependenciesForBundle(ctx context.Context, name, version, path string) ([]*api.Dependency, error) {
 	depQuery := `SELECT DISTINCT type, value FROM dependencies
 	WHERE operatorbundle_name=?
 	AND (operatorbundle_version=? OR operatorbundle_version is NULL)
@@ -1162,7 +1164,7 @@ func (s *SQLQuerier) GetDependenciesForBundle(ctx context.Context, name, version
 	}
 	defer rows.Close()
 
-	dependencies = []*api.Dependency{}
+	var dependencies []*api.Dependency
 	for rows.Next() {
 		var typeName sql.NullString
 		var value sql.NullString
@@ -1179,10 +1181,10 @@ func (s *SQLQuerier) GetDependenciesForBundle(ctx context.Context, name, version
 		})
 	}
 
-	return
+	return dependencies, nil
 }
 
-func (s *SQLQuerier) GetPropertiesForBundle(ctx context.Context, name, version, path string) (properties []*api.Property, err error) {
+func (s *SQLQuerier) GetPropertiesForBundle(ctx context.Context, name, version, path string) ([]*api.Property, error) {
 	propQuery := `SELECT DISTINCT type, value FROM properties
 				 WHERE operatorbundle_name=?
 				 AND (operatorbundle_version=? OR operatorbundle_version is NULL)
@@ -1194,7 +1196,7 @@ func (s *SQLQuerier) GetPropertiesForBundle(ctx context.Context, name, version, 
 	}
 	defer rows.Close()
 
-	properties = []*api.Property{}
+	var properties []*api.Property
 	for rows.Next() {
 		var typeName sql.NullString
 		var value sql.NullString
@@ -1211,10 +1213,10 @@ func (s *SQLQuerier) GetPropertiesForBundle(ctx context.Context, name, version, 
 		})
 	}
 
-	return
+	return properties, nil
 }
 
-func (s *SQLQuerier) GetBundlePathIfExists(ctx context.Context, bundleName string) (bundlePath string, err error) {
+func (s *SQLQuerier) GetBundlePathIfExists(ctx context.Context, bundleName string) (string, error) {
 	getBundlePathQuery := `
 	  SELECT bundlepath
 	  FROM operatorbundle
@@ -1222,26 +1224,27 @@ func (s *SQLQuerier) GetBundlePathIfExists(ctx context.Context, bundleName strin
 
 	rows, err := s.db.QueryContext(ctx, getBundlePathQuery, bundleName)
 	if err != nil {
-		return
+		return "", err
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
 		// no bundlepath set
 		err = registry.ErrBundleImageNotInDatabase
-		return
+		return "", err
 	}
 
 	var bundlePathSQL sql.NullString
 	if err = rows.Scan(&bundlePathSQL); err != nil {
-		return
+		return "", err
 	}
 
+	var bundlePath string
 	if bundlePathSQL.Valid {
 		bundlePath = bundlePathSQL.String
 	}
 
-	return
+	return bundlePath, nil
 }
 
 // ListRegistryBundles returns a set of registry bundles.

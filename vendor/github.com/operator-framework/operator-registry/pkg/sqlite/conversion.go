@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/sirupsen/logrus"
+
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 
 	"github.com/operator-framework/operator-registry/alpha/model"
 	"github.com/operator-framework/operator-registry/pkg/api"
@@ -39,6 +40,7 @@ func initializeModelPackages(ctx context.Context, q *SQLQuerier) (model.Model, e
 		return nil, err
 	}
 
+	// nolint:prealloc
 	var rPkgs []registry.PackageManifest
 	for _, pkgName := range pkgNames {
 		rPkg, err := q.GetPackage(ctx, pkgName)
