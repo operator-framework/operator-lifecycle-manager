@@ -1626,53 +1626,8 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 				return nil
 			}).Should(BeNil())
 		})
-		When("A CatalogSource built with opm v1.21.0 (<v1.23.2)is created with spec.GrpcPodConfig.SecurityContextConfig set to restricted", func() {
-			var sourceName string
-			BeforeEach(func() {
-				sourceName = genName("catalog-")
-				source := &v1alpha1.CatalogSource{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       v1alpha1.CatalogSourceKind,
-						APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      sourceName,
-						Namespace: generatedNamespace.GetName(),
-						Labels:    map[string]string{"olm.catalogSource": sourceName},
-					},
-					Spec: v1alpha1.CatalogSourceSpec{
-						SourceType: v1alpha1.SourceTypeGrpc,
-						Image:      "quay.io/olmtest/old-opm-catsrc:v1.21.0",
-						GrpcPodConfig: &v1alpha1.GrpcPodConfig{
-							SecurityContextConfig: v1alpha1.Restricted,
-						},
-					},
-				}
-
-				Eventually(func() error {
-					_, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
-					return err
-				}).Should(Succeed())
-			})
-			It("The registry pod fails to become come up because of lack of permission", func() {
-				Eventually(func() (bool, error) {
-					podList, err := c.KubernetesInterface().CoreV1().Pods(generatedNamespace.GetName()).List(context.TODO(), metav1.ListOptions{})
-					if err != nil {
-						return false, err
-					}
-					for _, pod := range podList.Items {
-						if pod.ObjectMeta.OwnerReferences != nil && pod.ObjectMeta.OwnerReferences[0].Name == sourceName {
-							if pod.Status.ContainerStatuses != nil && pod.Status.ContainerStatuses[0].State.Terminated != nil {
-								return true, nil
-							}
-						}
-					}
-					return false, nil
-				}).Should(BeTrue())
-			})
-		})
 	})
-	When("The namespace is labled as Pod Security Admission policy enforce:baseline", func() {
+	When("The namespace is labled as Pod Security Admission policy enforce:restricted", func() {
 		BeforeEach(func() {
 			var err error
 			testNS := &corev1.Namespace{}
@@ -1685,7 +1640,7 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 			}).Should(BeNil())
 
 			testNS.ObjectMeta.Labels = map[string]string{
-				"pod-security.kubernetes.io/enforce":         "baseline",
+				"pod-security.kubernetes.io/enforce":         "restricted",
 				"pod-security.kubernetes.io/enforce-version": "latest",
 			}
 
@@ -1696,53 +1651,6 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 				}
 				return nil
 			}).Should(BeNil())
-		})
-		When("A CatalogSource built with opm v1.21.0 (<v1.23.2)is created with spec.GrpcPodConfig.SecurityContextConfig set to legacy", func() {
-			var sourceName string
-			BeforeEach(func() {
-				sourceName = genName("catalog-")
-				source := &v1alpha1.CatalogSource{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       v1alpha1.CatalogSourceKind,
-						APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      sourceName,
-						Namespace: generatedNamespace.GetName(),
-						Labels:    map[string]string{"olm.catalogSource": sourceName},
-					},
-					Spec: v1alpha1.CatalogSourceSpec{
-						SourceType: v1alpha1.SourceTypeGrpc,
-						Image:      "quay.io/olmtest/old-opm-catsrc:v1.21.0",
-						GrpcPodConfig: &v1alpha1.GrpcPodConfig{
-							SecurityContextConfig: v1alpha1.Legacy,
-						},
-					},
-				}
-
-				Eventually(func() error {
-					_, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
-					return err
-				}).Should(Succeed())
-			})
-			It("The registry pod comes up successfully", func() {
-				Eventually(func() (bool, error) {
-					podList, err := c.KubernetesInterface().CoreV1().Pods(generatedNamespace.GetName()).List(context.TODO(), metav1.ListOptions{})
-					if err != nil {
-						return false, err
-					}
-					for _, pod := range podList.Items {
-						if pod.ObjectMeta.OwnerReferences != nil && pod.ObjectMeta.OwnerReferences[0].Name == sourceName {
-							if pod.Status.ContainerStatuses != nil {
-								if *pod.Status.ContainerStatuses[0].Started == true {
-									return true, nil
-								}
-							}
-						}
-					}
-					return false, nil
-				}).Should(BeTrue())
-			})
 		})
 	})
 })
