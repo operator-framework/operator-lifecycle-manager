@@ -144,7 +144,7 @@ github.com/containers/common/pkg/auth
 github.com/containers/common/pkg/capabilities
 github.com/containers/common/pkg/completion
 github.com/containers/common/pkg/password
-# github.com/containers/image/v5 v5.34.0
+# github.com/containers/image/v5 v5.34.1
 ## explicit; go 1.22.8
 github.com/containers/image/v5/docker
 github.com/containers/image/v5/docker/policyconfiguration
