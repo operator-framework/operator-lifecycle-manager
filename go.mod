@@ -185,10 +185,6 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-// v1.64.0 brings in go1.23, which we aren't ready to go to just yet
-// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/3284
-replace google.golang.org/grpc => google.golang.org/grpc v1.63.2
-
 // cel-go v0.23.0 upgrade causes errors raised from the vendor source which lead to think in
 // incompatibilities scenarios. After upgrade to use the latest versions of k8s/api v0.33+
 // we should try to see if we could fix this one and remove this replace
