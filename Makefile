@@ -276,14 +276,7 @@ e2e-local: e2e-build kind-create deploy e2e
 #SECTION Code Generation
 
 .PHONY: gen-all #HELP Update OLM API, generate code and mocks
-gen-all: manifests codegen update-k8s-values mockgen
-
-.PHONY: update-k8s-values #HELP Update Helm Chart values with Kubernetes version
-update-k8s-values:
-	sed -i.bak -E 's/^( *enforceVersion:).*/\1 "v$(KUBE_MINOR)"/' deploy/chart/values.yaml
-	sed -i.bak -E 's/^( *auditVersion:).*/\1 "v$(KUBE_MINOR)"/' deploy/chart/values.yaml
-	sed -i.bak -E 's/^( *warnVersion:).*/\1 "v$(KUBE_MINOR)"/' deploy/chart/values.yaml
-	rm deploy/chart/values.yaml.bak
+gen-all: manifests codegen mockgen
 
 .PHONY: manifests
 manifests: vendor #HELP Copy OLM API CRD manifests to deploy/chart/crds
@@ -320,12 +313,8 @@ verify-mockgen: mockgen #HELP Check mocks are up to date
 verify-manifests: manifests #HELP Check CRD manifests are up to date
 	$(MAKE) diff
 
-.PHONY: verify-update-k8s-values
-verify-update-k8s-values: update-k8s-values #HELP Check if Helm Chart values are updated with k8s version
-	$(MAKE) diff
-
 .PHONY: verify
-verify: vendor verify-codegen verify-mockgen verify-manifests verify-update-k8s-values #HELP Run all verification checks
+verify: vendor verify-codegen verify-mockgen verify-manifests #HELP Run all verification checks
 	$(MAKE) diff
 
 #SECTION Release
