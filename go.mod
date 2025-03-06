@@ -185,10 +185,6 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-// v1.64.0 brings in go1.23, which we aren't ready to go to just yet
-// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/3284
-replace google.golang.org/grpc => google.golang.org/grpc v1.63.2
-
 replace (
 	// controller runtime
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20221021112143-4226c2167e40 // release-4.12
