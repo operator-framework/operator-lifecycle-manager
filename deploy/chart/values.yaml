@@ -3,17 +3,17 @@ namespace: operator-lifecycle-manager
 # see https://kubernetes.io/docs/concepts/security/pod-security-admission/ for more details
 namespace_psa: 
   enforceLevel: baseline
-  enforceVersion: "v1.32"
+  enforceVersion: latest
   auditLevel: restricted
-  auditVersion: "v1.32"
+  auditVersion: latest
   warnLevel: restricted
-  warnVersion: "v1.32"
+  warnVersion: latest
 catalog_namespace: operator-lifecycle-manager
 operator_namespace: operators
 # see https://kubernetes.io/docs/concepts/security/pod-security-admission/ for more details
 operator_namespace_psa: 
   enforceLevel: baseline
-  enforceVersion: "v1.32"
+  enforceVersion: latest
 minKubeVersion: 1.11.0
 writeStatusName: '""'
 imagestream: false
