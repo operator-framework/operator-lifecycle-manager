@@ -359,12 +359,12 @@ func catalogSourceRegistryPodSynced() func(catalog *operatorsv1alpha1.CatalogSou
 			state = connState.LastObservedState
 		}
 		if state != lastState {
-			fmt.Printf("waiting %s for catalog pod %s/%s to be available (for sync) - %s\n", time.Since(lastTime), catalog.GetNamespace(), catalog.GetName(), state)
+			ctx.Ctx().Logf("waiting %s for catalog pod %s/%s to be available (for sync) - %s\n", time.Since(lastTime), catalog.GetNamespace(), catalog.GetName(), state)
 			lastState = state
 			lastTime = time.Now()
 		}
 		if registry != nil && connState != nil && !connState.LastConnectTime.IsZero() && connState.LastObservedState == "READY" {
-			fmt.Printf("probing catalog %s pod with address %s\n", catalog.GetName(), registry.Address())
+			ctx.Ctx().Logf("probing catalog %s pod with address %s\n", catalog.GetName(), registry.Address())
 			return registryPodHealthy(registry.Address())
 		}
 		return false
