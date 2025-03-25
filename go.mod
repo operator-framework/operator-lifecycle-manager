@@ -51,7 +51,7 @@ require (
 	k8s.io/kube-aggregator v0.32.3
 	k8s.io/kube-openapi v0.0.0-20241105132330-32ad38e42d3f
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
-	sigs.k8s.io/controller-runtime v0.20.3
+	sigs.k8s.io/controller-runtime v0.20.4
 	sigs.k8s.io/controller-tools v0.17.2
 )
 
