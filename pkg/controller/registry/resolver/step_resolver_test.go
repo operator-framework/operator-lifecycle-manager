@@ -733,6 +733,30 @@ func TestResolver(t *testing.T) {
 			},
 		},
 		{
+			// Tests the migration from one package name to another with replaces.
+			// Useful when renaming a package or combining two packages into one.
+			name: "InstalledSub/UpdateAvailable/FromDifferentPackage",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "b", "alpha", catalog),
+				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				newOperatorGroup("foo", namespace),
+			},
+			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+					bundle("b.v2", "b", "alpha", "a.v1", Provides1, nil, nil, nil),
+				},
+			},
+			out: resolverTestOut{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("b.v2", "b", "alpha", "a.v1", Provides1, nil, nil, nil), namespace, "", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "b.v2", "a.v1", "b", "alpha", catalog),
+				},
+			},
+		},
+		{
 			name: "InstalledSub/UpdateAvailable/FromBundlePath",
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),

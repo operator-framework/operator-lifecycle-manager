@@ -2899,6 +2899,106 @@ properties:
 			}).Should(Succeed())
 		})
 	})
+
+	It("should support switching from one package to another", func() {
+		kubeClient := ctx.Ctx().KubeClient()
+		crClient := ctx.Ctx().OperatorClient()
+
+		// Create CRDs for testing.
+		// Both packages share the same CRD.
+		crd := newCRD(genName("package1-crd"))
+
+		// Create two packages
+		packageName1 := "package1"
+		packageName2 := "package2"
+
+		// Create CSVs for each package
+		csvPackage1 := newCSV("package1.v1.0.0", generatedNamespace.GetName(), "", semver.MustParse("1.0.0"), []apiextensionsv1.CustomResourceDefinition{crd}, nil, nil)
+		csvPackage2 := newCSV("package2.v1.0.0", generatedNamespace.GetName(), "package1.v1.0.0", semver.MustParse("1.0.0"), []apiextensionsv1.CustomResourceDefinition{crd}, nil, nil)
+
+		// Create package manifests
+		manifests := []registry.PackageManifest{
+			{
+				PackageName: packageName1,
+				Channels: []registry.PackageChannel{
+					{Name: stableChannel, CurrentCSVName: csvPackage1.GetName()},
+				},
+				DefaultChannelName: stableChannel,
+			},
+			{
+				PackageName: packageName2,
+				Channels: []registry.PackageChannel{
+					{Name: stableChannel, CurrentCSVName: csvPackage2.GetName()},
+				},
+				DefaultChannelName: stableChannel,
+			},
+		}
+
+		By("Creating a CatalogSource with both packages")
+		catalogSourceName := genName("catalog-")
+		catsrc, cleanup := createInternalCatalogSource(kubeClient, crClient, catalogSourceName,
+			generatedNamespace.GetName(), manifests,
+			[]apiextensionsv1.CustomResourceDefinition{crd},
+			[]operatorsv1alpha1.ClusterServiceVersion{csvPackage1, csvPackage2})
+		defer cleanup()
+
+		By("Waiting for the catalog source to be ready")
+		_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
+		Expect(err).NotTo(HaveOccurred())
+
+		subscriptionName := genName("test-subscription-")
+		By(fmt.Sprintf("Creating a subscription to package %q", packageName1))
+		subscriptionSpec := &operatorsv1alpha1.SubscriptionSpec{
+			CatalogSource:          catsrc.GetName(),
+			CatalogSourceNamespace: catsrc.GetNamespace(),
+			Package:                packageName1,
+			Channel:                stableChannel,
+			InstallPlanApproval:    operatorsv1alpha1.ApprovalAutomatic,
+		}
+
+		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient,
+			generatedNamespace.GetName(), subscriptionName, subscriptionSpec)
+		defer cleanupSubscription()
+
+		By(fmt.Sprintf("Waiting for package %q to be installed", packageName1))
+		sub, err := fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(sub).NotTo(BeNil())
+
+		By(fmt.Sprintf("Verifying that CSV %q is installed", csvPackage1.GetName()))
+		_, err = fetchCSV(crClient, generatedNamespace.GetName(), csvPackage1.GetName(), csvSucceededChecker)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Record the current installplan for later comparison
+		currentInstallPlanName := sub.Status.InstallPlanRef.Name
+
+		By(fmt.Sprintf("Updating the subscription to point to package %q", packageName2))
+		Eventually(func() error {
+			subToUpdate, err := crClient.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), subscriptionName, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+
+			// Switch the package in the subscription spec
+			subToUpdate.Spec.Package = packageName2
+
+			// Update the subscription
+			_, err = crClient.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Update(context.Background(), subToUpdate, metav1.UpdateOptions{})
+			return err
+		}).Should(Succeed())
+
+		By("Waiting for a new installplan to be created for the updated subscription")
+		_, err = fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanDifferentChecker(currentInstallPlanName))
+		Expect(err).NotTo(HaveOccurred())
+
+		By(fmt.Sprintf("Waiting for subscription to reach 'AtLatestKnown' state for package %q", packageName2))
+		_, err = fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
+		Expect(err).NotTo(HaveOccurred())
+
+		By(fmt.Sprintf("Verifying that CSV %q is installed", csvPackage2.GetName()))
+		_, err = fetchCSV(crClient, generatedNamespace.GetName(), csvPackage2.GetName(), csvSucceededChecker)
+		Expect(err).NotTo(HaveOccurred())
+	})
 })
 
 const (
