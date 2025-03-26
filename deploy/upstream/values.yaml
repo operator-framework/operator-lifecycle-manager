@@ -9,7 +9,7 @@ catalog_namespace: olm
 operator_namespace: operators
 # see https://kubernetes.io/docs/concepts/security/pod-security-admission/ for more details
 operator_namespace_psa: 
-  enforceLevel: baseline
+  enforceLevel: restricted
   enforceVersion: latest
 imagestream: false
 writeStatusName: '""'
