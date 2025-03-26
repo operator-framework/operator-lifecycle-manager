@@ -200,6 +200,13 @@ func NewServiceAccountStepResources(csv *v1alpha1.ClusterServiceVersion, catalog
 	if err != nil {
 		return nil, err
 	}
+	legacyPerms, err := LegacyRBACForClusterServiceVersion(csv)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range legacyPerms {
+		operatorPermissions[k] = v
+	}
 
 	for _, perms := range operatorPermissions {
 		if perms.ServiceAccount.Name != "default" {
