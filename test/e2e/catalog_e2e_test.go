@@ -1538,7 +1538,7 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 			})
 		})
 	})
-	When("The namespace is labled as Pod Security Admission policy enforce:baseline", func() {
+	When("The namespace is labled as Pod Security Admission policy enforce:restricted", func() {
 		BeforeEach(func() {
 			var err error
 			testNS := &corev1.Namespace{}
@@ -1551,7 +1551,7 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 			}).Should(BeNil())
 
 			testNS.ObjectMeta.Labels = map[string]string{
-				"pod-security.kubernetes.io/enforce":         "baseline",
+				"pod-security.kubernetes.io/enforce":         "restricted",
 				"pod-security.kubernetes.io/enforce-version": "latest",
 			}
 
