@@ -190,6 +190,7 @@ require (
 replace google.golang.org/grpc => google.golang.org/grpc v1.63.2
 
 replace (
+	github.com/go-jose/go-jose/v4 => github.com/go-jose/go-jose/v4 v4.0.5 // CVE-2025-27144
 	// controller runtime
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20221021112143-4226c2167e40 // release-4.12
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20221019143426-16aed247da5c // release-4.12
