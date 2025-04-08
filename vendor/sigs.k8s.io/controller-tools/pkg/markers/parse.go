@@ -495,7 +495,6 @@ func (a *Argument) parseMap(scanner *sc.Scanner, raw string, out reflect.Value) 
 // parse functions like Parse, except that it allows passing down whether or not we're
 // already in a slice, to avoid duplicate legacy slice detection for AnyType
 func (a *Argument) parse(scanner *sc.Scanner, raw string, out reflect.Value, inSlice bool) {
-	// nolint:gocyclo
 	if a.Type == InvalidType {
 		scanner.Error(scanner, "cannot parse invalid type")
 		return
@@ -757,8 +756,7 @@ func argumentInfo(fieldName string, tag reflect.StructTag) (argName string, opti
 	}
 	optionalOpt = false
 	for _, tagOption := range markerTagParts[1:] {
-		switch tagOption {
-		case "optional":
+		if tagOption == "optional" {
 			optionalOpt = true
 		}
 	}
