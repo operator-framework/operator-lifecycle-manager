@@ -563,6 +563,10 @@ func (XValidation) Help() *markers.DefinitionHelp {
 				Summary: "",
 				Details: "",
 			},
+			"OptionalOldSelf": {
+				Summary: "",
+				Details: "",
+			},
 		},
 	}
 }
