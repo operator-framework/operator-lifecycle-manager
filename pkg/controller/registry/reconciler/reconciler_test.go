@@ -381,6 +381,119 @@ func TestPodExtractContent(t *testing.T) {
 			},
 		},
 		{
+			name: "content extraction expected - legacy security context config, no catalog cache dir",
+			input: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						ExtractContent: &v1alpha1.ExtractContentConfig{
+							CatalogDir: "/catalog",
+						},
+					},
+				},
+			},
+			securityContextConfig: v1alpha1.Legacy,
+			expected: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "test-",
+					Namespace:    "testns",
+					Labels:       map[string]string{"olm.pod-spec-hash": "b0yrMl85J8bFjFWNl1O2XxsX698iPAjbpNhRIT", "olm.managed": "true"},
+					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
+				},
+				Spec: corev1.PodSpec{
+					Volumes: []corev1.Volume{
+						{
+							Name:         "utilities",
+							VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+						},
+						{
+							Name:         "catalog-content",
+							VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+						},
+					},
+					InitContainers: []corev1.Container{
+						{
+							Name:                     "extract-utilities",
+							Image:                    "utilImage",
+							Command:                  []string{"cp"},
+							Args:                     []string{"/bin/copy-content", "/utilities/copy-content"},
+							VolumeMounts:             []corev1.VolumeMount{{Name: "utilities", MountPath: "/utilities"}},
+							TerminationMessagePolicy: "FallbackToLogsOnError",
+						},
+						{
+							Name:            "extract-content",
+							Image:           "image",
+							ImagePullPolicy: image.InferImagePullPolicy("image"),
+							Command:         []string{"/utilities/copy-content"},
+							Args: []string{
+								"--catalog.from=/catalog",
+								"--catalog.to=/extracted-catalog/catalog",
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{Name: "utilities", MountPath: "/utilities"},
+								{Name: "catalog-content", MountPath: "/extracted-catalog"},
+							},
+							TerminationMessagePolicy: "FallbackToLogsOnError",
+						},
+					},
+					Containers: []corev1.Container{
+						{
+							Name:    "name",
+							Image:   "opmImage",
+							Command: []string{"/bin/opm"},
+							Args:    []string{"serve", "/extracted-catalog/catalog", "--cache-dir=/extracted-catalog/cache"},
+							Ports:   []corev1.ContainerPort{{Name: "grpc", ContainerPort: 50051}},
+							ReadinessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									Exec: &corev1.ExecAction{
+										Command: []string{"grpc_health_probe", "-addr=:50051"},
+									},
+								},
+								InitialDelaySeconds: 0,
+								TimeoutSeconds:      5,
+							},
+							LivenessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									Exec: &corev1.ExecAction{
+										Command: []string{"grpc_health_probe", "-addr=:50051"},
+									},
+								},
+								InitialDelaySeconds: 0,
+								TimeoutSeconds:      5,
+							},
+							StartupProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									Exec: &corev1.ExecAction{
+										Command: []string{"grpc_health_probe", "-addr=:50051"},
+									},
+								},
+								FailureThreshold: 10,
+								PeriodSeconds:    10,
+								TimeoutSeconds:   5,
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("10m"),
+									corev1.ResourceMemory: resource.MustParse("50Mi"),
+								},
+							},
+							SecurityContext: &corev1.SecurityContext{
+								ReadOnlyRootFilesystem: ptr.To(false),
+							},
+							ImagePullPolicy:          image.InferImagePullPolicy("image"),
+							TerminationMessagePolicy: "FallbackToLogsOnError",
+							VolumeMounts:             []corev1.VolumeMount{{Name: "catalog-content", MountPath: "/extracted-catalog"}},
+						},
+					},
+					NodeSelector:       map[string]string{"kubernetes.io/os": "linux"},
+					ServiceAccountName: "service-account",
+				},
+			},
+		},
+		{
 			name: "content extraction not requested - restricted security context config",
 			input: &v1alpha1.CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{
@@ -513,6 +626,134 @@ func TestPodExtractContent(t *testing.T) {
 								"--catalog.to=/extracted-catalog/catalog",
 								"--cache.from=/tmp/cache",
 								"--cache.to=/extracted-catalog/cache",
+							},
+							SecurityContext: &corev1.SecurityContext{
+								Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+								AllowPrivilegeEscalation: ptr.To(false),
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{Name: "utilities", MountPath: "/utilities"},
+								{Name: "catalog-content", MountPath: "/extracted-catalog"},
+							},
+							TerminationMessagePolicy: "FallbackToLogsOnError",
+						},
+					},
+					Containers: []corev1.Container{
+						{
+							Name:    "name",
+							Image:   "opmImage",
+							Command: []string{"/bin/opm"},
+							Args:    []string{"serve", "/extracted-catalog/catalog", "--cache-dir=/extracted-catalog/cache"},
+							Ports:   []corev1.ContainerPort{{Name: "grpc", ContainerPort: 50051}},
+							ReadinessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									Exec: &corev1.ExecAction{
+										Command: []string{"grpc_health_probe", "-addr=:50051"},
+									},
+								},
+								InitialDelaySeconds: 0,
+								TimeoutSeconds:      5,
+							},
+							LivenessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									Exec: &corev1.ExecAction{
+										Command: []string{"grpc_health_probe", "-addr=:50051"},
+									},
+								},
+								InitialDelaySeconds: 0,
+								TimeoutSeconds:      5,
+							},
+							StartupProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									Exec: &corev1.ExecAction{
+										Command: []string{"grpc_health_probe", "-addr=:50051"},
+									},
+								},
+								FailureThreshold: 10,
+								PeriodSeconds:    10,
+								TimeoutSeconds:   5,
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("10m"),
+									corev1.ResourceMemory: resource.MustParse("50Mi"),
+								},
+							},
+							ImagePullPolicy: image.InferImagePullPolicy("image"),
+							SecurityContext: &corev1.SecurityContext{
+								Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+								AllowPrivilegeEscalation: ptr.To(false),
+								ReadOnlyRootFilesystem:   ptr.To(false),
+							},
+							TerminationMessagePolicy: "FallbackToLogsOnError",
+							VolumeMounts:             []corev1.VolumeMount{{Name: "catalog-content", MountPath: "/extracted-catalog"}},
+						},
+					},
+					NodeSelector: map[string]string{"kubernetes.io/os": "linux"},
+					SecurityContext: &corev1.PodSecurityContext{
+						RunAsUser:      ptr.To(int64(workloadUserID)),
+						RunAsNonRoot:   ptr.To(true),
+						SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+					},
+					ServiceAccountName: "service-account",
+				},
+			},
+		},
+		{
+			name: "content extraction expected - restricted security context config, no catalog cache dir",
+			input: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						ExtractContent: &v1alpha1.ExtractContentConfig{
+							CatalogDir: "/catalog",
+						},
+					},
+				},
+			},
+			securityContextConfig: v1alpha1.Restricted,
+			expected: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "test-",
+					Namespace:    "testns",
+					Labels:       map[string]string{"olm.pod-spec-hash": "3qxzUcTKDfq8QwZPoXteAv35FSwRho7vyYkv4d", "olm.managed": "true"},
+					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
+				},
+				Spec: corev1.PodSpec{
+					Volumes: []corev1.Volume{
+						{
+							Name:         "utilities",
+							VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+						},
+						{
+							Name:         "catalog-content",
+							VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+						},
+					},
+					InitContainers: []corev1.Container{
+						{
+							Name:    "extract-utilities",
+							Image:   "utilImage",
+							Command: []string{"cp"},
+							Args:    []string{"/bin/copy-content", "/utilities/copy-content"},
+							SecurityContext: &corev1.SecurityContext{
+								Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+								AllowPrivilegeEscalation: ptr.To(false),
+							},
+							VolumeMounts:             []corev1.VolumeMount{{Name: "utilities", MountPath: "/utilities"}},
+							TerminationMessagePolicy: "FallbackToLogsOnError",
+						},
+						{
+							Name:            "extract-content",
+							Image:           "image",
+							ImagePullPolicy: image.InferImagePullPolicy("image"),
+							Command:         []string{"/utilities/copy-content"},
+							Args: []string{
+								"--catalog.from=/catalog",
+								"--catalog.to=/extracted-catalog/catalog",
 							},
 							SecurityContext: &corev1.SecurityContext{
 								Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},

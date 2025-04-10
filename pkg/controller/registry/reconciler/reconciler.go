@@ -275,6 +275,17 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 				Name:      "catalog-content",
 				MountPath: catalogPath,
 			}
+			// init container to copy catalog info.
+			// ExtractContent.CatalogDir is mandatory when ExtractContent is provided
+			// ExtractContent.CacheDir is optional, so we only add it if it is set
+			var extractArgs = []string{
+				"--catalog.from=" + grpcPodConfig.ExtractContent.CatalogDir,
+				"--catalog.to=" + fmt.Sprintf("%s/catalog", catalogPath),
+			}
+			if grpcPodConfig.ExtractContent.CacheDir != "" {
+				extractArgs = append(extractArgs, "--cache.from="+grpcPodConfig.ExtractContent.CacheDir)
+				extractArgs = append(extractArgs, "--cache.to="+fmt.Sprintf("%s/cache", catalogPath))
+			}
 			pod.Spec.InitContainers = append(pod.Spec.InitContainers, corev1.Container{
 				Name:                     "extract-utilities",
 				Image:                    utilImage,
@@ -283,22 +294,18 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 				VolumeMounts:             []corev1.VolumeMount{utilitiesVolumeMount},
 				TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 			}, corev1.Container{
-				Name:            "extract-content",
-				Image:           img,
-				ImagePullPolicy: image.InferImagePullPolicy(img),
-				Command:         []string{utilitiesPath + "/copy-content"},
-				Args: []string{
-					"--catalog.from=" + grpcPodConfig.ExtractContent.CatalogDir,
-					"--catalog.to=" + fmt.Sprintf("%s/catalog", catalogPath),
-					"--cache.from=" + grpcPodConfig.ExtractContent.CacheDir,
-					"--cache.to=" + fmt.Sprintf("%s/cache", catalogPath),
-				},
+				Name:                     "extract-content",
+				Image:                    img,
+				ImagePullPolicy:          image.InferImagePullPolicy(img),
+				Command:                  []string{utilitiesPath + "/copy-content"},
+				Args:                     extractArgs,
 				VolumeMounts:             []corev1.VolumeMount{utilitiesVolumeMount, contentVolumeMount},
 				TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 			})
 
 			pod.Spec.Containers[0].Image = opmImg
 			pod.Spec.Containers[0].Command = []string{"/bin/opm"}
+			// set service cache dir unconditionally, since it should always have compatible permissions for generation, if not provided by grpcPodConfig
 			pod.Spec.Containers[0].Args = []string{
 				"serve",
 				filepath.Join(catalogPath, "catalog"),
