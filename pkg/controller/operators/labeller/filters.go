@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -177,7 +178,11 @@ func Validate(ctx context.Context, logger *logrus.Logger, metadataClient metadat
 				logger.WithFields(logrus.Fields{
 					"gvr":           gvr.String(),
 					"nonconforming": count,
-				}).Info("found nonconforming items")
+				}).Errorf(
+					"found nonconforming items: missing the the required label %q (metadata.labels[\"%s\"]=\"true\"). ",
+					install.OLMManagedLabelKey,
+					install.OLMManagedLabelKey,
+				)
 			}
 			okLock.Lock()
 			ok = ok && count == 0
