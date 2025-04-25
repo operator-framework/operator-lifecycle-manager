@@ -1886,6 +1886,5 @@ sigs.k8s.io/structured-merge-diff/v4/value
 sigs.k8s.io/yaml
 sigs.k8s.io/yaml/goyaml.v2
 # google.golang.org/grpc => google.golang.org/grpc v1.63.2
-# github.com/go-jose/go-jose/v4 => github.com/go-jose/go-jose/v4 v4.0.5
 # github.com/openshift/api => github.com/openshift/api v0.0.0-20221021112143-4226c2167e40
 # github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20221019143426-16aed247da5c
