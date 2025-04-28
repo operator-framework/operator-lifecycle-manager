@@ -1,0 +1,17 @@
+name: go-verdiff
+on:
+  pull_request:
+    paths:
+      - '**.mod'
+      - '.github/workflows/go-verdiff.yaml'
+    branches:
+      - main
+jobs:
+  go-verdiff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check golang version
+        run: hack/tools/check-go-version.sh "${{ github.event.pull_request.base.sha }}"
