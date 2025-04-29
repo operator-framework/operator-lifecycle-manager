@@ -3,6 +3,8 @@ package configmap
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -68,7 +70,9 @@ func loadBundle(entry *logrus.Entry, cm *corev1.ConfigMap) (*api.Bundle, map[str
 	}
 
 	// Add kube resources to the bundle.
-	for name, content := range data {
+	// Sort keys by name to guarantee consistent ordering of bundle objects.
+	for _, name := range slices.Sorted(maps.Keys(data)) {
+		content := data[name]
 		reader := strings.NewReader(content)
 		logger := entry.WithFields(logrus.Fields{
 			"key": name,

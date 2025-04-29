@@ -20,6 +20,7 @@ const (
 	ConsoleQuickStartKind     = "ConsoleQuickStart"
 	ConsoleCLIDownloadKind    = "ConsoleCLIDownload"
 	ConsoleLinkKind           = "ConsoleLink"
+	ConsolePlugin             = "ConsolePlugin"
 )
 
 // Namespaced indicates whether the resource is namespace scoped (true) or cluster-scoped (false).
@@ -47,6 +48,7 @@ var supportedResources = map[string]Namespaced{
 	ConsoleQuickStartKind:     false,
 	ConsoleCLIDownloadKind:    false,
 	ConsoleLinkKind:           false,
+	ConsolePlugin:             false,
 }
 
 // IsSupported checks if the object kind is OLM-supported and if it is namespaced
