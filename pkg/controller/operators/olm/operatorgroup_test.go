@@ -38,6 +38,76 @@ func (n *fakeCSVNamespaceLister) List(selector labels.Selector) ([]*metav1.Parti
 	return result, nil
 }
 
+// Test full resync via metadata drift guard when observedGeneration mismatches
+func TestCopyToNamespace_MetadataDriftGuard(t *testing.T) {
+	// Prepare prototype CSV and compute hashes
+	prototype := v1alpha1.ClusterServiceVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "name",
+			Annotations: map[string]string{},
+		},
+		Spec:   v1alpha1.ClusterServiceVersionSpec{Replaces: "replacee"},
+		Status: v1alpha1.ClusterServiceVersionStatus{Phase: "waxing gibbous"},
+	}
+	nonstatus, status, err := copyableCSVHash(&prototype)
+	require.NoError(t, err)
+
+	// Existing partial copy with observedGeneration mismatched
+	existingCopy := &metav1.PartialObjectMetadata{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "name",
+			Namespace:       "to",
+			UID:             "uid",
+			ResourceVersion: "42",
+			Generation:      2,
+			Annotations: map[string]string{
+				nonStatusCopyHashAnnotation:       nonstatus,
+				statusCopyHashAnnotation:          status,
+				observedGenerationAnnotation:      "1",
+				observedResourceVersionAnnotation: "42",
+			},
+		},
+	}
+	// Full CSV for fake client
+	full := &v1alpha1.ClusterServiceVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            existingCopy.Name,
+			Namespace:       existingCopy.Namespace,
+			UID:             existingCopy.UID,
+			ResourceVersion: existingCopy.ResourceVersion,
+			Generation:      existingCopy.Generation,
+			Annotations:     existingCopy.Annotations,
+		},
+		Spec:   prototype.Spec,
+		Status: prototype.Status,
+	}
+
+	client := fake.NewSimpleClientset(full)
+	lister := &fakeCSVLister{items: []*metav1.PartialObjectMetadata{existingCopy}}
+	logger, _ := test.NewNullLogger()
+	o := &Operator{copiedCSVLister: lister, client: client, logger: logger}
+
+	protoCopy := prototype.DeepCopy()
+	result, err := o.copyToNamespace(protoCopy, "from", "to", nonstatus, status)
+	require.NoError(t, err)
+	require.Equal(t, "name", result.GetName())
+	require.Equal(t, "to", result.GetNamespace())
+	require.Equal(t, "uid", string(result.GetUID()))
+
+	actions := client.Actions()
+	// Expect: update(spec), updateStatus, update(guard annotations)
+	require.Len(t, actions, 3)
+	// First action: spec update
+	ua0 := actions[0].(ktesting.UpdateAction)
+	require.Equal(t, "", ua0.GetSubresource())
+	// Second action: status subresource
+	ua1 := actions[1].(ktesting.UpdateAction)
+	require.Equal(t, "status", ua1.GetSubresource())
+	// Third action: metadata guard update
+	ua2 := actions[2].(ktesting.UpdateAction)
+	require.Equal(t, "", ua2.GetSubresource())
+}
+
 func (n *fakeCSVNamespaceLister) Get(name string) (*metav1.PartialObjectMetadata, error) {
 	for _, item := range n.items {
 		if item != nil && item.Namespace == n.namespace && item.Name == name {
