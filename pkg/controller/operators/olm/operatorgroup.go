@@ -791,8 +791,11 @@ func copyableCSVHash(original *v1alpha1.ClusterServiceVersion) (string, string, 
 }
 
 const (
-	nonStatusCopyHashAnnotation = "olm.operatorframework.io/nonStatusCopyHash"
-	statusCopyHashAnnotation    = "olm.operatorframework.io/statusCopyHash"
+   nonStatusCopyHashAnnotation       = "olm.operatorframework.io/nonStatusCopyHash"
+   statusCopyHashAnnotation          = "olm.operatorframework.io/statusCopyHash"
+   // annotations for metadata drift guard
+   observedGenerationAnnotation      = "olm.operatorframework.io/observedGeneration"
+   observedResourceVersionAnnotation = "olm.operatorframework.io/observedResourceVersion"
 )
 
 // If returned error is not nil, the returned ClusterServiceVersion
@@ -828,9 +831,43 @@ func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, ns
 				UID:       created.UID,
 			},
 		}, nil
-	} else if err != nil {
-		return nil, err
-	}
+   } else if err != nil {
+       return nil, err
+   }
+   // metadata drift guard: detect manual modifications to spec or status
+   if og, orv := existing.Annotations[observedGenerationAnnotation], existing.Annotations[observedResourceVersionAnnotation]; (og != "" && og != fmt.Sprint(existing.GetGeneration())) || (orv != "" && orv != existing.ResourceVersion) {
+       // full resync for metadata drift
+       // prepare prototype for update
+       prototype.Namespace = existing.Namespace
+       prototype.ResourceVersion = existing.ResourceVersion
+       prototype.UID = existing.UID
+       // sync hash annotations
+       prototype.Annotations[nonStatusCopyHashAnnotation] = nonstatus
+       prototype.Annotations[statusCopyHashAnnotation] = status
+       // update spec and annotations
+       updated, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), prototype, metav1.UpdateOptions{})
+       if err != nil {
+           return nil, fmt.Errorf("failed to resync spec for metadata drift guard: %w", err)
+       }
+       // update status subresource
+       updated.Status = prototype.Status
+       if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).UpdateStatus(context.TODO(), updated, metav1.UpdateOptions{}); err != nil {
+           return nil, fmt.Errorf("failed to resync status for metadata drift guard: %w", err)
+       }
+       // record observed generation and resourceVersion
+       updated.Annotations[observedGenerationAnnotation] = fmt.Sprint(updated.GetGeneration())
+       updated.Annotations[observedResourceVersionAnnotation] = updated.ResourceVersion
+       if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), updated, metav1.UpdateOptions{}); err != nil {
+           return nil, fmt.Errorf("failed to update metadata guard annotations: %w", err)
+       }
+       return &v1alpha1.ClusterServiceVersion{
+           ObjectMeta: metav1.ObjectMeta{
+               Name:      updated.Name,
+               Namespace: updated.Namespace,
+               UID:       updated.UID,
+           },
+       }, nil
+   }
 
 	prototype.Namespace = existing.Namespace
 	prototype.ResourceVersion = existing.ResourceVersion
