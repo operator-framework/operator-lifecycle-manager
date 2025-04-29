@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -87,6 +88,9 @@ func (opts options) run(dir string) error {
 	if err != nil {
 		return err
 	}
+	labels = slices.DeleteFunc(labels, func(s string) bool {
+		return s == "FailForward"
+	})
 	sort.Strings(labels)
 
 	var out string

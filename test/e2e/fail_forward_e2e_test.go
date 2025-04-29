@@ -262,7 +262,7 @@ var _ = Describe("Fail Forward Upgrades", Label("FailForward"), func() {
 			Expect(err).To(BeNil())
 		})
 
-		It("[FLAKE] eventually reports a successful state when using skip ranges", func() {
+		It("eventually reports a successful state when using skip ranges", func() {
 			By("updating the catalog with a fixed v0.3.0 bundle")
 			cleanup, deployError := updateCatalogSource(generatedNamespace.GetName(), catalogSourceName, "v0.1.0", "v0.2.0-invalid-csv", "v0.3.0-skip-range")
 			Expect(deployError).To(BeNil())
@@ -412,7 +412,7 @@ var _ = Describe("Fail Forward Upgrades", Label("FailForward"), func() {
 			Expect(err).Should(BeNil())
 		})
 
-		It("[FLAKE] eventually reports a successful state when using replaces", func() {
+		It("eventually reports a successful state when using replaces", func() {
 			By("patching the catalog with a fixed version")
 			cleanup, deployError := updateCatalogSource(generatedNamespace.GetName(), catalogSourceName, "v0.1.0", "v0.2.0-invalid-deployment", "v0.3.0-replaces-invalid-deployment")
 			Expect(deployError).To(BeNil())

@@ -39,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        parallel-id: [0, 1, 2, 3]
+        parallel-id: [ 0, 1, 2, 3 ]
     runs-on: ubuntu-latest
     env:
       # absolute path to test artifacts directory
@@ -114,16 +114,15 @@ jobs:
     runs-on: ubuntu-latest
     needs: e2e
     steps:
-    - run: |
-        echo "Matrix result: ${{ needs.e2e.result }}"
-    - name: check individual matrix results
-      if: ${{ needs.e2e.result == 'failure' }}
-      run: |
-        echo 'Failure: at least one e2e matrix job has failed'
-        exit 1
+      - run: |
+          echo "Matrix result: ${{ needs.e2e.result }}"
+      - name: check individual matrix results
+        if: ${{ needs.e2e.result == 'failure' }}
+        run: |
+          echo 'Failure: at least one e2e matrix job has failed'
+          exit 1
 
-  # Run e2e tests in parallel jobs
-  # Take olm image from the previous stage
+
   e2e-flakes:
     needs: build
     strategy:
@@ -189,5 +188,73 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-test-output-${{ (github.event.pull_request.head.sha || github.sha) }}-${{ github.run_id }}-flakes
+          path: ${{ env.ARTIFACT_DIR }}/*
+        # TODO: create job to combine test artifacts using code in https://github.com/operator-framework/operator-lifecycle-manager/pull/1476
+
+  e2e-failforward:
+    needs: build
+    strategy:
+      fail-fast: false
+    runs-on: ubuntu-latest
+    env:
+      # absolute path to test artifacts directory
+      ARTIFACT_DIR: ${{ github.workspace }}/artifacts
+      E2E_NODES: 2
+      E2E_KUBECONFIG_ROOT: ${{ github.workspace }}/kubeconfigs
+    steps:
+      # checkout code and setup go
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      # load the olm image
+      - name: Load OLM Docker image
+        uses: actions/download-artifact@v4
+        with:
+          name: olm-image.tar
+          path: .
+      - run: docker load < olm-image.tar
+
+      # set e2e environment variables
+      # Set ginkgo output and parallelism
+      - run: echo "GINKGO_OPTS=-output-dir ${ARTIFACT_DIR} -junit-report junit_e2e.xml -nodes ${E2E_NODES}" >> $GITHUB_ENV
+
+      # Setting -kubeconfig-root tells the e2e test suite to look for kubeconfigs
+      # in <kubeconfig-root>/kubeconfig-<node-number>
+      # This is used to run tests in parallel on multiple clusters as the current e2e
+      # test suite does not support running tests in parallel on a single cluster
+      - run: echo "E2E_OPTS=-kubeconfig-root=${E2E_KUBECONFIG_ROOT}" >> $GITHUB_ENV
+
+      # run e2e tests
+      # create artifacts directory
+      - run: mkdir -p ${ARTIFACT_DIR}
+
+      # deploy test clusters
+      - name: Deploy test cluster(s)
+        # create kubeconfig root and store the kubeconfig for each cluster within it as you create the clusters
+        # Add kind and helm options to specify kubeconfig location
+        # Deploy the new cluster and helm install olm for testing
+        run: |
+          mkdir -p ${E2E_KUBECONFIG_ROOT}
+          for i in $(seq 1 ${E2E_NODES}); do
+            KIND_CLUSTER_NAME="kind-olmv0-${i}" \
+            KIND_CREATE_OPTS="--kubeconfig=${E2E_KUBECONFIG_ROOT}/kubeconfig-${i}" \
+            HELM_INSTALL_OPTS="--kubeconfig ${E2E_KUBECONFIG_ROOT}/kubeconfig-${i}" \
+            make kind-create deploy;
+          done
+
+      # run e2e tests for flakes if matrix-id is 'flakes'
+      - name: Run flaky e2e tests
+        # focus on tests marked as FLAKE
+        run: |
+          GINKGO_OPTS="${GINKGO_OPTS} -label-filter 'FailForward'" make e2e
+
+      # archive test results
+      - name: Archive Test Artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-output-${{ (github.event.pull_request.head.sha || github.sha) }}-${{ github.run_id }}-failforward
           path: ${{ env.ARTIFACT_DIR }}/*
         # TODO: create job to combine test artifacts using code in https://github.com/operator-framework/operator-lifecycle-manager/pull/1476
