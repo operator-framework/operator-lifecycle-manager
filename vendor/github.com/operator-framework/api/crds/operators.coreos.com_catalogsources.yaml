@@ -975,11 +975,10 @@ spec:
                         configured to use *must* be using the file-based catalogs in order to utilize this feature.
                       type: object
                       required:
-                        - cacheDir
                         - catalogDir
                       properties:
                         cacheDir:
-                          description: CacheDir is the directory storing the pre-calculated API cache.
+                          description: CacheDir is the (optional) directory storing the pre-calculated API cache.
                           type: string
                         catalogDir:
                           description: CatalogDir is the directory storing the file-based catalog contents.
