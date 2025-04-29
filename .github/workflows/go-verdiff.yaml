@@ -5,7 +5,7 @@ on:
       - '**.mod'
       - '.github/workflows/go-verdiff.yaml'
     branches:
-      - main
+      - master
 jobs:
   go-verdiff:
     runs-on: ubuntu-latest
