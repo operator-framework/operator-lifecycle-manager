@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -219,6 +220,24 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			},
 		},
 		{
+			testName: "Grpc/ExistingRegistry/BadNetworkPolicy",
+			in: in{
+				cluster: cluster{
+					k8sObjs: setLabel(objectsForCatalogSource(t, validGrpcCatalogSource("test-img", "")), &networkingv1.NetworkPolicy{}, CatalogSourceLabelKey, "wrongValue"),
+				},
+				catsrc: validGrpcCatalogSource("test-img", ""),
+			},
+			out: out{
+				status: &v1alpha1.RegistryServiceStatus{
+					CreatedAt:        now(),
+					Protocol:         "grpc",
+					ServiceName:      "img-catalog",
+					ServiceNamespace: testNamespace,
+					Port:             "50051",
+				},
+			},
+		},
+		{
 			testName: "Grpc/ExistingRegistry/BadService",
 			in: in{
 				cluster: cluster{
@@ -388,6 +407,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 
 			// Check for resource existence
 			decorated := grpcCatalogSourceDecorator{CatalogSource: tt.in.catsrc, createPodAsUser: runAsUser}
+			np := decorated.NetworkPolicy()
 			sa := decorated.ServiceAccount()
 			pod, err := decorated.Pod(sa, defaultPodSecurityConfig)
 			if err != nil {
@@ -398,6 +418,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 				t.Fatal(err)
 			}
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
+			outNP, npErr := client.KubernetesInterface().NetworkingV1().NetworkPolicies(np.GetNamespace()).Get(context.TODO(), np.GetName(), metav1.GetOptions{})
 			outPods, podErr := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(context.TODO(), listOptions)
 			outService, serviceErr := client.KubernetesInterface().CoreV1().Services(service.GetNamespace()).Get(context.TODO(), service.GetName(), metav1.GetOptions{})
 			outsa, saerr := client.KubernetesInterface().CoreV1().ServiceAccounts(sa.GetNamespace()).Get(context.TODO(), sa.GetName(), metav1.GetOptions{})
@@ -411,6 +432,8 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 				require.Equal(t, pod.GetLabels(), outPod.GetLabels())
 				require.Equal(t, pod.GetAnnotations(), outPod.GetAnnotations())
 				require.Equal(t, pod.Spec, outPod.Spec)
+				require.NoError(t, npErr)
+				require.Equal(t, np, outNP)
 				require.NoError(t, serviceErr)
 				require.Equal(t, service, outService)
 				require.NoError(t, saerr)
@@ -422,6 +445,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 				require.NoError(t, podErr)
 				require.Len(t, outPods.Items, 0)
 				require.NoError(t, err)
+				require.True(t, apierrors.IsNotFound(npErr))
 				require.True(t, apierrors.IsNotFound(serviceErr))
 			}
 		})
@@ -533,6 +557,18 @@ func TestGrpcRegistryChecker(t *testing.T) {
 		{
 			testName: "Grpc/NoExistingRegistry/Image/NotHealthy",
 			in: in{
+				catsrc: validGrpcCatalogSource("test-img", ""),
+			},
+			out: out{
+				healthy: false,
+			},
+		},
+		{
+			testName: "Grpc/ExistingRegistry/Image/BadNetworkPolicy",
+			in: in{
+				cluster: cluster{
+					k8sObjs: setLabel(objectsForCatalogSource(t, validGrpcCatalogSource("test-img", "")), &networkingv1.NetworkPolicy{}, CatalogSourceLabelKey, "wrongValue"),
+				},
 				catsrc: validGrpcCatalogSource("test-img", ""),
 			},
 			out: out{

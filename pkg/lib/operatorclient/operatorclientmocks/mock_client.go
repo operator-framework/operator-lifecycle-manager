@@ -11,15 +11,16 @@ import (
 	operatorclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	v1 "k8s.io/api/apps/v1"
 	v10 "k8s.io/api/core/v1"
-	v11 "k8s.io/api/rbac/v1"
+	v11 "k8s.io/api/networking/v1"
+	v12 "k8s.io/api/rbac/v1"
 	clientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v13 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	unstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	labels "k8s.io/apimachinery/pkg/labels"
-	v13 "k8s.io/client-go/applyconfigurations/core/v1"
-	v14 "k8s.io/client-go/applyconfigurations/rbac/v1"
+	v14 "k8s.io/client-go/applyconfigurations/core/v1"
+	v15 "k8s.io/client-go/applyconfigurations/rbac/v1"
 	kubernetes "k8s.io/client-go/kubernetes"
-	v15 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	v16 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	clientset0 "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 )
 
@@ -75,10 +76,10 @@ func (mr *MockClientInterfaceMockRecorder) ApiregistrationV1Interface() *gomock.
 }
 
 // ApplyClusterRoleBinding mocks base method.
-func (m *MockClientInterface) ApplyClusterRoleBinding(applyConfig *v14.ClusterRoleBindingApplyConfiguration, applyOptions v12.ApplyOptions) (*v11.ClusterRoleBinding, error) {
+func (m *MockClientInterface) ApplyClusterRoleBinding(applyConfig *v15.ClusterRoleBindingApplyConfiguration, applyOptions v13.ApplyOptions) (*v12.ClusterRoleBinding, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ApplyClusterRoleBinding", applyConfig, applyOptions)
-	ret0, _ := ret[0].(*v11.ClusterRoleBinding)
+	ret0, _ := ret[0].(*v12.ClusterRoleBinding)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -90,10 +91,10 @@ func (mr *MockClientInterfaceMockRecorder) ApplyClusterRoleBinding(applyConfig, 
 }
 
 // ApplyRoleBinding mocks base method.
-func (m *MockClientInterface) ApplyRoleBinding(applyConfig *v14.RoleBindingApplyConfiguration, applyOptions v12.ApplyOptions) (*v11.RoleBinding, error) {
+func (m *MockClientInterface) ApplyRoleBinding(applyConfig *v15.RoleBindingApplyConfiguration, applyOptions v13.ApplyOptions) (*v12.RoleBinding, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ApplyRoleBinding", applyConfig, applyOptions)
-	ret0, _ := ret[0].(*v11.RoleBinding)
+	ret0, _ := ret[0].(*v12.RoleBinding)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -105,7 +106,7 @@ func (mr *MockClientInterfaceMockRecorder) ApplyRoleBinding(applyConfig, applyOp
 }
 
 // ApplyService mocks base method.
-func (m *MockClientInterface) ApplyService(arg0 *v13.ServiceApplyConfiguration, arg1 v12.ApplyOptions) (*v10.Service, error) {
+func (m *MockClientInterface) ApplyService(arg0 *v14.ServiceApplyConfiguration, arg1 v13.ApplyOptions) (*v10.Service, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ApplyService", arg0, arg1)
 	ret0, _ := ret[0].(*v10.Service)
@@ -134,10 +135,10 @@ func (mr *MockClientInterfaceMockRecorder) AtomicModifyCustomResource(apiGroup, 
 }
 
 // CreateAPIService mocks base method.
-func (m *MockClientInterface) CreateAPIService(arg0 *v15.APIService) (*v15.APIService, error) {
+func (m *MockClientInterface) CreateAPIService(arg0 *v16.APIService) (*v16.APIService, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateAPIService", arg0)
-	ret0, _ := ret[0].(*v15.APIService)
+	ret0, _ := ret[0].(*v16.APIService)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -149,10 +150,10 @@ func (mr *MockClientInterfaceMockRecorder) CreateAPIService(arg0 interface{}) *g
 }
 
 // CreateClusterRole mocks base method.
-func (m *MockClientInterface) CreateClusterRole(arg0 *v11.ClusterRole) (*v11.ClusterRole, error) {
+func (m *MockClientInterface) CreateClusterRole(arg0 *v12.ClusterRole) (*v12.ClusterRole, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateClusterRole", arg0)
-	ret0, _ := ret[0].(*v11.ClusterRole)
+	ret0, _ := ret[0].(*v12.ClusterRole)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -164,10 +165,10 @@ func (mr *MockClientInterfaceMockRecorder) CreateClusterRole(arg0 interface{}) *
 }
 
 // CreateClusterRoleBinding mocks base method.
-func (m *MockClientInterface) CreateClusterRoleBinding(arg0 *v11.ClusterRoleBinding) (*v11.ClusterRoleBinding, error) {
+func (m *MockClientInterface) CreateClusterRoleBinding(arg0 *v12.ClusterRoleBinding) (*v12.ClusterRoleBinding, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateClusterRoleBinding", arg0)
-	ret0, _ := ret[0].(*v11.ClusterRoleBinding)
+	ret0, _ := ret[0].(*v12.ClusterRoleBinding)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -251,6 +252,21 @@ func (mr *MockClientInterfaceMockRecorder) CreateDeployment(arg0 interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDeployment", reflect.TypeOf((*MockClientInterface)(nil).CreateDeployment), arg0)
 }
 
+// CreateNetworkPolicy mocks base method.
+func (m *MockClientInterface) CreateNetworkPolicy(arg0 *v11.NetworkPolicy) (*v11.NetworkPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateNetworkPolicy", arg0)
+	ret0, _ := ret[0].(*v11.NetworkPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateNetworkPolicy indicates an expected call of CreateNetworkPolicy.
+func (mr *MockClientInterfaceMockRecorder) CreateNetworkPolicy(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateNetworkPolicy", reflect.TypeOf((*MockClientInterface)(nil).CreateNetworkPolicy), arg0)
+}
+
 // CreateOrRollingUpdateDeployment mocks base method.
 func (m *MockClientInterface) CreateOrRollingUpdateDeployment(arg0 *v1.Deployment) (*v1.Deployment, bool, error) {
 	m.ctrl.T.Helper()
@@ -282,10 +298,10 @@ func (mr *MockClientInterfaceMockRecorder) CreateOrUpdateCustomeResourceRaw(apiG
 }
 
 // CreateRole mocks base method.
-func (m *MockClientInterface) CreateRole(arg0 *v11.Role) (*v11.Role, error) {
+func (m *MockClientInterface) CreateRole(arg0 *v12.Role) (*v12.Role, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateRole", arg0)
-	ret0, _ := ret[0].(*v11.Role)
+	ret0, _ := ret[0].(*v12.Role)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -297,10 +313,10 @@ func (mr *MockClientInterfaceMockRecorder) CreateRole(arg0 interface{}) *gomock.
 }
 
 // CreateRoleBinding mocks base method.
-func (m *MockClientInterface) CreateRoleBinding(arg0 *v11.RoleBinding) (*v11.RoleBinding, error) {
+func (m *MockClientInterface) CreateRoleBinding(arg0 *v12.RoleBinding) (*v12.RoleBinding, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateRoleBinding", arg0)
-	ret0, _ := ret[0].(*v11.RoleBinding)
+	ret0, _ := ret[0].(*v12.RoleBinding)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -357,7 +373,7 @@ func (mr *MockClientInterfaceMockRecorder) CreateServiceAccount(arg0 interface{}
 }
 
 // DeleteAPIService mocks base method.
-func (m *MockClientInterface) DeleteAPIService(name string, options *v12.DeleteOptions) error {
+func (m *MockClientInterface) DeleteAPIService(name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteAPIService", name, options)
 	ret0, _ := ret[0].(error)
@@ -371,7 +387,7 @@ func (mr *MockClientInterfaceMockRecorder) DeleteAPIService(name, options interf
 }
 
 // DeleteClusterRole mocks base method.
-func (m *MockClientInterface) DeleteClusterRole(name string, options *v12.DeleteOptions) error {
+func (m *MockClientInterface) DeleteClusterRole(name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteClusterRole", name, options)
 	ret0, _ := ret[0].(error)
@@ -385,7 +401,7 @@ func (mr *MockClientInterfaceMockRecorder) DeleteClusterRole(name, options inter
 }
 
 // DeleteClusterRoleBinding mocks base method.
-func (m *MockClientInterface) DeleteClusterRoleBinding(name string, options *v12.DeleteOptions) error {
+func (m *MockClientInterface) DeleteClusterRoleBinding(name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteClusterRoleBinding", name, options)
 	ret0, _ := ret[0].(error)
@@ -399,7 +415,7 @@ func (mr *MockClientInterfaceMockRecorder) DeleteClusterRoleBinding(name, option
 }
 
 // DeleteConfigMap mocks base method.
-func (m *MockClientInterface) DeleteConfigMap(namespace, name string, options *v12.DeleteOptions) error {
+func (m *MockClientInterface) DeleteConfigMap(namespace, name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteConfigMap", namespace, name, options)
 	ret0, _ := ret[0].(error)
@@ -427,7 +443,7 @@ func (mr *MockClientInterfaceMockRecorder) DeleteCustomResource(apiGroup, versio
 }
 
 // DeleteDeployment mocks base method.
-func (m *MockClientInterface) DeleteDeployment(namespace, name string, options *v12.DeleteOptions) error {
+func (m *MockClientInterface) DeleteDeployment(namespace, name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteDeployment", namespace, name, options)
 	ret0, _ := ret[0].(error)
@@ -440,8 +456,22 @@ func (mr *MockClientInterfaceMockRecorder) DeleteDeployment(namespace, name, opt
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDeployment", reflect.TypeOf((*MockClientInterface)(nil).DeleteDeployment), namespace, name, options)
 }
 
+// DeleteNetworkPolicy mocks base method.
+func (m *MockClientInterface) DeleteNetworkPolicy(namespace, name string, options *v13.DeleteOptions) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteNetworkPolicy", namespace, name, options)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteNetworkPolicy indicates an expected call of DeleteNetworkPolicy.
+func (mr *MockClientInterfaceMockRecorder) DeleteNetworkPolicy(namespace, name, options interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNetworkPolicy", reflect.TypeOf((*MockClientInterface)(nil).DeleteNetworkPolicy), namespace, name, options)
+}
+
 // DeleteRole mocks base method.
-func (m *MockClientInterface) DeleteRole(namespace, name string, options *v12.DeleteOptions) error {
+func (m *MockClientInterface) DeleteRole(namespace, name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteRole", namespace, name, options)
 	ret0, _ := ret[0].(error)
@@ -455,7 +485,7 @@ func (mr *MockClientInterfaceMockRecorder) DeleteRole(namespace, name, options i
 }
 
 // DeleteRoleBinding mocks base method.
-func (m *MockClientInterface) DeleteRoleBinding(namespace, name string, options *v12.DeleteOptions) error {
+func (m *MockClientInterface) DeleteRoleBinding(namespace, name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteRoleBinding", namespace, name, options)
 	ret0, _ := ret[0].(error)
@@ -469,7 +499,7 @@ func (mr *MockClientInterfaceMockRecorder) DeleteRoleBinding(namespace, name, op
 }
 
 // DeleteSecret mocks base method.
-func (m *MockClientInterface) DeleteSecret(namespace, name string, options *v12.DeleteOptions) error {
+func (m *MockClientInterface) DeleteSecret(namespace, name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteSecret", namespace, name, options)
 	ret0, _ := ret[0].(error)
@@ -483,7 +513,7 @@ func (mr *MockClientInterfaceMockRecorder) DeleteSecret(namespace, name, options
 }
 
 // DeleteService mocks base method.
-func (m *MockClientInterface) DeleteService(namespace, name string, options *v12.DeleteOptions) error {
+func (m *MockClientInterface) DeleteService(namespace, name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteService", namespace, name, options)
 	ret0, _ := ret[0].(error)
@@ -497,7 +527,7 @@ func (mr *MockClientInterfaceMockRecorder) DeleteService(namespace, name, option
 }
 
 // DeleteServiceAccount mocks base method.
-func (m *MockClientInterface) DeleteServiceAccount(namespace, name string, options *v12.DeleteOptions) error {
+func (m *MockClientInterface) DeleteServiceAccount(namespace, name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteServiceAccount", namespace, name, options)
 	ret0, _ := ret[0].(error)
@@ -511,10 +541,10 @@ func (mr *MockClientInterfaceMockRecorder) DeleteServiceAccount(namespace, name,
 }
 
 // GetAPIService mocks base method.
-func (m *MockClientInterface) GetAPIService(name string) (*v15.APIService, error) {
+func (m *MockClientInterface) GetAPIService(name string) (*v16.APIService, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAPIService", name)
-	ret0, _ := ret[0].(*v15.APIService)
+	ret0, _ := ret[0].(*v16.APIService)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -526,10 +556,10 @@ func (mr *MockClientInterfaceMockRecorder) GetAPIService(name interface{}) *gomo
 }
 
 // GetClusterRole mocks base method.
-func (m *MockClientInterface) GetClusterRole(name string) (*v11.ClusterRole, error) {
+func (m *MockClientInterface) GetClusterRole(name string) (*v12.ClusterRole, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetClusterRole", name)
-	ret0, _ := ret[0].(*v11.ClusterRole)
+	ret0, _ := ret[0].(*v12.ClusterRole)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -541,10 +571,10 @@ func (mr *MockClientInterfaceMockRecorder) GetClusterRole(name interface{}) *gom
 }
 
 // GetClusterRoleBinding mocks base method.
-func (m *MockClientInterface) GetClusterRoleBinding(name string) (*v11.ClusterRoleBinding, error) {
+func (m *MockClientInterface) GetClusterRoleBinding(name string) (*v12.ClusterRoleBinding, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetClusterRoleBinding", name)
-	ret0, _ := ret[0].(*v11.ClusterRoleBinding)
+	ret0, _ := ret[0].(*v12.ClusterRoleBinding)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -615,11 +645,26 @@ func (mr *MockClientInterfaceMockRecorder) GetDeployment(namespace, name interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeployment", reflect.TypeOf((*MockClientInterface)(nil).GetDeployment), namespace, name)
 }
 
+// GetNetworkPolicy mocks base method.
+func (m *MockClientInterface) GetNetworkPolicy(namespace, name string) (*v11.NetworkPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetworkPolicy", namespace, name)
+	ret0, _ := ret[0].(*v11.NetworkPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNetworkPolicy indicates an expected call of GetNetworkPolicy.
+func (mr *MockClientInterfaceMockRecorder) GetNetworkPolicy(namespace, name interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkPolicy", reflect.TypeOf((*MockClientInterface)(nil).GetNetworkPolicy), namespace, name)
+}
+
 // GetRole mocks base method.
-func (m *MockClientInterface) GetRole(namespace, name string) (*v11.Role, error) {
+func (m *MockClientInterface) GetRole(namespace, name string) (*v12.Role, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetRole", namespace, name)
-	ret0, _ := ret[0].(*v11.Role)
+	ret0, _ := ret[0].(*v12.Role)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -631,10 +676,10 @@ func (mr *MockClientInterfaceMockRecorder) GetRole(namespace, name interface{}) 
 }
 
 // GetRoleBinding mocks base method.
-func (m *MockClientInterface) GetRoleBinding(namespace, name string) (*v11.RoleBinding, error) {
+func (m *MockClientInterface) GetRoleBinding(namespace, name string) (*v12.RoleBinding, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetRoleBinding", namespace, name)
-	ret0, _ := ret[0].(*v11.RoleBinding)
+	ret0, _ := ret[0].(*v12.RoleBinding)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -815,10 +860,10 @@ func (mr *MockClientInterfaceMockRecorder) RollingUpdateDeploymentMigrations(nam
 }
 
 // UpdateAPIService mocks base method.
-func (m *MockClientInterface) UpdateAPIService(modified *v15.APIService) (*v15.APIService, error) {
+func (m *MockClientInterface) UpdateAPIService(modified *v16.APIService) (*v16.APIService, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateAPIService", modified)
-	ret0, _ := ret[0].(*v15.APIService)
+	ret0, _ := ret[0].(*v16.APIService)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -830,10 +875,10 @@ func (mr *MockClientInterfaceMockRecorder) UpdateAPIService(modified interface{}
 }
 
 // UpdateClusterRole mocks base method.
-func (m *MockClientInterface) UpdateClusterRole(modified *v11.ClusterRole) (*v11.ClusterRole, error) {
+func (m *MockClientInterface) UpdateClusterRole(modified *v12.ClusterRole) (*v12.ClusterRole, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateClusterRole", modified)
-	ret0, _ := ret[0].(*v11.ClusterRole)
+	ret0, _ := ret[0].(*v12.ClusterRole)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -845,10 +890,10 @@ func (mr *MockClientInterfaceMockRecorder) UpdateClusterRole(modified interface{
 }
 
 // UpdateClusterRoleBinding mocks base method.
-func (m *MockClientInterface) UpdateClusterRoleBinding(modified *v11.ClusterRoleBinding) (*v11.ClusterRoleBinding, error) {
+func (m *MockClientInterface) UpdateClusterRoleBinding(modified *v12.ClusterRoleBinding) (*v12.ClusterRoleBinding, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateClusterRoleBinding", modified)
-	ret0, _ := ret[0].(*v11.ClusterRoleBinding)
+	ret0, _ := ret[0].(*v12.ClusterRoleBinding)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -918,11 +963,26 @@ func (mr *MockClientInterfaceMockRecorder) UpdateDeployment(arg0 interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDeployment", reflect.TypeOf((*MockClientInterface)(nil).UpdateDeployment), arg0)
 }
 
+// UpdateNetworkPolicy mocks base method.
+func (m *MockClientInterface) UpdateNetworkPolicy(modified *v11.NetworkPolicy) (*v11.NetworkPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateNetworkPolicy", modified)
+	ret0, _ := ret[0].(*v11.NetworkPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateNetworkPolicy indicates an expected call of UpdateNetworkPolicy.
+func (mr *MockClientInterfaceMockRecorder) UpdateNetworkPolicy(modified interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateNetworkPolicy", reflect.TypeOf((*MockClientInterface)(nil).UpdateNetworkPolicy), modified)
+}
+
 // UpdateRole mocks base method.
-func (m *MockClientInterface) UpdateRole(modified *v11.Role) (*v11.Role, error) {
+func (m *MockClientInterface) UpdateRole(modified *v12.Role) (*v12.Role, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateRole", modified)
-	ret0, _ := ret[0].(*v11.Role)
+	ret0, _ := ret[0].(*v12.Role)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -934,10 +994,10 @@ func (mr *MockClientInterfaceMockRecorder) UpdateRole(modified interface{}) *gom
 }
 
 // UpdateRoleBinding mocks base method.
-func (m *MockClientInterface) UpdateRoleBinding(modified *v11.RoleBinding) (*v11.RoleBinding, error) {
+func (m *MockClientInterface) UpdateRoleBinding(modified *v12.RoleBinding) (*v12.RoleBinding, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateRoleBinding", modified)
-	ret0, _ := ret[0].(*v11.RoleBinding)
+	ret0, _ := ret[0].(*v12.RoleBinding)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1198,10 +1258,10 @@ func (m *MockAPIServiceClient) EXPECT() *MockAPIServiceClientMockRecorder {
 }
 
 // CreateAPIService mocks base method.
-func (m *MockAPIServiceClient) CreateAPIService(arg0 *v15.APIService) (*v15.APIService, error) {
+func (m *MockAPIServiceClient) CreateAPIService(arg0 *v16.APIService) (*v16.APIService, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateAPIService", arg0)
-	ret0, _ := ret[0].(*v15.APIService)
+	ret0, _ := ret[0].(*v16.APIService)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1213,7 +1273,7 @@ func (mr *MockAPIServiceClientMockRecorder) CreateAPIService(arg0 interface{}) *
 }
 
 // DeleteAPIService mocks base method.
-func (m *MockAPIServiceClient) DeleteAPIService(name string, options *v12.DeleteOptions) error {
+func (m *MockAPIServiceClient) DeleteAPIService(name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteAPIService", name, options)
 	ret0, _ := ret[0].(error)
@@ -1227,10 +1287,10 @@ func (mr *MockAPIServiceClientMockRecorder) DeleteAPIService(name, options inter
 }
 
 // GetAPIService mocks base method.
-func (m *MockAPIServiceClient) GetAPIService(name string) (*v15.APIService, error) {
+func (m *MockAPIServiceClient) GetAPIService(name string) (*v16.APIService, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAPIService", name)
-	ret0, _ := ret[0].(*v15.APIService)
+	ret0, _ := ret[0].(*v16.APIService)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1242,10 +1302,10 @@ func (mr *MockAPIServiceClientMockRecorder) GetAPIService(name interface{}) *gom
 }
 
 // UpdateAPIService mocks base method.
-func (m *MockAPIServiceClient) UpdateAPIService(modified *v15.APIService) (*v15.APIService, error) {
+func (m *MockAPIServiceClient) UpdateAPIService(modified *v16.APIService) (*v16.APIService, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateAPIService", modified)
-	ret0, _ := ret[0].(*v15.APIService)
+	ret0, _ := ret[0].(*v16.APIService)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1295,7 +1355,7 @@ func (mr *MockSecretClientMockRecorder) CreateSecret(arg0 interface{}) *gomock.C
 }
 
 // DeleteSecret mocks base method.
-func (m *MockSecretClient) DeleteSecret(namespace, name string, options *v12.DeleteOptions) error {
+func (m *MockSecretClient) DeleteSecret(namespace, name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteSecret", namespace, name, options)
 	ret0, _ := ret[0].(error)
@@ -1362,7 +1422,7 @@ func (m *MockServiceClient) EXPECT() *MockServiceClientMockRecorder {
 }
 
 // ApplyService mocks base method.
-func (m *MockServiceClient) ApplyService(arg0 *v13.ServiceApplyConfiguration, arg1 v12.ApplyOptions) (*v10.Service, error) {
+func (m *MockServiceClient) ApplyService(arg0 *v14.ServiceApplyConfiguration, arg1 v13.ApplyOptions) (*v10.Service, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ApplyService", arg0, arg1)
 	ret0, _ := ret[0].(*v10.Service)
@@ -1392,7 +1452,7 @@ func (mr *MockServiceClientMockRecorder) CreateService(arg0 interface{}) *gomock
 }
 
 // DeleteService mocks base method.
-func (m *MockServiceClient) DeleteService(namespace, name string, options *v12.DeleteOptions) error {
+func (m *MockServiceClient) DeleteService(namespace, name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteService", namespace, name, options)
 	ret0, _ := ret[0].(error)
@@ -1474,7 +1534,7 @@ func (mr *MockServiceAccountClientMockRecorder) CreateServiceAccount(arg0 interf
 }
 
 // DeleteServiceAccount mocks base method.
-func (m *MockServiceAccountClient) DeleteServiceAccount(namespace, name string, options *v12.DeleteOptions) error {
+func (m *MockServiceAccountClient) DeleteServiceAccount(namespace, name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteServiceAccount", namespace, name, options)
 	ret0, _ := ret[0].(error)
@@ -1541,10 +1601,10 @@ func (m *MockRoleClient) EXPECT() *MockRoleClientMockRecorder {
 }
 
 // CreateRole mocks base method.
-func (m *MockRoleClient) CreateRole(arg0 *v11.Role) (*v11.Role, error) {
+func (m *MockRoleClient) CreateRole(arg0 *v12.Role) (*v12.Role, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateRole", arg0)
-	ret0, _ := ret[0].(*v11.Role)
+	ret0, _ := ret[0].(*v12.Role)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1556,7 +1616,7 @@ func (mr *MockRoleClientMockRecorder) CreateRole(arg0 interface{}) *gomock.Call 
 }
 
 // DeleteRole mocks base method.
-func (m *MockRoleClient) DeleteRole(namespace, name string, options *v12.DeleteOptions) error {
+func (m *MockRoleClient) DeleteRole(namespace, name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteRole", namespace, name, options)
 	ret0, _ := ret[0].(error)
@@ -1570,10 +1630,10 @@ func (mr *MockRoleClientMockRecorder) DeleteRole(namespace, name, options interf
 }
 
 // GetRole mocks base method.
-func (m *MockRoleClient) GetRole(namespace, name string) (*v11.Role, error) {
+func (m *MockRoleClient) GetRole(namespace, name string) (*v12.Role, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetRole", namespace, name)
-	ret0, _ := ret[0].(*v11.Role)
+	ret0, _ := ret[0].(*v12.Role)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1585,10 +1645,10 @@ func (mr *MockRoleClientMockRecorder) GetRole(namespace, name interface{}) *gomo
 }
 
 // UpdateRole mocks base method.
-func (m *MockRoleClient) UpdateRole(modified *v11.Role) (*v11.Role, error) {
+func (m *MockRoleClient) UpdateRole(modified *v12.Role) (*v12.Role, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateRole", modified)
-	ret0, _ := ret[0].(*v11.Role)
+	ret0, _ := ret[0].(*v12.Role)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1623,10 +1683,10 @@ func (m *MockRoleBindingClient) EXPECT() *MockRoleBindingClientMockRecorder {
 }
 
 // ApplyRoleBinding mocks base method.
-func (m *MockRoleBindingClient) ApplyRoleBinding(applyConfig *v14.RoleBindingApplyConfiguration, applyOptions v12.ApplyOptions) (*v11.RoleBinding, error) {
+func (m *MockRoleBindingClient) ApplyRoleBinding(applyConfig *v15.RoleBindingApplyConfiguration, applyOptions v13.ApplyOptions) (*v12.RoleBinding, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ApplyRoleBinding", applyConfig, applyOptions)
-	ret0, _ := ret[0].(*v11.RoleBinding)
+	ret0, _ := ret[0].(*v12.RoleBinding)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1638,10 +1698,10 @@ func (mr *MockRoleBindingClientMockRecorder) ApplyRoleBinding(applyConfig, apply
 }
 
 // CreateRoleBinding mocks base method.
-func (m *MockRoleBindingClient) CreateRoleBinding(arg0 *v11.RoleBinding) (*v11.RoleBinding, error) {
+func (m *MockRoleBindingClient) CreateRoleBinding(arg0 *v12.RoleBinding) (*v12.RoleBinding, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateRoleBinding", arg0)
-	ret0, _ := ret[0].(*v11.RoleBinding)
+	ret0, _ := ret[0].(*v12.RoleBinding)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1653,7 +1713,7 @@ func (mr *MockRoleBindingClientMockRecorder) CreateRoleBinding(arg0 interface{})
 }
 
 // DeleteRoleBinding mocks base method.
-func (m *MockRoleBindingClient) DeleteRoleBinding(namespace, name string, options *v12.DeleteOptions) error {
+func (m *MockRoleBindingClient) DeleteRoleBinding(namespace, name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteRoleBinding", namespace, name, options)
 	ret0, _ := ret[0].(error)
@@ -1667,10 +1727,10 @@ func (mr *MockRoleBindingClientMockRecorder) DeleteRoleBinding(namespace, name, 
 }
 
 // GetRoleBinding mocks base method.
-func (m *MockRoleBindingClient) GetRoleBinding(namespace, name string) (*v11.RoleBinding, error) {
+func (m *MockRoleBindingClient) GetRoleBinding(namespace, name string) (*v12.RoleBinding, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetRoleBinding", namespace, name)
-	ret0, _ := ret[0].(*v11.RoleBinding)
+	ret0, _ := ret[0].(*v12.RoleBinding)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1682,10 +1742,10 @@ func (mr *MockRoleBindingClientMockRecorder) GetRoleBinding(namespace, name inte
 }
 
 // UpdateRoleBinding mocks base method.
-func (m *MockRoleBindingClient) UpdateRoleBinding(modified *v11.RoleBinding) (*v11.RoleBinding, error) {
+func (m *MockRoleBindingClient) UpdateRoleBinding(modified *v12.RoleBinding) (*v12.RoleBinding, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateRoleBinding", modified)
-	ret0, _ := ret[0].(*v11.RoleBinding)
+	ret0, _ := ret[0].(*v12.RoleBinding)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1720,10 +1780,10 @@ func (m *MockClusterRoleClient) EXPECT() *MockClusterRoleClientMockRecorder {
 }
 
 // CreateClusterRole mocks base method.
-func (m *MockClusterRoleClient) CreateClusterRole(arg0 *v11.ClusterRole) (*v11.ClusterRole, error) {
+func (m *MockClusterRoleClient) CreateClusterRole(arg0 *v12.ClusterRole) (*v12.ClusterRole, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateClusterRole", arg0)
-	ret0, _ := ret[0].(*v11.ClusterRole)
+	ret0, _ := ret[0].(*v12.ClusterRole)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1735,7 +1795,7 @@ func (mr *MockClusterRoleClientMockRecorder) CreateClusterRole(arg0 interface{})
 }
 
 // DeleteClusterRole mocks base method.
-func (m *MockClusterRoleClient) DeleteClusterRole(name string, options *v12.DeleteOptions) error {
+func (m *MockClusterRoleClient) DeleteClusterRole(name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteClusterRole", name, options)
 	ret0, _ := ret[0].(error)
@@ -1749,10 +1809,10 @@ func (mr *MockClusterRoleClientMockRecorder) DeleteClusterRole(name, options int
 }
 
 // GetClusterRole mocks base method.
-func (m *MockClusterRoleClient) GetClusterRole(name string) (*v11.ClusterRole, error) {
+func (m *MockClusterRoleClient) GetClusterRole(name string) (*v12.ClusterRole, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetClusterRole", name)
-	ret0, _ := ret[0].(*v11.ClusterRole)
+	ret0, _ := ret[0].(*v12.ClusterRole)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1764,10 +1824,10 @@ func (mr *MockClusterRoleClientMockRecorder) GetClusterRole(name interface{}) *g
 }
 
 // UpdateClusterRole mocks base method.
-func (m *MockClusterRoleClient) UpdateClusterRole(modified *v11.ClusterRole) (*v11.ClusterRole, error) {
+func (m *MockClusterRoleClient) UpdateClusterRole(modified *v12.ClusterRole) (*v12.ClusterRole, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateClusterRole", modified)
-	ret0, _ := ret[0].(*v11.ClusterRole)
+	ret0, _ := ret[0].(*v12.ClusterRole)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1802,10 +1862,10 @@ func (m *MockClusterRoleBindingClient) EXPECT() *MockClusterRoleBindingClientMoc
 }
 
 // ApplyClusterRoleBinding mocks base method.
-func (m *MockClusterRoleBindingClient) ApplyClusterRoleBinding(applyConfig *v14.ClusterRoleBindingApplyConfiguration, applyOptions v12.ApplyOptions) (*v11.ClusterRoleBinding, error) {
+func (m *MockClusterRoleBindingClient) ApplyClusterRoleBinding(applyConfig *v15.ClusterRoleBindingApplyConfiguration, applyOptions v13.ApplyOptions) (*v12.ClusterRoleBinding, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ApplyClusterRoleBinding", applyConfig, applyOptions)
-	ret0, _ := ret[0].(*v11.ClusterRoleBinding)
+	ret0, _ := ret[0].(*v12.ClusterRoleBinding)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1817,10 +1877,10 @@ func (mr *MockClusterRoleBindingClientMockRecorder) ApplyClusterRoleBinding(appl
 }
 
 // CreateClusterRoleBinding mocks base method.
-func (m *MockClusterRoleBindingClient) CreateClusterRoleBinding(arg0 *v11.ClusterRoleBinding) (*v11.ClusterRoleBinding, error) {
+func (m *MockClusterRoleBindingClient) CreateClusterRoleBinding(arg0 *v12.ClusterRoleBinding) (*v12.ClusterRoleBinding, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateClusterRoleBinding", arg0)
-	ret0, _ := ret[0].(*v11.ClusterRoleBinding)
+	ret0, _ := ret[0].(*v12.ClusterRoleBinding)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1832,7 +1892,7 @@ func (mr *MockClusterRoleBindingClientMockRecorder) CreateClusterRoleBinding(arg
 }
 
 // DeleteClusterRoleBinding mocks base method.
-func (m *MockClusterRoleBindingClient) DeleteClusterRoleBinding(name string, options *v12.DeleteOptions) error {
+func (m *MockClusterRoleBindingClient) DeleteClusterRoleBinding(name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteClusterRoleBinding", name, options)
 	ret0, _ := ret[0].(error)
@@ -1846,10 +1906,10 @@ func (mr *MockClusterRoleBindingClientMockRecorder) DeleteClusterRoleBinding(nam
 }
 
 // GetClusterRoleBinding mocks base method.
-func (m *MockClusterRoleBindingClient) GetClusterRoleBinding(name string) (*v11.ClusterRoleBinding, error) {
+func (m *MockClusterRoleBindingClient) GetClusterRoleBinding(name string) (*v12.ClusterRoleBinding, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetClusterRoleBinding", name)
-	ret0, _ := ret[0].(*v11.ClusterRoleBinding)
+	ret0, _ := ret[0].(*v12.ClusterRoleBinding)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1861,10 +1921,10 @@ func (mr *MockClusterRoleBindingClientMockRecorder) GetClusterRoleBinding(name i
 }
 
 // UpdateClusterRoleBinding mocks base method.
-func (m *MockClusterRoleBindingClient) UpdateClusterRoleBinding(modified *v11.ClusterRoleBinding) (*v11.ClusterRoleBinding, error) {
+func (m *MockClusterRoleBindingClient) UpdateClusterRoleBinding(modified *v12.ClusterRoleBinding) (*v12.ClusterRoleBinding, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateClusterRoleBinding", modified)
-	ret0, _ := ret[0].(*v11.ClusterRoleBinding)
+	ret0, _ := ret[0].(*v12.ClusterRoleBinding)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1930,7 +1990,7 @@ func (mr *MockDeploymentClientMockRecorder) CreateOrRollingUpdateDeployment(arg0
 }
 
 // DeleteDeployment mocks base method.
-func (m *MockDeploymentClient) DeleteDeployment(namespace, name string, options *v12.DeleteOptions) error {
+func (m *MockDeploymentClient) DeleteDeployment(namespace, name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteDeployment", namespace, name, options)
 	ret0, _ := ret[0].(error)
@@ -2108,7 +2168,7 @@ func (mr *MockConfigMapClientMockRecorder) CreateConfigMap(arg0 interface{}) *go
 }
 
 // DeleteConfigMap mocks base method.
-func (m *MockConfigMapClient) DeleteConfigMap(namespace, name string, options *v12.DeleteOptions) error {
+func (m *MockConfigMapClient) DeleteConfigMap(namespace, name string, options *v13.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteConfigMap", namespace, name, options)
 	ret0, _ := ret[0].(error)
@@ -2149,4 +2209,86 @@ func (m *MockConfigMapClient) UpdateConfigMap(modified *v10.ConfigMap) (*v10.Con
 func (mr *MockConfigMapClientMockRecorder) UpdateConfigMap(modified interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateConfigMap", reflect.TypeOf((*MockConfigMapClient)(nil).UpdateConfigMap), modified)
+}
+
+// MockNetworkPolicyClient is a mock of NetworkPolicyClient interface.
+type MockNetworkPolicyClient struct {
+	ctrl     *gomock.Controller
+	recorder *MockNetworkPolicyClientMockRecorder
+}
+
+// MockNetworkPolicyClientMockRecorder is the mock recorder for MockNetworkPolicyClient.
+type MockNetworkPolicyClientMockRecorder struct {
+	mock *MockNetworkPolicyClient
+}
+
+// NewMockNetworkPolicyClient creates a new mock instance.
+func NewMockNetworkPolicyClient(ctrl *gomock.Controller) *MockNetworkPolicyClient {
+	mock := &MockNetworkPolicyClient{ctrl: ctrl}
+	mock.recorder = &MockNetworkPolicyClientMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockNetworkPolicyClient) EXPECT() *MockNetworkPolicyClientMockRecorder {
+	return m.recorder
+}
+
+// CreateNetworkPolicy mocks base method.
+func (m *MockNetworkPolicyClient) CreateNetworkPolicy(arg0 *v11.NetworkPolicy) (*v11.NetworkPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateNetworkPolicy", arg0)
+	ret0, _ := ret[0].(*v11.NetworkPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateNetworkPolicy indicates an expected call of CreateNetworkPolicy.
+func (mr *MockNetworkPolicyClientMockRecorder) CreateNetworkPolicy(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateNetworkPolicy", reflect.TypeOf((*MockNetworkPolicyClient)(nil).CreateNetworkPolicy), arg0)
+}
+
+// DeleteNetworkPolicy mocks base method.
+func (m *MockNetworkPolicyClient) DeleteNetworkPolicy(namespace, name string, options *v13.DeleteOptions) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteNetworkPolicy", namespace, name, options)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteNetworkPolicy indicates an expected call of DeleteNetworkPolicy.
+func (mr *MockNetworkPolicyClientMockRecorder) DeleteNetworkPolicy(namespace, name, options interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNetworkPolicy", reflect.TypeOf((*MockNetworkPolicyClient)(nil).DeleteNetworkPolicy), namespace, name, options)
+}
+
+// GetNetworkPolicy mocks base method.
+func (m *MockNetworkPolicyClient) GetNetworkPolicy(namespace, name string) (*v11.NetworkPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetworkPolicy", namespace, name)
+	ret0, _ := ret[0].(*v11.NetworkPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNetworkPolicy indicates an expected call of GetNetworkPolicy.
+func (mr *MockNetworkPolicyClientMockRecorder) GetNetworkPolicy(namespace, name interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkPolicy", reflect.TypeOf((*MockNetworkPolicyClient)(nil).GetNetworkPolicy), namespace, name)
+}
+
+// UpdateNetworkPolicy mocks base method.
+func (m *MockNetworkPolicyClient) UpdateNetworkPolicy(modified *v11.NetworkPolicy) (*v11.NetworkPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateNetworkPolicy", modified)
+	ret0, _ := ret[0].(*v11.NetworkPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateNetworkPolicy indicates an expected call of UpdateNetworkPolicy.
+func (mr *MockNetworkPolicyClientMockRecorder) UpdateNetworkPolicy(modified interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateNetworkPolicy", reflect.TypeOf((*MockNetworkPolicyClient)(nil).UpdateNetworkPolicy), modified)
 }

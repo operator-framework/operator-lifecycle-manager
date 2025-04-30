@@ -25,6 +25,7 @@ import (
 	"gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -1276,6 +1277,10 @@ func TestSyncCatalogSources(t *testing.T) {
 				pod(t, *grpcCatalog),
 				service(grpcCatalog.GetName(), grpcCatalog.GetNamespace()),
 				serviceAccount(grpcCatalog.GetName(), grpcCatalog.GetNamespace(), "", objectReference("init secret")),
+				networkPolicy(grpcCatalog, map[string]string{
+					reconciler.CatalogSourceLabelKey: grpcCatalog.GetName(),
+					install.OLMManagedLabelKey:       install.OLMManagedLabelValue,
+				}),
 			},
 			existingSources: []sourceAddress{
 				{
@@ -2128,7 +2133,17 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 	serviceInformer := factory.Core().V1().Services()
 	podInformer := factory.Core().V1().Pods()
 	configMapInformer := factory.Core().V1().ConfigMaps()
-	sharedInformers = append(sharedInformers, roleInformer.Informer(), roleBindingInformer.Informer(), serviceAccountInformer.Informer(), serviceInformer.Informer(), podInformer.Informer(), configMapInformer.Informer())
+	networkPolicyInformer := factory.Networking().V1().NetworkPolicies()
+
+	sharedInformers = append(sharedInformers,
+		roleInformer.Informer(),
+		roleBindingInformer.Informer(),
+		serviceAccountInformer.Informer(),
+		serviceInformer.Informer(),
+		podInformer.Informer(),
+		configMapInformer.Informer(),
+		networkPolicyInformer.Informer(),
+	)
 
 	lister.RbacV1().RegisterRoleLister(metav1.NamespaceAll, roleInformer.Lister())
 	lister.RbacV1().RegisterRoleBindingLister(metav1.NamespaceAll, roleBindingInformer.Lister())
@@ -2136,6 +2151,7 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 	lister.CoreV1().RegisterServiceLister(metav1.NamespaceAll, serviceInformer.Lister())
 	lister.CoreV1().RegisterPodLister(metav1.NamespaceAll, podInformer.Lister())
 	lister.CoreV1().RegisterConfigMapLister(metav1.NamespaceAll, configMapInformer.Lister())
+	lister.NetworkingV1().RegisterNetworkPolicyLister(metav1.NamespaceAll, networkPolicyInformer.Lister())
 	logger := logrus.New()
 
 	// Create the new operator
@@ -2317,6 +2333,10 @@ func configMap(name, namespace string) *corev1.ConfigMap {
 		TypeMeta:   metav1.TypeMeta{Kind: configMapKind},
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}},
 	}
+}
+
+func networkPolicy(catSrc *v1alpha1.CatalogSource, matchLabels map[string]string) *networkingv1.NetworkPolicy {
+	return reconciler.DesiredRegistryNetworkPolicy(catSrc, matchLabels)
 }
 
 func objectReference(name string) *corev1.ObjectReference {

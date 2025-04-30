@@ -19,6 +19,7 @@ import (
 	pkgerrors "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -102,6 +103,10 @@ func (s *grpcCatalogSourceDecorator) Service() (*corev1.Service, error) {
 	return svc, nil
 }
 
+func (s *grpcCatalogSourceDecorator) NetworkPolicy() *networkingv1.NetworkPolicy {
+	return DesiredRegistryNetworkPolicy(s.CatalogSource, s.Labels())
+}
+
 func (s *grpcCatalogSourceDecorator) ServiceAccount() *corev1.ServiceAccount {
 	var secrets []corev1.LocalObjectReference
 	blockOwnerDeletion := true
@@ -152,6 +157,16 @@ type GrpcRegistryReconciler struct {
 }
 
 var _ RegistryReconciler = &GrpcRegistryReconciler{}
+
+func (c *GrpcRegistryReconciler) currentNetworkPolicy(source grpcCatalogSourceDecorator) *networkingv1.NetworkPolicy {
+	npName := source.NetworkPolicy().GetName()
+	np, err := c.Lister.NetworkingV1().NetworkPolicyLister().NetworkPolicies(source.GetNamespace()).Get(npName)
+	if err != nil {
+		logrus.WithField("networkPolicy", npName).WithError(err).Debug("couldn't find network policy in cache")
+		return nil
+	}
+	return np
+}
 
 func (c *GrpcRegistryReconciler) currentService(source grpcCatalogSourceDecorator) (*corev1.Service, error) {
 	protoService, err := source.Service()
@@ -261,6 +276,11 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, cata
 	}
 
 	//TODO: if any of these error out, we should write a status back (possibly set RegistryServiceStatus to nil so they get recreated)
+	if err := c.ensureNetworkPolicy(source); err != nil {
+		logger.WithError(err).Error("error ensuring registry server: could not ensure registry network policy")
+		return pkgerrors.Wrapf(err, "error ensuring network policy: %s", source.GetName())
+	}
+
 	sa, err := c.ensureSA(source)
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		logger.WithError(err).Error("error ensuring registry server: could not ensure registry service account")
@@ -467,6 +487,20 @@ func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator
 	return err
 }
 
+func (c *GrpcRegistryReconciler) ensureNetworkPolicy(source grpcCatalogSourceDecorator) error {
+	networkPolicy := source.NetworkPolicy()
+	if currentNetworkPolicy := c.currentNetworkPolicy(source); currentNetworkPolicy != nil {
+		if sanitizedDeepEqual(networkPolicy, currentNetworkPolicy) {
+			return nil
+		}
+		if err := c.OpClient.DeleteNetworkPolicy(networkPolicy.GetNamespace(), networkPolicy.GetName(), metav1.NewDeleteOptions(0)); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	_, err := c.OpClient.CreateNetworkPolicy(networkPolicy)
+	return err
+}
+
 func (c *GrpcRegistryReconciler) ensureSA(source grpcCatalogSourceDecorator) (*corev1.ServiceAccount, error) {
 	sa := source.ServiceAccount()
 	if _, err := c.OpClient.CreateServiceAccount(sa); err != nil {
@@ -606,6 +640,17 @@ func (c *GrpcRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, catal
 
 	// Check on registry resources
 	// TODO: add gRPC health check
+	currentNetworkPolicy := c.currentNetworkPolicy(source)
+	if currentNetworkPolicy == nil {
+		logger.Error("registry service not healthy: could not get network policy")
+		return false, nil
+	}
+	expectedNetworkPolicy := source.NetworkPolicy()
+	if !sanitizedDeepEqual(expectedNetworkPolicy, currentNetworkPolicy) {
+		logger.Error("registry service not healthy: unexpected network policy")
+		return false, nil
+	}
+
 	service, err := c.currentService(source)
 	if err != nil {
 		logger.WithError(err).Error("registry service not healthy: could not get current service")
