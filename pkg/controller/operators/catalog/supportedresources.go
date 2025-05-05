@@ -10,6 +10,7 @@ const (
 	ConsoleQuickStartKind     = "ConsoleQuickStart"
 	ConsoleCLIDownloadKind    = "ConsoleCLIDownload"
 	ConsoleLinkKind           = "ConsoleLink"
+	ConsolePlugin             = "ConsolePlugin"
 )
 
 var supportedKinds = map[string]struct{}{
@@ -22,6 +23,7 @@ var supportedKinds = map[string]struct{}{
 	ConsoleQuickStartKind:     {},
 	ConsoleCLIDownloadKind:    {},
 	ConsoleLinkKind:           {},
+	ConsolePlugin:             {},
 }
 
 // isSupported returns true if OLM supports this type of CustomResource.
