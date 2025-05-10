@@ -1277,10 +1277,11 @@ func TestSyncCatalogSources(t *testing.T) {
 				pod(t, *grpcCatalog),
 				service(grpcCatalog.GetName(), grpcCatalog.GetNamespace()),
 				serviceAccount(grpcCatalog.GetName(), grpcCatalog.GetNamespace(), "", objectReference("init secret")),
-				networkPolicy(grpcCatalog, map[string]string{
+				grpcServerNetworkPolicy(grpcCatalog, map[string]string{
 					reconciler.CatalogSourceLabelKey: grpcCatalog.GetName(),
 					install.OLMManagedLabelKey:       install.OLMManagedLabelValue,
 				}),
+				unpackBundlesNetworkPolicy(grpcCatalog),
 			},
 			existingSources: []sourceAddress{
 				{
@@ -2335,8 +2336,11 @@ func configMap(name, namespace string) *corev1.ConfigMap {
 	}
 }
 
-func networkPolicy(catSrc *v1alpha1.CatalogSource, matchLabels map[string]string) *networkingv1.NetworkPolicy {
-	return reconciler.DesiredRegistryNetworkPolicy(catSrc, matchLabels)
+func grpcServerNetworkPolicy(catSrc *v1alpha1.CatalogSource, matchLabels map[string]string) *networkingv1.NetworkPolicy {
+	return reconciler.DesiredGRPCServerNetworkPolicy(catSrc, matchLabels)
+}
+func unpackBundlesNetworkPolicy(catSrc *v1alpha1.CatalogSource) *networkingv1.NetworkPolicy {
+	return reconciler.DesiredUnpackBundlesNetworkPolicy(catSrc)
 }
 
 func objectReference(name string) *corev1.ObjectReference {

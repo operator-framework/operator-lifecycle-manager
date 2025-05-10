@@ -103,8 +103,12 @@ func (s *grpcCatalogSourceDecorator) Service() (*corev1.Service, error) {
 	return svc, nil
 }
 
-func (s *grpcCatalogSourceDecorator) NetworkPolicy() *networkingv1.NetworkPolicy {
-	return DesiredRegistryNetworkPolicy(s.CatalogSource, s.Labels())
+func (s *grpcCatalogSourceDecorator) GRPCServerNetworkPolicy() *networkingv1.NetworkPolicy {
+	return DesiredGRPCServerNetworkPolicy(s.CatalogSource, s.Labels())
+}
+
+func (s *grpcCatalogSourceDecorator) UnpackBundlesNetworkPolicy() *networkingv1.NetworkPolicy {
+	return DesiredUnpackBundlesNetworkPolicy(s.CatalogSource)
 }
 
 func (s *grpcCatalogSourceDecorator) ServiceAccount() *corev1.ServiceAccount {
@@ -158,11 +162,21 @@ type GrpcRegistryReconciler struct {
 
 var _ RegistryReconciler = &GrpcRegistryReconciler{}
 
-func (c *GrpcRegistryReconciler) currentNetworkPolicy(source grpcCatalogSourceDecorator) *networkingv1.NetworkPolicy {
-	npName := source.NetworkPolicy().GetName()
+func (c *GrpcRegistryReconciler) currentGRPCServerNetworkPolicy(source grpcCatalogSourceDecorator) *networkingv1.NetworkPolicy {
+	npName := source.GRPCServerNetworkPolicy().GetName()
 	np, err := c.Lister.NetworkingV1().NetworkPolicyLister().NetworkPolicies(source.GetNamespace()).Get(npName)
 	if err != nil {
-		logrus.WithField("networkPolicy", npName).WithError(err).Debug("couldn't find network policy in cache")
+		logrus.WithField("networkPolicy", npName).WithError(err).Debug("couldn't find grpc server network policy in cache")
+		return nil
+	}
+	return np
+}
+
+func (c *GrpcRegistryReconciler) currentUnpackBundlesNetworkPolicy(source grpcCatalogSourceDecorator) *networkingv1.NetworkPolicy {
+	npName := source.UnpackBundlesNetworkPolicy().GetName()
+	np, err := c.Lister.NetworkingV1().NetworkPolicyLister().NetworkPolicies(source.GetNamespace()).Get(npName)
+	if err != nil {
+		logrus.WithField("networkPolicy", npName).WithError(err).Debug("couldn't find unpack bundles network policy in cache")
 		return nil
 	}
 	return np
@@ -276,9 +290,13 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, cata
 	}
 
 	//TODO: if any of these error out, we should write a status back (possibly set RegistryServiceStatus to nil so they get recreated)
-	if err := c.ensureNetworkPolicy(source); err != nil {
-		logger.WithError(err).Error("error ensuring registry server: could not ensure registry network policy")
-		return pkgerrors.Wrapf(err, "error ensuring network policy: %s", source.GetName())
+	if err := c.ensureGRPCServerNetworkPolicy(source); err != nil {
+		logger.WithError(err).Error("error ensuring registry server: could not ensure grpc server network policy")
+		return pkgerrors.Wrapf(err, "error ensuring grpc server network policy for catalog source %s", source.GetName())
+	}
+	if err := c.ensureUnpackBundlesNetworkPolicy(source); err != nil {
+		logger.WithError(err).Error("error ensuring registry server: could not ensure bundle unpack network policy")
+		return pkgerrors.Wrapf(err, "error ensuring bundle unpack network policy for catalog source %s", source.GetName())
 	}
 
 	sa, err := c.ensureSA(source)
@@ -487,17 +505,28 @@ func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator
 	return err
 }
 
-func (c *GrpcRegistryReconciler) ensureNetworkPolicy(source grpcCatalogSourceDecorator) error {
-	networkPolicy := source.NetworkPolicy()
-	if currentNetworkPolicy := c.currentNetworkPolicy(source); currentNetworkPolicy != nil {
-		if sanitizedDeepEqual(networkPolicy, currentNetworkPolicy) {
+func (c *GrpcRegistryReconciler) ensureGRPCServerNetworkPolicy(source grpcCatalogSourceDecorator) error {
+	desired := source.GRPCServerNetworkPolicy()
+	current := c.currentGRPCServerNetworkPolicy(source)
+	return c.ensureNetworkPolicy(desired, current)
+}
+
+func (c *GrpcRegistryReconciler) ensureUnpackBundlesNetworkPolicy(source grpcCatalogSourceDecorator) error {
+	desired := source.UnpackBundlesNetworkPolicy()
+	current := c.currentUnpackBundlesNetworkPolicy(source)
+	return c.ensureNetworkPolicy(desired, current)
+}
+
+func (c *GrpcRegistryReconciler) ensureNetworkPolicy(desired, current *networkingv1.NetworkPolicy) error {
+	if current != nil {
+		if isExpectedNetworkPolicy(desired, current) {
 			return nil
 		}
-		if err := c.OpClient.DeleteNetworkPolicy(networkPolicy.GetNamespace(), networkPolicy.GetName(), metav1.NewDeleteOptions(0)); err != nil && !apierrors.IsNotFound(err) {
+		if err := c.OpClient.DeleteNetworkPolicy(current.GetNamespace(), current.GetName(), metav1.NewDeleteOptions(0)); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	}
-	_, err := c.OpClient.CreateNetworkPolicy(networkPolicy)
+	_, err := c.OpClient.CreateNetworkPolicy(desired)
 	return err
 }
 
@@ -640,14 +669,25 @@ func (c *GrpcRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, catal
 
 	// Check on registry resources
 	// TODO: add gRPC health check
-	currentNetworkPolicy := c.currentNetworkPolicy(source)
+	currentNetworkPolicy := c.currentGRPCServerNetworkPolicy(source)
 	if currentNetworkPolicy == nil {
-		logger.Error("registry service not healthy: could not get network policy")
+		logger.Error("registry service not healthy: could not get grpc server network policy")
 		return false, nil
 	}
-	expectedNetworkPolicy := source.NetworkPolicy()
-	if !sanitizedDeepEqual(expectedNetworkPolicy, currentNetworkPolicy) {
-		logger.Error("registry service not healthy: unexpected network policy")
+	expectedNetworkPolicy := source.GRPCServerNetworkPolicy()
+	if !isExpectedNetworkPolicy(expectedNetworkPolicy, currentNetworkPolicy) {
+		logger.Error("registry service not healthy: unexpected grpc server network policy")
+		return false, nil
+	}
+
+	currentNetworkPolicy = c.currentUnpackBundlesNetworkPolicy(source)
+	if currentNetworkPolicy == nil {
+		logger.Error("registry service not healthy: could not get unpack bundles network policy")
+		return false, nil
+	}
+	expectedNetworkPolicy = source.UnpackBundlesNetworkPolicy()
+	if !isExpectedNetworkPolicy(expectedNetworkPolicy, currentNetworkPolicy) {
+		logger.Error("registry service not healthy: unexpected unpack bundles network policy")
 		return false, nil
 	}
 

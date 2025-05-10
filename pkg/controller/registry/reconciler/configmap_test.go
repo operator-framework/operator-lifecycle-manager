@@ -199,7 +199,8 @@ func objectsForCatalogSource(t *testing.T, catsrc *v1alpha1.CatalogSource) []run
 	switch catsrc.Spec.SourceType {
 	case v1alpha1.SourceTypeInternal, v1alpha1.SourceTypeConfigmap:
 		decorated := configMapCatalogSourceDecorator{catsrc, runAsUser}
-		np := decorated.NetworkPolicy()
+		grpcServerNetworkPolicy := decorated.GRPCServerNetworkPolicy()
+		unpackBundlesNetworkPolicy := decorated.UnpackBundlesNetworkPolicy()
 		service, err := decorated.Service()
 		if err != nil {
 			t.Fatal(err)
@@ -210,7 +211,8 @@ func objectsForCatalogSource(t *testing.T, catsrc *v1alpha1.CatalogSource) []run
 			t.Fatal(err)
 		}
 		objs = append(objs,
-			np,
+			grpcServerNetworkPolicy,
+			unpackBundlesNetworkPolicy,
 			pod,
 			service,
 			serviceAccount,
@@ -218,7 +220,8 @@ func objectsForCatalogSource(t *testing.T, catsrc *v1alpha1.CatalogSource) []run
 	case v1alpha1.SourceTypeGrpc:
 		if catsrc.Spec.Image != "" {
 			decorated := grpcCatalogSourceDecorator{CatalogSource: catsrc, createPodAsUser: runAsUser, opmImage: ""}
-			np := decorated.NetworkPolicy()
+			grpcServerNetworkPolicy := decorated.GRPCServerNetworkPolicy()
+			unpackBundlesNetworkPolicy := decorated.UnpackBundlesNetworkPolicy()
 			serviceAccount := decorated.ServiceAccount()
 			service, err := decorated.Service()
 			if err != nil {
@@ -229,7 +232,8 @@ func objectsForCatalogSource(t *testing.T, catsrc *v1alpha1.CatalogSource) []run
 				t.Fatal(err)
 			}
 			objs = append(objs,
-				np,
+				grpcServerNetworkPolicy,
+				unpackBundlesNetworkPolicy,
 				pod,
 				service,
 				serviceAccount,
@@ -351,7 +355,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			},
 		},
 		{
-			testName: "ExistingRegistry/BadNetworkPolicy",
+			testName: "ExistingRegistry/BadNetworkPolicies",
 			in: in{
 				cluster: cluster{
 					k8sObjs: append(setLabel(objectsForCatalogSource(t, validCatalogSource), &networkingv1.NetworkPolicy{}, CatalogSourceLabelKey, "wrongValue"), validConfigMap),
@@ -530,10 +534,15 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			require.Equal(t, pod.GetLabels(), outPod.GetLabels())
 			require.Equal(t, pod.Spec, outPod.Spec)
 
-			np := decorated.NetworkPolicy()
-			outNp, err := client.KubernetesInterface().NetworkingV1().NetworkPolicies(np.GetNamespace()).Get(context.TODO(), np.GetName(), metav1.GetOptions{})
+			grpcServerNetworkPolicy := decorated.GRPCServerNetworkPolicy()
+			outGrpcServerNetworkPolicy, err := client.KubernetesInterface().NetworkingV1().NetworkPolicies(grpcServerNetworkPolicy.GetNamespace()).Get(context.TODO(), grpcServerNetworkPolicy.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
-			require.Equal(t, np, outNp)
+			require.Equal(t, grpcServerNetworkPolicy, outGrpcServerNetworkPolicy)
+
+			unpackBundlesNetworkPolicy := decorated.UnpackBundlesNetworkPolicy()
+			outUnpackBundlesNetworkPolicy, err := client.KubernetesInterface().NetworkingV1().NetworkPolicies(unpackBundlesNetworkPolicy.GetNamespace()).Get(context.TODO(), unpackBundlesNetworkPolicy.GetName(), metav1.GetOptions{})
+			require.NoError(t, err)
+			require.Equal(t, unpackBundlesNetworkPolicy, outUnpackBundlesNetworkPolicy)
 
 			service, err := decorated.Service()
 			require.NoError(t, err)
