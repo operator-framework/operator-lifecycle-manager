@@ -61,13 +61,25 @@ func NewFilteredOLMConfigInformer(client versioned.Interface, resyncPeriod time.
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorsV1().OLMConfigs().List(context.TODO(), options)
+				return client.OperatorsV1().OLMConfigs().List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorsV1().OLMConfigs().Watch(context.TODO(), options)
+				return client.OperatorsV1().OLMConfigs().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorsV1().OLMConfigs().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorsV1().OLMConfigs().Watch(ctx, options)
 			},
 		},
 		&pkgoperatorsv1.OLMConfig{},

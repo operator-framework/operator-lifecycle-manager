@@ -73,7 +73,7 @@ func truncateString(desc string, maxLen int) string {
 
 	// Trying to chop off at closest word boundary (i.e. whitespace).
 	if n := strings.LastIndexFunc(desc, isWhiteSpace); n > 0 {
-		return desc[0 : n] + "..."
+		return desc[0:n] + "..."
 	}
 
 	return desc[0:maxLen] + "..."
