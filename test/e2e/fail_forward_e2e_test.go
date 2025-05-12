@@ -321,7 +321,7 @@ var _ = Describe("Fail Forward Upgrades", Label("FailForward"), func() {
 			Expect(subscription.Status.InstallPlanRef.Name).To(Equal(failedInstallPlanRef.Name))
 		})
 	})
-	When("a CSV resource is in a failed state", func() {
+	XWhen("a CSV resource is in a failed state (https://github.com/operator-framework/operator-lifecycle-manager/issues/3573)", func() {
 
 		var (
 			catalogSourceName string
