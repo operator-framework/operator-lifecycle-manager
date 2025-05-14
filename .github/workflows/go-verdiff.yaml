@@ -1,12 +1,9 @@
 name: go-verdiff
 on:
   pull_request:
-    paths:
-      - '**.mod'
-      - '.github/workflows/go-verdiff.yaml'
-  push:
     branches:
       - master
+  push:
   workflow_dispatch:
   merge_group:
 jobs:
