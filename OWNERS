@@ -12,15 +12,11 @@ approvers:
 # review == this code is good /lgtm
 reviewers:
   - kevinrizza
-  - benluddy
   - camilamacedo86
-  - dinhxuanvu
-  - gallettilance
   - anik120
   - ankitathomas
   - joelanford
   - perdasilva
-  - akihikokuroda
   - oceanc80
   - grokspawn
   - dtfranz
