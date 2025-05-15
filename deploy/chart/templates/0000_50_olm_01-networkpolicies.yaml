@@ -52,7 +52,7 @@ spec:
    - protocol: TCP
      port: 6443  # kube-api server
    - protocol: TCP
-     port: 50051  # catalog service
+     port: 50051  # registry pods' service port
    - protocol: TCP
      port: 53  # DNS
    - protocol: UDP
@@ -75,13 +75,22 @@ spec:
    - protocol: TCP
      port: {{ .Values.package.service.internalPort }}
  egress:
-   - ports:
-       - protocol: TCP
-         port: 50051  # catalog service
-       - protocol: TCP
-         port: 53  # DNS
-       - protocol: UDP
-         port: 53  # DNS
+   - to:
+     - namespaceSelector:
+        matchLabels:
+            kubernetes.io/metadata.name: {{ .Values.catalog_namespace }}  # For registry resolution
+     ports:
+      - protocol: TCP
+        port: 50051  # registry pods' service port
+   - to:
+     - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system  # For DNS resolution (CoreDNS runs here)
+     ports:
+      - protocol: UDP
+        port: 53  # DNS
+      - protocol: TCP
+        port: 53  # DNS
  policyTypes:
  - Ingress
  - Egress
