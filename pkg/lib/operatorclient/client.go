@@ -5,6 +5,7 @@ import (
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensions "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,6 +35,7 @@ type ClientInterface interface {
 	ClusterRoleClient
 	DeploymentClient
 	ConfigMapClient
+	NetworkPolicyClient
 }
 
 // CustomResourceClient contains methods for the Custom Resource.
@@ -139,6 +141,14 @@ type ConfigMapClient interface {
 	GetConfigMap(namespace, name string) (*v1.ConfigMap, error)
 	UpdateConfigMap(modified *v1.ConfigMap) (*v1.ConfigMap, error)
 	DeleteConfigMap(namespace, name string, options *metav1.DeleteOptions) error
+}
+
+// NetworkPolicyClient contains methods for the NetworkPolicy resource
+type NetworkPolicyClient interface {
+	CreateNetworkPolicy(*networkingv1.NetworkPolicy) (*networkingv1.NetworkPolicy, error)
+	GetNetworkPolicy(namespace, name string) (*networkingv1.NetworkPolicy, error)
+	UpdateNetworkPolicy(modified *networkingv1.NetworkPolicy) (*networkingv1.NetworkPolicy, error)
+	DeleteNetworkPolicy(namespace, name string, options *metav1.DeleteOptions) error
 }
 
 // Interface assertion.

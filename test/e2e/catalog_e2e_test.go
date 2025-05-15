@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/intstr"
+
 	"net"
 	"path/filepath"
 	"strconv"
@@ -21,10 +23,12 @@ import (
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	networkingv1ac "k8s.io/client-go/applyconfigurations/networking/v1"
 
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -749,6 +753,136 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 		Expect(registryPods).ShouldNot(BeNil(), "nil replacement registry pods")
 		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of replacement registry pods found")
 	})
+
+	for _, npType := range []string{"grpc-server", "unpack-bundles"} {
+		It(fmt.Sprintf("delete registry %s network policy triggers recreation", npType), func() {
+			By("Creating CatalogSource using an external registry image (community-operators)")
+			source := &v1alpha1.CatalogSource{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       v1alpha1.CatalogSourceKind,
+					APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      genName("catalog-"),
+					Namespace: generatedNamespace.GetName(),
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      communityOperatorsImage,
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Restricted,
+					},
+				},
+			}
+
+			source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			npName := fmt.Sprintf("%s-%s", source.GetName(), npType)
+
+			var networkPolicy *networkingv1.NetworkPolicy
+			Eventually(func() error {
+				networkPolicy, err = c.KubernetesInterface().NetworkingV1().NetworkPolicies(source.GetNamespace()).Get(context.Background(), npName, metav1.GetOptions{})
+				return err
+			}, pollDuration, pollInterval).Should(Succeed())
+			Expect(networkPolicy).NotTo(BeNil())
+
+			By("Storing the UID for later comparison")
+			uid := networkPolicy.GetUID()
+
+			By("Deleting the network policy")
+			err = c.KubernetesInterface().NetworkingV1().NetworkPolicies(source.GetNamespace()).Delete(context.Background(), npName, metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("Waiting for a new network policy be created")
+			Eventually(func() error {
+				networkPolicy, err = c.KubernetesInterface().NetworkingV1().NetworkPolicies(source.GetNamespace()).Get(context.Background(), npName, metav1.GetOptions{})
+				if err != nil {
+					if k8serror.IsNotFound(err) {
+						ctx.Ctx().Logf("waiting for new network policy to be created")
+					} else {
+						ctx.Ctx().Logf("error getting network policy %q: %v", npName, err)
+					}
+					return err
+				}
+				if networkPolicy.GetUID() == uid {
+					return fmt.Errorf("network policy with original uid still exists... (did the deletion somehow fail?)")
+				}
+				return nil
+			}, pollDuration, pollInterval).Should(Succeed())
+		})
+
+		It(fmt.Sprintf("change registry %s network policy triggers revert to desired", npType), func() {
+			By("Create CatalogSource using an external registry image (community-operators)")
+			source := &v1alpha1.CatalogSource{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       v1alpha1.CatalogSourceKind,
+					APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      genName("catalog-"),
+					Namespace: generatedNamespace.GetName(),
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      communityOperatorsImage,
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Restricted,
+					},
+				},
+			}
+
+			source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			npName := fmt.Sprintf("%s-%s", source.GetName(), npType)
+
+			var networkPolicy *networkingv1.NetworkPolicy
+			Eventually(func() error {
+				networkPolicy, err = c.KubernetesInterface().NetworkingV1().NetworkPolicies(source.GetNamespace()).Get(context.Background(), npName, metav1.GetOptions{})
+				return err
+			}, pollDuration, pollInterval).Should(Succeed())
+			Expect(networkPolicy).NotTo(BeNil())
+
+			By("Patching the network policy with an undesirable egress policy")
+			npac := networkingv1ac.NetworkPolicy(npName, source.GetNamespace()).
+				WithSpec(networkingv1ac.NetworkPolicySpec().
+					WithEgress(networkingv1ac.NetworkPolicyEgressRule().
+						WithPorts(networkingv1ac.NetworkPolicyPort().
+							WithProtocol(corev1.ProtocolTCP).
+							WithPort(intstr.FromString("foobar")),
+						),
+					),
+				)
+			np, err := c.KubernetesInterface().NetworkingV1().NetworkPolicies(source.GetNamespace()).Apply(context.Background(), npac, metav1.ApplyOptions{FieldManager: "olm-e2e-test", Force: true})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(np.Spec.Egress).To(HaveLen(1))
+
+			By("Waiting for the network policy be reverted")
+			Eventually(func() error {
+				np, err := c.KubernetesInterface().NetworkingV1().NetworkPolicies(source.GetNamespace()).Get(context.Background(), npName, metav1.GetOptions{})
+				if err != nil {
+					ctx.Ctx().Logf("error getting network policy %q: %v", npName, err)
+					return err
+				}
+
+				if needsRevert := func() bool {
+					for _, rule := range np.Spec.Egress {
+						for _, port := range rule.Ports {
+							if port.Port.String() == "foobar" {
+								return true
+							}
+						}
+					}
+					return false
+				}(); needsRevert {
+					ctx.Ctx().Logf("waiting for egress rule to be reverted")
+					return fmt.Errorf("extra network policy egress rule has not been reverted")
+				}
+				return nil
+			}, pollDuration, pollInterval).Should(Succeed())
+		})
+	}
 
 	It("configure gRPC registry pod to extract content", func() {
 

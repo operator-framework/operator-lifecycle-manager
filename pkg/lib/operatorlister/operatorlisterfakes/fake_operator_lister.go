@@ -48,6 +48,16 @@ type FakeOperatorLister struct {
 	coreV1ReturnsOnCall map[int]struct {
 		result1 operatorlister.CoreV1Lister
 	}
+	NetworkingV1Stub        func() operatorlister.NetworkingV1Lister
+	networkingV1Mutex       sync.RWMutex
+	networkingV1ArgsForCall []struct {
+	}
+	networkingV1Returns struct {
+		result1 operatorlister.NetworkingV1Lister
+	}
+	networkingV1ReturnsOnCall map[int]struct {
+		result1 operatorlister.NetworkingV1Lister
+	}
 	OperatorsV1Stub        func() operatorlister.OperatorsV1Lister
 	operatorsV1Mutex       sync.RWMutex
 	operatorsV1ArgsForCall []struct {
@@ -304,6 +314,59 @@ func (fake *FakeOperatorLister) CoreV1ReturnsOnCall(i int, result1 operatorliste
 	}{result1}
 }
 
+func (fake *FakeOperatorLister) NetworkingV1() operatorlister.NetworkingV1Lister {
+	fake.networkingV1Mutex.Lock()
+	ret, specificReturn := fake.networkingV1ReturnsOnCall[len(fake.networkingV1ArgsForCall)]
+	fake.networkingV1ArgsForCall = append(fake.networkingV1ArgsForCall, struct {
+	}{})
+	stub := fake.NetworkingV1Stub
+	fakeReturns := fake.networkingV1Returns
+	fake.recordInvocation("NetworkingV1", []interface{}{})
+	fake.networkingV1Mutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeOperatorLister) NetworkingV1CallCount() int {
+	fake.networkingV1Mutex.RLock()
+	defer fake.networkingV1Mutex.RUnlock()
+	return len(fake.networkingV1ArgsForCall)
+}
+
+func (fake *FakeOperatorLister) NetworkingV1Calls(stub func() operatorlister.NetworkingV1Lister) {
+	fake.networkingV1Mutex.Lock()
+	defer fake.networkingV1Mutex.Unlock()
+	fake.NetworkingV1Stub = stub
+}
+
+func (fake *FakeOperatorLister) NetworkingV1Returns(result1 operatorlister.NetworkingV1Lister) {
+	fake.networkingV1Mutex.Lock()
+	defer fake.networkingV1Mutex.Unlock()
+	fake.NetworkingV1Stub = nil
+	fake.networkingV1Returns = struct {
+		result1 operatorlister.NetworkingV1Lister
+	}{result1}
+}
+
+func (fake *FakeOperatorLister) NetworkingV1ReturnsOnCall(i int, result1 operatorlister.NetworkingV1Lister) {
+	fake.networkingV1Mutex.Lock()
+	defer fake.networkingV1Mutex.Unlock()
+	fake.NetworkingV1Stub = nil
+	if fake.networkingV1ReturnsOnCall == nil {
+		fake.networkingV1ReturnsOnCall = make(map[int]struct {
+			result1 operatorlister.NetworkingV1Lister
+		})
+	}
+	fake.networkingV1ReturnsOnCall[i] = struct {
+		result1 operatorlister.NetworkingV1Lister
+	}{result1}
+}
+
 func (fake *FakeOperatorLister) OperatorsV1() operatorlister.OperatorsV1Lister {
 	fake.operatorsV1Mutex.Lock()
 	ret, specificReturn := fake.operatorsV1ReturnsOnCall[len(fake.operatorsV1ArgsForCall)]
@@ -527,6 +590,8 @@ func (fake *FakeOperatorLister) Invocations() map[string][][]interface{} {
 	defer fake.appsV1Mutex.RUnlock()
 	fake.coreV1Mutex.RLock()
 	defer fake.coreV1Mutex.RUnlock()
+	fake.networkingV1Mutex.RLock()
+	defer fake.networkingV1Mutex.RUnlock()
 	fake.operatorsV1Mutex.RLock()
 	defer fake.operatorsV1Mutex.RUnlock()
 	fake.operatorsV1alpha1Mutex.RLock()

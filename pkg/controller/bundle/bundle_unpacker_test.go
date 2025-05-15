@@ -208,7 +208,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      pathHash,
 							Namespace: "ns-a",
-							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue, bundleUnpackRefLabel: pathHash},
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue, BundleUnpackRefLabel: pathHash},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
@@ -225,8 +225,11 @@ func TestConfigMapUnpacker(t *testing.T) {
 							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
-									Name:   pathHash,
-									Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
+									Name: pathHash,
+									Labels: map[string]string{
+										install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+										BundleUnpackRefLabel:       pathHash,
+									},
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy:    corev1.RestartPolicyNever,
@@ -444,7 +447,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      digestHash,
 							Namespace: "ns-a",
-							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue, bundleUnpackRefLabel: digestHash},
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue, BundleUnpackRefLabel: digestHash},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
@@ -460,8 +463,11 @@ func TestConfigMapUnpacker(t *testing.T) {
 							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
-									Name:   digestHash,
-									Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
+									Name: digestHash,
+									Labels: map[string]string{
+										install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+										BundleUnpackRefLabel:       digestHash,
+									},
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
@@ -718,7 +724,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      digestHash,
 							Namespace: "ns-a",
-							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue, bundleUnpackRefLabel: digestHash},
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue, BundleUnpackRefLabel: digestHash},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
@@ -734,8 +740,11 @@ func TestConfigMapUnpacker(t *testing.T) {
 							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
-									Name:   digestHash,
-									Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
+									Name: digestHash,
+									Labels: map[string]string{
+										install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+										BundleUnpackRefLabel:       digestHash,
+									},
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
@@ -987,7 +996,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      pathHash,
 							Namespace: "ns-a",
-							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue, bundleUnpackRefLabel: pathHash},
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue, BundleUnpackRefLabel: pathHash},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
@@ -1003,8 +1012,11 @@ func TestConfigMapUnpacker(t *testing.T) {
 							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
-									Name:   pathHash,
-									Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
+									Name: pathHash,
+									Labels: map[string]string{
+										install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+										BundleUnpackRefLabel:       pathHash,
+									},
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
@@ -1242,8 +1254,11 @@ func TestConfigMapUnpacker(t *testing.T) {
 							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
-									Name:   pathHash,
-									Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
+									Name: pathHash,
+									Labels: map[string]string{
+										install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+										BundleUnpackRefLabel:       pathHash,
+									},
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
@@ -1494,8 +1509,11 @@ func TestConfigMapUnpacker(t *testing.T) {
 							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
-									Name:   pathHash,
-									Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
+									Name: pathHash,
+									Labels: map[string]string{
+										install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+										BundleUnpackRefLabel:       pathHash,
+									},
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
@@ -1990,7 +2008,7 @@ func TestSortUnpackJobs(t *testing.T) {
 		return &batchv1.Job{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:   name,
-				Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue, bundleUnpackRefLabel: "test"},
+				Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue, BundleUnpackRefLabel: "test"},
 			},
 			Status: batchv1.JobStatus{
 				Conditions: conditions,
@@ -2000,7 +2018,7 @@ func TestSortUnpackJobs(t *testing.T) {
 	nilConditionJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   "nc",
-			Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue, bundleUnpackRefLabel: "test"},
+			Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue, BundleUnpackRefLabel: "test"},
 		},
 		Status: batchv1.JobStatus{
 			Conditions: nil,

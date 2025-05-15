@@ -48,8 +48,8 @@ const (
 	// attempting to recreate a failed unpack job for a bundle.
 	BundleUnpackRetryMinimumIntervalAnnotationKey = "operatorframework.io/bundle-unpack-min-retry-interval"
 
-	// bundleUnpackRefLabel is used to filter for all unpack jobs for a specific bundle.
-	bundleUnpackRefLabel = "operatorframework.io/bundle-unpack-ref"
+	// BundleUnpackRefLabel is used to filter for all unpack jobs or pods for a specific bundle.
+	BundleUnpackRefLabel = "operatorframework.io/bundle-unpack-ref"
 )
 
 type BundleUnpackResult struct {
@@ -98,7 +98,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
 				install.OLMManagedLabelKey: install.OLMManagedLabelValue,
-				bundleUnpackRefLabel:       cmRef.Name,
+				BundleUnpackRefLabel:       cmRef.Name,
 			},
 		},
 		Spec: batchv1.JobSpec{
@@ -108,6 +108,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 					Name: cmRef.Name,
 					Labels: map[string]string{
 						install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+						BundleUnpackRefLabel:       cmRef.Name,
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -665,7 +666,7 @@ func (c *ConfigMapUnpacker) ensureConfigmap(csRef *corev1.ObjectReference, name 
 func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference, timeout time.Duration, unpackRetryInterval time.Duration) (job *batchv1.Job, err error) {
 	fresh := c.job(cmRef, bundlePath, secrets, timeout)
 	var jobs, toDelete []*batchv1.Job
-	jobs, err = c.jobLister.Jobs(fresh.GetNamespace()).List(k8slabels.ValidatedSetSelector{bundleUnpackRefLabel: cmRef.Name})
+	jobs, err = c.jobLister.Jobs(fresh.GetNamespace()).List(k8slabels.ValidatedSetSelector{BundleUnpackRefLabel: cmRef.Name})
 	if err != nil {
 		return
 	}
@@ -676,7 +677,7 @@ func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath 
 		return
 	}
 	if jobWithoutLabel != nil {
-		_, labelExists := jobWithoutLabel.Labels[bundleUnpackRefLabel]
+		_, labelExists := jobWithoutLabel.Labels[BundleUnpackRefLabel]
 		if !labelExists {
 			jobs = append(jobs, jobWithoutLabel)
 		}

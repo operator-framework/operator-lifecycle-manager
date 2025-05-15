@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/connectivity"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -38,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 	batchv1applyconfigurations "k8s.io/client-go/applyconfigurations/batch/v1"
 	corev1applyconfigurations "k8s.io/client-go/applyconfigurations/core/v1"
+	networkingv1applyconfigurations "k8s.io/client-go/applyconfigurations/networking/v1"
 	rbacv1applyconfigurations "k8s.io/client-go/applyconfigurations/rbac/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/informers"
@@ -598,6 +600,23 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		if err := op.RegisterQueueInformer(queueInformer); err != nil {
 			return nil, err
 		}
+	}
+
+	// Wire NetworkPolicies
+	networkPolicyInformer := k8sInformerFactory.Networking().V1().NetworkPolicies()
+	op.lister.NetworkingV1().RegisterNetworkPolicyLister(metav1.NamespaceAll, networkPolicyInformer.Lister())
+	sharedIndexInformers = append(sharedIndexInformers, networkPolicyInformer.Informer())
+
+	networkPoliciesGVR := networkingv1.SchemeGroupVersion.WithResource("networkpolicies")
+	if err := labelObjects(networkPoliciesGVR, networkPolicyInformer.Informer(), labeller.ObjectLabeler[*networkingv1.NetworkPolicy, *networkingv1applyconfigurations.NetworkPolicyApplyConfiguration](
+		ctx, op.logger, labeller.Filter(networkPoliciesGVR),
+		networkPolicyInformer.Lister().List,
+		networkingv1applyconfigurations.NetworkPolicy,
+		func(namespace string, ctx context.Context, cfg *networkingv1applyconfigurations.NetworkPolicyApplyConfiguration, opts metav1.ApplyOptions) (*networkingv1.NetworkPolicy, error) {
+			return op.opClient.KubernetesInterface().NetworkingV1().NetworkPolicies(namespace).Apply(ctx, cfg, opts)
+		},
+	)); err != nil {
+		return nil, err
 	}
 
 	// Wire Pods for CatalogSource
