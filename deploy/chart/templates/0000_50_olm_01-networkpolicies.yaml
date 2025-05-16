@@ -19,17 +19,10 @@ spec:
     matchLabels:
       app: olm-operator
   ingress:
-    - ports:
-      - protocol: TCP
-        port: 8080
+    - {{ .Values.networkPolicy.metrics | toYaml | nindent 6 | trimSuffix "\n" }}
   egress:
-    - ports:
-      - protocol: TCP
-        port: 6443  # kube-api service
-      - protocol: TCP
-        port: 53  # DNS
-      - protocol: UDP
-        port: 53  # DNS
+    - {{ .Values.networkPolicy.kubeAPIServer | toYaml | nindent 6 | trimSuffix "\n" }}
+    - {{ .Values.networkPolicy.dns | toYaml | nindent 6 | trimSuffix "\n" }}
   policyTypes:
     - Ingress
     - Egress
@@ -44,19 +37,13 @@ spec:
     matchLabels:
       app: catalog-operator
   ingress:
-    - ports:
-      - protocol: TCP
-        port: metrics
+    - {{ .Values.networkPolicy.metrics | toYaml | nindent 6 | trimSuffix "\n" }}
   egress:
-    - ports:
+    - {{ .Values.networkPolicy.kubeAPIServer | toYaml | nindent 6 | trimSuffix "\n" }}
+    - {{ .Values.networkPolicy.dns | toYaml | nindent 6 | trimSuffix "\n" }}
+    - ports: # This is another distinct rule in the egress list
       - protocol: TCP
-        port: 6443  # kube-api server
-      - protocol: TCP
-        port: 50051  # registry pods' service port
-      - protocol: TCP
-        port: 53  # DNS
-      - protocol: UDP
-        port: 53  # DNS
+        port: {{ .Values.catalogGrpcServicePort }}
   policyTypes:
     - Ingress
     - Egress
@@ -75,13 +62,10 @@ spec:
       - protocol: TCP
         port: {{ .Values.package.service.internalPort }}
   egress:
+    - {{ .Values.networkPolicy.dns | toYaml | nindent 6 | trimSuffix "\n" }}
     - ports:
       - protocol: TCP
-        port: 50051  # registry pods' service port
-      - protocol: UDP
-        port: 53  # DNS
-      - protocol: TCP
-        port: 53  # DNS
+        port: {{ .Values.catalogGrpcServicePort }}
   policyTypes:
   - Ingress
   - Egress
