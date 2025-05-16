@@ -1,99 +1,90 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
- name: default-deny-all-traffic
- namespace: {{ .Values.namespace }}
+  name: default-deny-all-traffic
+  namespace: {{ .Values.namespace }}
 spec:
- podSelector: {}
- policyTypes:
- - Ingress
- - Egress
+  podSelector: { }
+  policyTypes:
+    - Ingress
+    - Egress
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
- name: olm-operator
- namespace: {{ .Values.namespace }}
+  name: olm-operator
+  namespace: {{ .Values.namespace }}
 spec:
- podSelector:
-   matchLabels:
-     app: olm-operator
- ingress:
- - ports:
-   - protocol: TCP
-     port: 8080
- egress:
- - ports:
-   - protocol: TCP
-     port: 6443  # kube-api service
-   - protocol: TCP
-     port: 53  # DNS
-   - protocol: UDP
-     port: 53  # DNS
- policyTypes:
- - Ingress
- - Egress
+  podSelector:
+    matchLabels:
+      app: olm-operator
+  ingress:
+    - ports:
+      - protocol: TCP
+        port: 8080
+  egress:
+    - ports:
+      - protocol: TCP
+        port: 6443  # kube-api service
+      - protocol: TCP
+        port: 53  # DNS
+      - protocol: UDP
+        port: 53  # DNS
+  policyTypes:
+    - Ingress
+    - Egress
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
- name: catalog-operator
- namespace: {{ .Values.namespace }}
+  name: catalog-operator
+  namespace: {{ .Values.namespace }}
 spec:
- podSelector:
-   matchLabels:
-     app: catalog-operator
- ingress:
- - ports:
-   - protocol: TCP
-     port: metrics
- egress:
- - ports:
-   - protocol: TCP
-     port: 6443  # kube-api server
-   - protocol: TCP
-     port: 50051  # registry pods' service port
-   - protocol: TCP
-     port: 53  # DNS
-   - protocol: UDP
-     port: 53  # DNS
- policyTypes:
- - Ingress
- - Egress
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
- name: packageserver
- namespace: {{ .Values.namespace }}
-spec:
- podSelector:
-   matchLabels:
-     app: packageserver
- ingress:
- - ports:
-   - protocol: TCP
-     port: {{ .Values.package.service.internalPort }}
- egress:
-   - to:
-     - namespaceSelector:
-        matchLabels:
-            kubernetes.io/metadata.name: {{ .Values.catalog_namespace }}  # For registry resolution
-     ports:
+  podSelector:
+    matchLabels:
+      app: catalog-operator
+  ingress:
+    - ports:
+      - protocol: TCP
+        port: metrics
+  egress:
+    - ports:
+      - protocol: TCP
+        port: 6443  # kube-api server
       - protocol: TCP
         port: 50051  # registry pods' service port
-   - to:
-     - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: kube-system  # For DNS resolution (CoreDNS runs here)
-     ports:
+      - protocol: TCP
+        port: 53  # DNS
+      - protocol: UDP
+        port: 53  # DNS
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: packageserver
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: packageserver
+  ingress:
+    - ports:
+      - protocol: TCP
+        port: {{ .Values.package.service.internalPort }}
+  egress:
+    - ports:
+      - protocol: TCP
+        port: 50051  # registry pods' service port
       - protocol: UDP
         port: 53  # DNS
       - protocol: TCP
         port: 53  # DNS
- policyTypes:
- - Ingress
- - Egress
+  policyTypes:
+  - Ingress
+  - Egress
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -101,11 +92,11 @@ metadata:
   name: default-allow-all
   namespace: {{ .Values.operator_namespace }}
 spec:
-  podSelector: {}
+  podSelector: { }
   policyTypes:
     - Ingress
     - Egress
   ingress:
-    - {}
+    - { }
   egress:
-    - {}
+    - { }
