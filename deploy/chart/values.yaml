@@ -19,7 +19,7 @@ writeStatusName: '""'
 imagestream: false
 debug: false
 installType: upstream
-catalogGrpcServicePort: 50051
+catalogGrpcPodPort: 50051
 
 olm:
   replicaCount: 1
@@ -85,24 +85,10 @@ networkPolicy:
         port: 53
       - protocol: UDP
         port: 53
-    to:
-    - namespaceSelector:
-       matchLabels:
-         kubernetes.io/metadata.name: kube-system
-      podSelector:
-       matchLabels:
-         k8s-app: kube-dns
   kubeAPIServer:
     ports:
       - protocol: TCP
         port: 6443
-    to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: kube-system
-      podSelector:
-        matchLabels:
-          component: kube-apiserver
   metrics:
     ports:
       - protocol: TCP

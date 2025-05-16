@@ -43,7 +43,7 @@ spec:
     - {{ .Values.networkPolicy.dns | toYaml | nindent 6 | trimSuffix "\n" }}
     - ports: # This is another distinct rule in the egress list
       - protocol: TCP
-        port: {{ .Values.catalogGrpcServicePort }}
+        port: {{ .Values.catalogGrpcPodPort }}
   policyTypes:
     - Ingress
     - Egress
@@ -65,7 +65,7 @@ spec:
     - {{ .Values.networkPolicy.dns | toYaml | nindent 6 | trimSuffix "\n" }}
     - ports:
       - protocol: TCP
-        port: {{ .Values.catalogGrpcServicePort }}
+        port: {{ .Values.catalogGrpcPodPort }}
   policyTypes:
   - Ingress
   - Egress
