@@ -1,0 +1,186 @@
+{
+    "schema": "olm.package",
+    "name": "busybox",
+    "defaultChannel": "alpha"
+}
+{
+    "schema": "olm.channel",
+    "name": "alpha",
+    "package": "busybox",
+    "entries": [
+        {
+            "name": "busybox.v2.0.0",
+            "skipRange": ">=0.0.0 <2.0.0"
+        }
+    ]
+}
+{
+    "schema": "olm.bundle",
+    "name": "busybox.v2.0.0",
+    "package": "busybox",
+    "image": "quay.io/olmtest/busybox-bundle:2.0.0",
+    "properties": [
+        {
+            "type": "olm.gvk.required",
+            "value": {
+                "group": "olm.test.io",
+                "kind": "Foo",
+                "version": "v1"
+            }
+        },
+        {
+            "type": "olm.package",
+            "value": {
+                "packageName": "busybox",
+                "version": "2.0.0"
+            }
+        },
+        {
+            "type": "olm.csv.metadata",
+            "value": {
+                "annotations": {
+                    "olm.skipRange": ">=0.0.0 <2.0.0"
+                },
+                "apiServiceDefinitions": {},
+                "crdDescriptions": {
+                    "required": [
+                        {
+                            "name": "foos.olm.test.io",
+                            "version": "v1",
+                            "kind": "Foo",
+                            "displayName": "Foo",
+                            "description": "Foo resources for testing dependencies"
+                        }
+                    ]
+                },
+                "description": "A busybox CSV.\n",
+                "displayName": "busybox",
+                "installModes": [
+                    {
+                        "type": "OwnNamespace",
+                        "supported": true
+                    },
+                    {
+                        "type": "SingleNamespace",
+                        "supported": true
+                    },
+                    {
+                        "type": "MultiNamespace",
+                        "supported": true
+                    },
+                    {
+                        "type": "AllNamespaces",
+                        "supported": true
+                    }
+                ],
+                "maturity": "alpha",
+                "provider": {
+                    "name": "Red Hat"
+                }
+            }
+        }
+    ],
+    "relatedImages": [
+        {
+            "name": "",
+            "image": "busybox"
+        },
+        {
+            "name": "",
+            "image": "quay.io/olmtest/busybox-bundle:2.0.0"
+        }
+    ]
+}
+{
+    "schema": "olm.package",
+    "name": "busybox-dependency",
+    "defaultChannel": "alpha"
+}
+{
+    "schema": "olm.channel",
+    "name": "alpha",
+    "package": "busybox-dependency",
+    "entries": [
+        {
+            "name": "busybox-dependency.v2.0.0",
+            "skipRange": ">=0.0.0 <2.0.0"
+        }
+    ]
+}
+{
+    "schema": "olm.bundle",
+    "name": "busybox-dependency.v2.0.0",
+    "package": "busybox-dependency",
+    "image": "quay.io/olmtest/busybox-dependency-bundle:2.0.0",
+    "properties": [
+        {
+            "type": "olm.gvk",
+            "value": {
+                "group": "olm.test.io",
+                "kind": "Foo",
+                "version": "v1"
+            }
+        },
+        {
+            "type": "olm.package",
+            "value": {
+                "packageName": "busybox-dependency",
+                "version": "2.0.0"
+            }
+        },
+        {
+            "type": "olm.csv.metadata",
+            "value": {
+                "annotations": {
+                    "olm.skipRange": ">=0.0.0 <2.0.0"
+                },
+                "apiServiceDefinitions": {},
+                "crdDescriptions": {
+                    "owned": [
+                        {
+                            "name": "foos.olm.test.io",
+                            "version": "v1",
+                            "kind": "Foo",
+                            "displayName": "Foo",
+                            "description": "Foo resources for testing dependencies"
+                        }
+                    ]
+                },
+                "description": "A busybox-dependency CSV.\n",
+                "displayName": "busybox-dependency",
+                "installModes": [
+                    {
+                        "type": "OwnNamespace",
+                        "supported": true
+                    },
+                    {
+                        "type": "SingleNamespace",
+                        "supported": true
+                    },
+                    {
+                        "type": "MultiNamespace",
+                        "supported": true
+                    },
+                    {
+                        "type": "AllNamespaces",
+                        "supported": true
+                    }
+                ],
+                "maturity": "alpha",
+                "provider": {
+                    "name": "Red Hat"
+                }
+            }
+        }
+    ],
+    "relatedImages": [
+        {
+            "name": "",
+            "image": "busybox"
+        },
+        {
+            "name": "",
+            "image": "quay.io/olmtest/busybox-dependency-bundle:2.0.0"
+        }
+    ]
+}
