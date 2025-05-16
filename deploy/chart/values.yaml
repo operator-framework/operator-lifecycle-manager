@@ -85,10 +85,24 @@ networkPolicy:
         port: 53
       - protocol: UDP
         port: 53
+    to:
+    - namespaceSelector:
+       matchLabels:
+         kubernetes.io/metadata.name: kube-system
+      podSelector:
+       matchLabels:
+         k8s-app: kube-dns
   kubeAPIServer:
     ports:
       - protocol: TCP
         port: 6443
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          component: kube-apiserver
   metrics:
     ports:
       - protocol: TCP
