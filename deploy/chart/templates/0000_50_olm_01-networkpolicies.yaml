@@ -1,0 +1,86 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all-traffic
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector: { }
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: olm-operator
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: olm-operator
+  ingress:
+    - {{ .Values.networkPolicy.metrics | toYaml | nindent 6 | trimSuffix "\n" }}
+  egress:
+    - {{ .Values.networkPolicy.kubeAPIServer | toYaml | nindent 6 | trimSuffix "\n" }}
+    - {{ .Values.networkPolicy.dns | toYaml | nindent 6 | trimSuffix "\n" }}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: catalog-operator
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: catalog-operator
+  ingress:
+    - {{ .Values.networkPolicy.metrics | toYaml | nindent 6 | trimSuffix "\n" }}
+  egress:
+    - {{ .Values.networkPolicy.kubeAPIServer | toYaml | nindent 6 | trimSuffix "\n" }}
+    - {{ .Values.networkPolicy.dns | toYaml | nindent 6 | trimSuffix "\n" }}
+    - ports: # This is another distinct rule in the egress list
+      - protocol: TCP
+        port: {{ .Values.catalogGrpcPodPort }}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: packageserver
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: packageserver
+  ingress:
+    - ports:
+      - protocol: TCP
+        port: {{ .Values.package.service.internalPort }}
+  egress:
+    - {{ .Values.networkPolicy.dns | toYaml | nindent 6 | trimSuffix "\n" }}
+    - ports:
+      - protocol: TCP
+        port: {{ .Values.catalogGrpcPodPort }}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-allow-all
+  namespace: {{ .Values.operator_namespace }}
+spec:
+  podSelector: { }
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - { }
+  egress:
+    - { }

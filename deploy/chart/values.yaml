@@ -19,6 +19,8 @@ writeStatusName: '""'
 imagestream: false
 debug: false
 installType: upstream
+catalogGrpcPodPort: 50051
+
 olm:
   replicaCount: 1
   image:
@@ -75,3 +77,19 @@ package:
 monitoring:
   enabled: false
   namespace: monitoring
+
+networkPolicy:
+  dns:
+    ports:
+      - protocol: TCP
+        port: 53
+      - protocol: UDP
+        port: 53
+  kubeAPIServer:
+    ports:
+      - protocol: TCP
+        port: 6443
+  metrics:
+    ports:
+      - protocol: TCP
+        port: metrics
