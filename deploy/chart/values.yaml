@@ -2,7 +2,7 @@ rbacApiVersion: rbac.authorization.k8s.io
 namespace: operator-lifecycle-manager
 # see https://kubernetes.io/docs/concepts/security/pod-security-admission/ for more details
 namespace_psa: 
-  enforceLevel: baseline
+  enforceLevel: restricted
   enforceVersion: latest
   auditLevel: restricted
   auditVersion: latest
@@ -12,7 +12,7 @@ catalog_namespace: operator-lifecycle-manager
 operator_namespace: operators
 # see https://kubernetes.io/docs/concepts/security/pod-security-admission/ for more details
 operator_namespace_psa: 
-  enforceLevel: baseline
+  enforceLevel: restricted
   enforceVersion: latest
 minKubeVersion: 1.11.0
 writeStatusName: '""'
