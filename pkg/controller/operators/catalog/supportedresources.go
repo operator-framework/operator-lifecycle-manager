@@ -11,6 +11,7 @@ const (
 	ConsoleCLIDownloadKind    = "ConsoleCLIDownload"
 	ConsoleLinkKind           = "ConsoleLink"
 	ConsolePlugin             = "ConsolePlugin"
+	NetworkPolicyKind         = "NetworkPolicy"
 )
 
 var supportedKinds = map[string]struct{}{
@@ -24,6 +25,7 @@ var supportedKinds = map[string]struct{}{
 	ConsoleCLIDownloadKind:    {},
 	ConsoleLinkKind:           {},
 	ConsolePlugin:             {},
+	NetworkPolicyKind:         {},
 }
 
 // isSupported returns true if OLM supports this type of CustomResource.
