@@ -889,7 +889,6 @@ func TestSyncCatalogSourcesSecurityPolicy(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "cool-catalog",
 					Namespace: "cool-namespace",
-					UID:       types.UID("catalog-uid"),
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					Image:      "catalog-image",
@@ -908,7 +907,6 @@ func TestSyncCatalogSourcesSecurityPolicy(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "cool-catalog",
 					Namespace: "cool-namespace",
-					UID:       types.UID("catalog-uid"),
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					Image:      "catalog-image",
@@ -934,7 +932,6 @@ func TestSyncCatalogSourcesSecurityPolicy(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "cool-catalog",
 					Namespace: "cool-namespace",
-					UID:       types.UID("catalog-uid"),
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					Image:      "catalog-image",
@@ -953,7 +950,6 @@ func TestSyncCatalogSourcesSecurityPolicy(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "cool-catalog",
 					Namespace: "cool-namespace",
-					UID:       types.UID("catalog-uid"),
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					Image:      "catalog-image",
@@ -1006,23 +1002,32 @@ func TestSyncCatalogSources(t *testing.T) {
 	clockFake := utilclocktesting.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
 	now := metav1.NewTime(clockFake.Now())
 
-	configmapCatalog := &v1alpha1.CatalogSource{
+	internalCatalog := &v1alpha1.CatalogSource{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "cool-catalog",
 			Namespace: "cool-namespace",
-			UID:       types.UID("catalog-uid"),
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
 			ConfigMap:  "cool-configmap",
 			SourceType: v1alpha1.SourceTypeInternal,
 		},
 	}
+	configMapCatalog := &v1alpha1.CatalogSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cool-catalog",
+			Namespace: "cool-namespace",
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			ConfigMap:  "cool-configmap",
+			SourceType: v1alpha1.SourceTypeConfigmap,
+		},
+	}
 	grpcCatalog := &v1alpha1.CatalogSource{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "cool-catalog",
 			Namespace: "cool-namespace",
-			UID:       types.UID("catalog-uid"),
-			Labels:    map[string]string{"olm.catalogSource": "cool-catalog"},
+
+			Labels: map[string]string{"olm.catalogSource": "cool-catalog"},
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
 			Image:      "catalog-image",
@@ -1047,7 +1052,6 @@ func TestSyncCatalogSources(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "cool-catalog",
 					Namespace: "cool-namespace",
-					UID:       types.UID("catalog-uid"),
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: "nope",
@@ -1061,13 +1065,12 @@ func TestSyncCatalogSources(t *testing.T) {
 		{
 			testName:      "CatalogSourceWithBackingConfigMap",
 			namespace:     "cool-namespace",
-			catalogSource: configmapCatalog,
+			catalogSource: internalCatalog,
 			k8sObjs: []runtime.Object{
 				&corev1.ConfigMap{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            "cool-configmap",
 						Namespace:       "cool-namespace",
-						UID:             types.UID("configmap-uid"),
 						ResourceVersion: "resource-version",
 					},
 					Data: fakeConfigMapData(),
@@ -1077,7 +1080,6 @@ func TestSyncCatalogSources(t *testing.T) {
 				ConfigMapResource: &v1alpha1.ConfigMapResourceReference{
 					Name:            "cool-configmap",
 					Namespace:       "cool-namespace",
-					UID:             types.UID("configmap-uid"),
 					ResourceVersion: "resource-version",
 					LastUpdateTime:  now,
 				},
@@ -1092,7 +1094,6 @@ func TestSyncCatalogSources(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "cool-catalog",
 					Namespace: "cool-namespace",
-					UID:       types.UID("catalog-uid"),
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					ConfigMap:  "cool-configmap",
@@ -1102,7 +1103,6 @@ func TestSyncCatalogSources(t *testing.T) {
 					ConfigMapResource: &v1alpha1.ConfigMapResourceReference{
 						Name:            "cool-configmap",
 						Namespace:       "cool-namespace",
-						UID:             types.UID("configmap-uid"),
 						ResourceVersion: "resource-version",
 						LastUpdateTime:  now,
 					},
@@ -1114,7 +1114,6 @@ func TestSyncCatalogSources(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            "cool-configmap",
 						Namespace:       "cool-namespace",
-						UID:             types.UID("configmap-uid"),
 						ResourceVersion: "resource-version",
 					},
 					Data: fakeConfigMapData(),
@@ -1124,7 +1123,6 @@ func TestSyncCatalogSources(t *testing.T) {
 				ConfigMapResource: &v1alpha1.ConfigMapResourceReference{
 					Name:            "cool-configmap",
 					Namespace:       "cool-namespace",
-					UID:             types.UID("configmap-uid"),
 					ResourceVersion: "resource-version",
 					LastUpdateTime:  now,
 				},
@@ -1141,7 +1139,7 @@ func TestSyncCatalogSources(t *testing.T) {
 		{
 			testName:      "CatalogSourceWithMissingConfigMap",
 			namespace:     "cool-namespace",
-			catalogSource: configmapCatalog,
+			catalogSource: internalCatalog,
 			k8sObjs: []runtime.Object{
 				&corev1.ConfigMap{},
 			},
@@ -1175,8 +1173,8 @@ func TestSyncCatalogSources(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "cool-catalog",
 						Namespace: "cool-namespace",
-						UID:       types.UID("catalog-uid"),
-						Labels:    map[string]string{"olm.catalogSource": "cool-catalog"},
+
+						Labels: map[string]string{"olm.catalogSource": "cool-catalog"},
 					},
 					Spec: v1alpha1.CatalogSourceSpec{
 						Image:      "old-image",
@@ -1199,14 +1197,27 @@ func TestSyncCatalogSources(t *testing.T) {
 			},
 		},
 		{
+			testName:      "CatalogSourceWithGrpcType/CreatesNetworkPolicyResources",
+			namespace:     "cool-namespace",
+			catalogSource: grpcCatalog,
+			expectedObjs: []runtime.Object{
+				grpcServerNetworkPolicy(grpcCatalog, map[string]string{
+					reconciler.CatalogSourceLabelKey: grpcCatalog.GetName(),
+					install.OLMManagedLabelKey:       install.OLMManagedLabelValue,
+				}),
+				unpackBundlesNetworkPolicy(grpcCatalog),
+			},
+			expectedError: nil,
+		},
+		{
 			testName:  "CatalogSourceWithGrpcType/EnsuresImageOrAddressIsSet",
 			namespace: "cool-namespace",
 			catalogSource: &v1alpha1.CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "invalid-spec-catalog",
 					Namespace: "cool-namespace",
-					UID:       types.UID("catalog-uid"),
-					Labels:    map[string]string{"olm.catalogSource": "invalid-spec-catalog"},
+
+					Labels: map[string]string{"olm.catalogSource": "invalid-spec-catalog"},
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeGrpc,
@@ -1225,8 +1236,8 @@ func TestSyncCatalogSources(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "invalid-spec-catalog",
 					Namespace: "cool-namespace",
-					UID:       types.UID("catalog-uid"),
-					Labels:    map[string]string{"olm.catalogSource": "invalid-spec-catalog"},
+
+					Labels: map[string]string{"olm.catalogSource": "invalid-spec-catalog"},
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeInternal,
@@ -1239,14 +1250,45 @@ func TestSyncCatalogSources(t *testing.T) {
 			expectedError: nil,
 		},
 		{
+			testName:  "CatalogSourceWithInternalType/CreatesNetworkPolicyResources",
+			namespace: "cool-namespace",
+			catalogSource: withStatus(*internalCatalog, v1alpha1.CatalogSourceStatus{
+				ConfigMapResource: &v1alpha1.ConfigMapResourceReference{
+					Name:            "cool-configmap",
+					Namespace:       "cool-namespace",
+					ResourceVersion: "resource-version",
+					LastUpdateTime:  now,
+				},
+				RegistryServiceStatus: nil,
+			}),
+			k8sObjs: []runtime.Object{
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "cool-configmap",
+						Namespace:       "cool-namespace",
+						ResourceVersion: "resource-version",
+					},
+					Data: fakeConfigMapData(),
+				},
+			},
+			expectedObjs: []runtime.Object{
+				grpcServerNetworkPolicy(internalCatalog, map[string]string{
+					reconciler.CatalogSourceLabelKey: internalCatalog.GetName(),
+					install.OLMManagedLabelKey:       install.OLMManagedLabelValue,
+				}),
+				unpackBundlesNetworkPolicy(internalCatalog),
+			},
+			expectedError: nil,
+		},
+		{
 			testName:  "CatalogSourceWithConfigMapType/EnsuresConfigMapIsSet",
 			namespace: "cool-namespace",
 			catalogSource: &v1alpha1.CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "invalid-spec-catalog",
 					Namespace: "cool-namespace",
-					UID:       types.UID("catalog-uid"),
-					Labels:    map[string]string{"olm.catalogSource": "invalid-spec-catalog"},
+
+					Labels: map[string]string{"olm.catalogSource": "invalid-spec-catalog"},
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeConfigmap,
@@ -1255,6 +1297,37 @@ func TestSyncCatalogSources(t *testing.T) {
 			expectedStatus: &v1alpha1.CatalogSourceStatus{
 				Message: fmt.Sprintf("configmap name unset: must be set for sourcetype: %s", v1alpha1.SourceTypeConfigmap),
 				Reason:  v1alpha1.CatalogSourceSpecInvalidError,
+			},
+			expectedError: nil,
+		},
+		{
+			testName:  "CatalogSourceWithConfigMapType/CreatesNetworkPolicyResources",
+			namespace: "cool-namespace",
+			catalogSource: withStatus(*configMapCatalog, v1alpha1.CatalogSourceStatus{
+				ConfigMapResource: &v1alpha1.ConfigMapResourceReference{
+					Name:            "cool-configmap",
+					Namespace:       "cool-namespace",
+					ResourceVersion: "resource-version",
+					LastUpdateTime:  now,
+				},
+				RegistryServiceStatus: nil,
+			}),
+			k8sObjs: []runtime.Object{
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "cool-configmap",
+						Namespace:       "cool-namespace",
+						ResourceVersion: "resource-version",
+					},
+					Data: fakeConfigMapData(),
+				},
+			},
+			expectedObjs: []runtime.Object{
+				grpcServerNetworkPolicy(configMapCatalog, map[string]string{
+					reconciler.CatalogSourceLabelKey: configMapCatalog.GetName(),
+					install.OLMManagedLabelKey:       install.OLMManagedLabelValue,
+				}),
+				unpackBundlesNetworkPolicy(configMapCatalog),
 			},
 			expectedError: nil,
 		},
