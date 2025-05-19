@@ -3,6 +3,8 @@ package reconciler
 import (
 	"fmt"
 
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -16,7 +18,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
-func DesiredGRPCServerNetworkPolicy(catalogSource client.Object, matchLabels map[string]string) *networkingv1.NetworkPolicy {
+func DesiredGRPCServerNetworkPolicy(catalogSource *v1alpha1.CatalogSource, matchLabels map[string]string) *networkingv1.NetworkPolicy {
 	np := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-grpc-server", catalogSource.GetName()),
@@ -43,6 +45,21 @@ func DesiredGRPCServerNetworkPolicy(catalogSource client.Object, matchLabels map
 			},
 		},
 	}
+
+	// Allow egress to kube-apiserver from configmap backed catalog sources
+	if catalogSource.Spec.SourceType == v1alpha1.SourceTypeConfigmap || catalogSource.Spec.SourceType == v1alpha1.SourceTypeInternal {
+		np.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{
+			{
+				Ports: []networkingv1.NetworkPolicyPort{
+					{
+						Protocol: ptr.To(corev1.ProtocolTCP),
+						Port:     ptr.To(intstr.FromInt32(6443)),
+					},
+				},
+			},
+		}
+	}
+
 	ownerutil.AddOwner(np, catalogSource, false, false)
 	return np
 }
