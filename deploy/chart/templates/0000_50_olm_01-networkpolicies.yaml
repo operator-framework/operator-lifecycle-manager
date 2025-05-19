@@ -62,6 +62,7 @@ spec:
       - protocol: TCP
         port: {{ .Values.package.service.internalPort }}
   egress:
+    - {{ .Values.networkPolicy.kubeAPIServer | toYaml | nindent 6 | trimSuffix "\n" }}
     - {{ .Values.networkPolicy.dns | toYaml | nindent 6 | trimSuffix "\n" }}
     - ports:
       - protocol: TCP
