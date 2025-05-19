@@ -821,25 +821,25 @@ func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, ns
 		if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).UpdateStatus(context.TODO(), created, metav1.UpdateOptions{}); err != nil {
 			return nil, fmt.Errorf("failed to update status on new CSV: %w", err)
 		}
-       prototype.Annotations[statusCopyHashAnnotation] = status
-       // persist status-hash annotation
-       updatedCreated, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), prototype, metav1.UpdateOptions{})
-       if err != nil {
-           return nil, fmt.Errorf("failed to update annotations after updating status: %w", err)
-       }
-       // record observed generation and resourceVersion for metadata-drift guard
-       updatedCreated.Annotations[observedGenerationAnnotation] = fmt.Sprint(updatedCreated.GetGeneration())
-       updatedCreated.Annotations[observedResourceVersionAnnotation] = updatedCreated.ResourceVersion
-       if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), updatedCreated, metav1.UpdateOptions{}); err != nil {
-           return nil, fmt.Errorf("failed to update metadata guard annotations after creation: %w", err)
-       }
-       return &v1alpha1.ClusterServiceVersion{
-           ObjectMeta: metav1.ObjectMeta{
-               Name:      updatedCreated.Name,
-               Namespace: updatedCreated.Namespace,
-               UID:       updatedCreated.UID,
-           },
-       }, nil
+		prototype.Annotations[statusCopyHashAnnotation] = status
+		// persist status-hash annotation
+		updatedCreated, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), prototype, metav1.UpdateOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update annotations after updating status: %w", err)
+		}
+		// record observed generation and resourceVersion for metadata-drift guard
+		updatedCreated.Annotations[observedGenerationAnnotation] = fmt.Sprint(updatedCreated.GetGeneration())
+		updatedCreated.Annotations[observedResourceVersionAnnotation] = updatedCreated.ResourceVersion
+		if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), updatedCreated, metav1.UpdateOptions{}); err != nil {
+			return nil, fmt.Errorf("failed to update metadata guard annotations after creation: %w", err)
+		}
+		return &v1alpha1.ClusterServiceVersion{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      updatedCreated.Name,
+				Namespace: updatedCreated.Namespace,
+				UID:       updatedCreated.UID,
+			},
+		}, nil
 	} else if err != nil {
 		return nil, err
 	}
@@ -905,18 +905,18 @@ func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, ns
 		}
 		// Update the status first if the existing copied CSV status hash doesn't match what we expect
 		// to prevent a scenario where the hash annotations match but the contents do not.
-       // persist status-hash annotation
-       prototype.Annotations[statusCopyHashAnnotation] = status
-       updated, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), prototype, metav1.UpdateOptions{})
-       if err != nil {
-           return nil, fmt.Errorf("failed to update: %w", err)
-       }
-       // record observed generation and resourceVersion for metadata-drift guard
-       updated.Annotations[observedGenerationAnnotation] = fmt.Sprint(updated.GetGeneration())
-       updated.Annotations[observedResourceVersionAnnotation] = updated.ResourceVersion
-       if updated, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), updated, metav1.UpdateOptions{}); err != nil {
-           return nil, fmt.Errorf("failed to update metadata guard annotations after status update: %w", err)
-       }
+		// persist status-hash annotation
+		prototype.Annotations[statusCopyHashAnnotation] = status
+		updated, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), prototype, metav1.UpdateOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update: %w", err)
+		}
+		// record observed generation and resourceVersion for metadata-drift guard
+		updated.Annotations[observedGenerationAnnotation] = fmt.Sprint(updated.GetGeneration())
+		updated.Annotations[observedResourceVersionAnnotation] = updated.ResourceVersion
+		if updated, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), updated, metav1.UpdateOptions{}); err != nil {
+			return nil, fmt.Errorf("failed to update metadata guard annotations after status update: %w", err)
+		}
 	} else {
 		// Even if they're the same, ensure the returned prototype is annotated.
 		prototype.Annotations[statusCopyHashAnnotation] = status
