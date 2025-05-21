@@ -41,7 +41,7 @@ spec:
   egress:
     - {{ .Values.networkPolicy.kubeAPIServer | toYaml | nindent 6 | trimSuffix "\n" }}
     - {{ .Values.networkPolicy.dns | toYaml | nindent 6 | trimSuffix "\n" }}
-    - ports: # This is another distinct rule in the egress list
+    - ports:
       - protocol: TCP
         port: {{ .Values.catalogGrpcPodPort }}
   policyTypes:
