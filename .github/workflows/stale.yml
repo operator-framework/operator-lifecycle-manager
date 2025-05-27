@@ -1,0 +1,53 @@
+# This workflow automatically marks issues and pull requests as stale after 90 days of inactivity
+# and closes them after an additional 30 days if no further activity occurs.
+#
+# Key behavior:
+# - After 90 days of no activity:
+#     - Open issues and pull requests are labeled with "lifecycle/stale"
+#     - A comment is posted to notify contributors about the inactivity
+#
+# - After 30 additional days (i.e., 120 days total):
+#     - If still inactive and still labeled "lifecycle/stale", the issue or PR is closed
+#     - A closing comment is posted to explain why it was closed
+#
+# - Activity such as a comment, commit, or label removal during the stale period
+#   will remove the "lifecycle/stale" label and reset the clock
+#
+# - Items with any of the following labels will never be marked stale or closed:
+#     - security
+#     - planned
+#     - priority/critical
+#     - lifecycle/frozen
+#     - verified
+#
+# This workflow uses: https://github.com/actions/stale
+name: "Close stale issues and PRs"
+on:
+  schedule:
+    - cron: "0 1 * * *"   # Runs daily at 01:00 UTC (adjust as needed)
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write            # allow labeling, commenting, closing issues
+      pull-requests: write     # allow labeling, commenting, closing PRs
+    steps:
+      - uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          days-before-stale: 90
+          days-before-close: 30
+          stale-issue-label: "lifecycle/stale"
+          stale-pr-label: "lifecycle/stale"
+          stale-issue-message: >
+            Issues go stale after 90 days of inactivity. If there is no further
+            activity, the issue will be closed in another 30 days.
+          stale-pr-message: >
+            PRs go stale after 90 days of inactivity. If there is no further
+            activity, the PR will be closed in another 30 days.
+          close-issue-message: "This issue has been closed due to inactivity."
+          close-pr-message: "This pull request has been closed due to inactivity."
+          exempt-issue-labels: "security,planned,priority/critical,lifecycle/frozen,verified"
+          exempt-pr-labels: "security,planned,priority/critical,lifecycle/frozen,verified"
+          operations-per-run: 30
