@@ -400,7 +400,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "b0yrMl85J8bFjFWNl1O2XxsX698iPAjbpNhRIT", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "b4ns9MTvaRBYOarmuFe6PLYK0r2kxj5Vo06WTU", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -444,7 +444,7 @@ func TestPodExtractContent(t *testing.T) {
 							Name:    "name",
 							Image:   "opmImage",
 							Command: []string{"/bin/opm"},
-							Args:    []string{"serve", "/extracted-catalog/catalog", "--cache-dir=/extracted-catalog/cache"},
+							Args:    []string{"serve", "/extracted-catalog/catalog"},
 							Ports:   []corev1.ContainerPort{{Name: "grpc", ContainerPort: 50051}},
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
@@ -719,7 +719,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "3qxzUcTKDfq8QwZPoXteAv35FSwRho7vyYkv4d", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "cO4moUo3vz6jZlcoBcxY4BB8o8a4E7m5GXCzI", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -771,7 +771,7 @@ func TestPodExtractContent(t *testing.T) {
 							Name:    "name",
 							Image:   "opmImage",
 							Command: []string{"/bin/opm"},
-							Args:    []string{"serve", "/extracted-catalog/catalog", "--cache-dir=/extracted-catalog/cache"},
+							Args:    []string{"serve", "/extracted-catalog/catalog"},
 							Ports:   []corev1.ContainerPort{{Name: "grpc", ContainerPort: 50051}},
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{

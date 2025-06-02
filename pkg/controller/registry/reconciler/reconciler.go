@@ -305,12 +305,14 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 
 			pod.Spec.Containers[0].Image = opmImg
 			pod.Spec.Containers[0].Command = []string{"/bin/opm"}
-			// set service cache dir unconditionally, since it should always have compatible permissions for generation, if not provided by grpcPodConfig
-			pod.Spec.Containers[0].Args = []string{
+			var containerArgs = []string{
 				"serve",
 				filepath.Join(catalogPath, "catalog"),
-				"--cache-dir=" + filepath.Join(catalogPath, "cache"),
 			}
+			if grpcPodConfig.ExtractContent.CacheDir != "" {
+				containerArgs = append(containerArgs, "--cache-dir="+filepath.Join(catalogPath, "cache"))
+			}
+			pod.Spec.Containers[0].Args = containerArgs
 			pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, contentVolumeMount)
 		}
 	}
