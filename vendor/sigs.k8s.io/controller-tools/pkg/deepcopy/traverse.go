@@ -353,14 +353,15 @@ func (c *copyMethodMaker) genMapDeepCopy(actualName *namingInfo, mapType *types.
 				// If we're calling DeepCopy, check if it's receiver needs a pointer
 				inIsPtr = copyOnPtr
 			}
-			if inIsPtr == fieldIsPtr {
+			switch {
+			case inIsPtr == fieldIsPtr:
 				c.Line("(*out)[key] = val.DeepCopy()")
-			} else if fieldIsPtr {
+			case fieldIsPtr:
 				c.Line("{") // use a block because we use `x` as a temporary
 				c.Line("x := val.DeepCopy()")
 				c.Line("(*out)[key] = &x")
 				c.Line("}")
-			} else {
+			default:
 				c.Line("(*out)[key] = *val.DeepCopy()")
 			}
 		case fineToShallowCopy(mapType.Elem()):
