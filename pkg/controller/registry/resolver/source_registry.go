@@ -75,6 +75,8 @@ type RegistrySourceProvider struct {
 	invalidator  *sourceInvalidator
 }
 
+const defaultCacheLifetime time.Duration = 30 * time.Minute
+
 func SourceProviderFromRegistryClientProvider(rcp RegistryClientProvider, catsrcLister v1alpha1listers.CatalogSourceLister, logger logrus.StdLogger) *RegistrySourceProvider {
 	return &RegistrySourceProvider{
 		rcp:          rcp,
@@ -82,7 +84,7 @@ func SourceProviderFromRegistryClientProvider(rcp RegistryClientProvider, catsrc
 		catsrcLister: catsrcLister,
 		invalidator: &sourceInvalidator{
 			validChans: make(map[cache.SourceKey]chan struct{}),
-			ttl:        5 * time.Minute,
+			ttl:        defaultCacheLifetime,
 		},
 	}
 }
