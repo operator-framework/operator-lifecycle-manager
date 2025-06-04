@@ -10,8 +10,16 @@ jobs:
   go-verdiff:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Check golang version
-        run: hack/tools/check-go-version.sh "${{ github.event.pull_request.base.sha }}"
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Check golang version
+      run: |
+        export LABELS="$(gh api repos/$OWNER/$REPO/pulls/$PR --jq '.labels.[].name')"
+        hack/tools/check-go-version.sh -b "${{ github.event.pull_request.base.sha }}"
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        OWNER: ${{ github.repository_owner }}
+        REPO: ${{ github.event.repository.name }}
+        PR: ${{ github.event.pull_request.number }}

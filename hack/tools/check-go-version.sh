@@ -17,9 +17,40 @@
 # this implementation in the future.
 ###########################################
 
+U_FLAG='false'
+B_FLAG=''
 
-BASE_REF=${1:-main}
-GO_VER=$(sed -En 's/^go (.*)$/\1/p' "go.mod")
+usage() {
+    cat <<EOF
+Usage:
+  $0 [-b <git-ref>] [-h] [-u]
+
+Reports on golang mod file version updates, returns an error when a go.mod
+file exceeds the root go.mod file (used as a threshold).
+
+Options:
+  -b <git-ref>  git reference (branch or SHA) to use as a baseline.
+                Defaults to 'main'.
+  -h            Help (this text).
+  -u            Error on any update, even below the threshold.
+EOF
+}
+
+while getopts 'b:hu' f; do
+    case "${f}" in
+        b) B_FLAG="${OPTARG}" ;;
+        h) usage
+           exit 0 ;;
+        u) U_FLAG='true' ;;
+        *) echo "Unknown flag ${f}"
+           usage
+           exit 1 ;;
+    esac
+done
+
+BASE_REF=${B_FLAG:-main}
+ROOT_GO_MOD="./go.mod"
+GO_VER=$(sed -En 's/^go (.*)$/\1/p' "${ROOT_GO_MOD}")
 OLDIFS="${IFS}"
 IFS='.' MAX_VER=(${GO_VER})
 IFS="${OLDIFS}"
@@ -32,6 +63,7 @@ fi
 GO_MAJOR=${MAX_VER[0]}
 GO_MINOR=${MAX_VER[1]}
 GO_PATCH=${MAX_VER[2]}
+OVERRIDE_LABEL="override-go-verdiff"
 
 RETCODE=0
 
@@ -90,9 +122,32 @@ for f in $(find . -name "*.mod"); do
         continue
     fi
     if [ "${new}" != "${old}" ]; then
-        echo "${f}: ${v}: Updated golang version from ${old}"
-        RETCODE=1
+        # We NEED to report on changes in the root go.mod, regardless of the U_FLAG
+        if [ "${f}" == "${ROOT_GO_MOD}" ]; then
+            echo "${f}: ${v}: Updated ROOT golang version from ${old}"
+            RETCODE=1
+            continue
+        fi
+        if ${U_FLAG}; then
+            echo "${f}: ${v}: Updated golang version from ${old}"
+            RETCODE=1
+        fi
     fi
 done
+
+for l in ${LABELS}; do
+    if [ "$l" == "${OVERRIDE_LABEL}" ]; then
+        if [ ${RETCODE} -eq 1 ]; then
+            echo ""
+            echo "Found ${OVERRIDE_LABEL} label, overriding failed results."
+            RETCODE=0
+        fi
+    fi
+done
+
+if [ ${RETCODE} -eq 1 ]; then
+    echo ""
+    echo "This test result may be overridden by applying the (${OVERRIDE_LABEL}) label to this PR and re-running the CI job."
+fi
 
 exit ${RETCODE}
