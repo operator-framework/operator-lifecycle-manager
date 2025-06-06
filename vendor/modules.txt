@@ -270,7 +270,7 @@ github.com/go-air/gini/inter
 github.com/go-air/gini/internal/xo
 github.com/go-air/gini/logic
 github.com/go-air/gini/z
-# github.com/go-logr/logr v1.4.2
+# github.com/go-logr/logr v1.4.3
 ## explicit; go 1.18
 github.com/go-logr/logr
 github.com/go-logr/logr/funcr
