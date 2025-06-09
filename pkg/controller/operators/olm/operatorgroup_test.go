@@ -8,15 +8,17 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/client-go/metadata/metadatalister"
-
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/metadata/metadatalister"
 	ktesting "k8s.io/client-go/testing"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
+	"github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 func TestCopyToNamespace(t *testing.T) {
@@ -406,4 +408,66 @@ func TestCSVCopyPrototype(t *testing.T) {
 			Reason:  v1alpha1.CSVReasonCopied,
 		},
 	}, dst)
+}
+
+func TestOperator_getClusterRoleAggregationRule(t *testing.T) {
+	tests := []struct {
+		name    string
+		apis    cache.APISet
+		suffix  string
+		want    func(*testing.T, *rbacv1.AggregationRule)
+		wantErr require.ErrorAssertionFunc
+	}{
+		{
+			name:   "no aggregation rule when no APIs",
+			apis:   cache.APISet{},
+			suffix: "admin",
+			want: func(t *testing.T, rule *rbacv1.AggregationRule) {
+				require.Nil(t, rule)
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "ordered selectors in aggregation rule",
+			apis: cache.APISet{
+				registry.APIKey{Group: "example.com", Version: "v1alpha1", Kind: "Foo"}: {},
+				registry.APIKey{Group: "example.com", Version: "v1alpha2", Kind: "Foo"}: {},
+				registry.APIKey{Group: "example.com", Version: "v1alpha3", Kind: "Foo"}: {},
+				registry.APIKey{Group: "example.com", Version: "v1alpha4", Kind: "Foo"}: {},
+				registry.APIKey{Group: "example.com", Version: "v1alpha5", Kind: "Foo"}: {},
+				registry.APIKey{Group: "example.com", Version: "v1alpha1", Kind: "Bar"}: {},
+				registry.APIKey{Group: "example.com", Version: "v1alpha2", Kind: "Bar"}: {},
+				registry.APIKey{Group: "example.com", Version: "v1alpha3", Kind: "Bar"}: {},
+				registry.APIKey{Group: "example.com", Version: "v1alpha4", Kind: "Bar"}: {},
+				registry.APIKey{Group: "example.com", Version: "v1alpha5", Kind: "Bar"}: {},
+			},
+			suffix: "admin",
+			want: func(t *testing.T, rule *rbacv1.AggregationRule) {
+				getOneKey := func(t *testing.T, m map[string]string) string {
+					require.Len(t, m, 1)
+					for k := range m {
+						return k
+					}
+					t.Fatalf("no keys found in map")
+					return ""
+				}
+
+				a := getOneKey(t, rule.ClusterRoleSelectors[0].MatchLabels)
+				for _, selector := range rule.ClusterRoleSelectors[1:] {
+					b := getOneKey(t, selector.MatchLabels)
+					require.Lessf(t, a, b, "expected selector match labels keys to be in sorted ascending order")
+					a = b
+				}
+			},
+			wantErr: require.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := &Operator{}
+			got, err := a.getClusterRoleAggregationRule(tt.apis, tt.suffix)
+			tt.wantErr(t, err)
+			tt.want(t, got)
+		})
+	}
 }

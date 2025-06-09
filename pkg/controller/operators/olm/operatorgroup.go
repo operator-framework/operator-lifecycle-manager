@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -1047,24 +1048,35 @@ func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, suffi
 }
 
 func (a *Operator) getClusterRoleAggregationRule(apis cache.APISet, suffix string) (*rbacv1.AggregationRule, error) {
-	var selectors []metav1.LabelSelector
+	if len(apis) == 0 {
+		return nil, nil
+	}
+
+	aggregationLabels := sets.New[string]()
 	for api := range apis {
 		aggregationLabel, err := aggregationLabelFromAPIKey(api, suffix)
 		if err != nil {
 			return nil, err
 		}
+		aggregationLabels.Insert(aggregationLabel)
+	}
+
+	// The order of the resulting selectors MUST BE deterministic in order
+	// to avoid unnecessary writes against the API server where only the order
+	// is changing. Therefore, we use `sets.List` to iterate. It returns a
+	// sorted slice of the aggregation labels.
+	selectors := make([]metav1.LabelSelector, 0, aggregationLabels.Len())
+	for _, aggregationLabel := range sets.List(aggregationLabels) {
 		selectors = append(selectors, metav1.LabelSelector{
 			MatchLabels: map[string]string{
 				aggregationLabel: "true",
 			},
 		})
 	}
-	if len(selectors) > 0 {
-		return &rbacv1.AggregationRule{
-			ClusterRoleSelectors: selectors,
-		}, nil
-	}
-	return nil, nil
+
+	return &rbacv1.AggregationRule{
+		ClusterRoleSelectors: selectors,
+	}, nil
 }
 
 func (a *Operator) ensureOpGroupClusterRoles(op *operatorsv1.OperatorGroup, apis cache.APISet) error {
