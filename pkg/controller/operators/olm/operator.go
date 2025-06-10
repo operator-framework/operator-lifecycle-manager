@@ -43,8 +43,10 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	operatorsv1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/pruning"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/labeller"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/plugins"
@@ -61,6 +63,14 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
+)
+
+const (
+	// These annotation keys are intentionally invalid -- all writes
+	// to copied CSVs are regenerated from the corresponding non-copied CSV,
+	// so it should never be transmitted back to the API server.
+	copyCSVStatusHash = "$copyhash-status"
+	copyCSVSpecHash   = "$copyhash-spec"
 )
 
 var (
@@ -82,7 +92,7 @@ type Operator struct {
 	client                       versioned.Interface
 	lister                       operatorlister.OperatorLister
 	protectedCopiedCSVNamespaces map[string]struct{}
-	copiedCSVLister              metadatalister.Lister
+	copiedCSVLister              operatorsv1alpha1listers.ClusterServiceVersionLister
 	ogQueueSet                   *queueinformer.ResourceQueueSet
 	csvQueueSet                  *queueinformer.ResourceQueueSet
 	olmConfigQueue               workqueue.TypedRateLimitingInterface[types.NamespacedName]
@@ -294,20 +304,54 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 			return nil, err
 		}
 
-		// A separate informer solely for CSV copies. Object metadata requests are used
+		// A separate informer solely for CSV copies. Fields
+		// are pruned from local copies of the objects managed
 		// by this informer in order to reduce cached size.
-		gvr := v1alpha1.SchemeGroupVersion.WithResource("clusterserviceversions")
-		copiedCSVInformer := metadatainformer.NewFilteredMetadataInformer(
-			config.metadataClient,
-			gvr,
-			namespace,
-			config.resyncPeriod(),
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-			func(options *metav1.ListOptions) {
-				options.LabelSelector = v1alpha1.CopiedLabelKey
+		copiedCSVInformer := cache.NewSharedIndexInformerWithOptions(
+			pruning.NewListerWatcher(
+				op.client,
+				namespace,
+				func(opts *metav1.ListOptions) {
+					opts.LabelSelector = v1alpha1.CopiedLabelKey
+				},
+			),
+			&v1alpha1.ClusterServiceVersion{},
+			cache.SharedIndexInformerOptions{
+				ResyncPeriod: config.resyncPeriod(),
+				Indexers:     cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 			},
-		).Informer()
-		op.copiedCSVLister = metadatalister.New(copiedCSVInformer.GetIndexer(), gvr)
+		)
+
+		// Transform the copied CSV to be just the Metadata
+		// However, because we have the full copied CSV, we can calculate
+		// a hash over the full CSV to store as an annotation
+		copiedCSVTransformFunc := func(i interface{}) (interface{}, error) {
+			if csv, ok := i.(*v1alpha1.ClusterServiceVersion); ok {
+				specHash, statusHash, err := copyableCSVHash(csv)
+				if err != nil {
+					return nil, err
+				}
+				*csv = v1alpha1.ClusterServiceVersion{
+					TypeMeta:   csv.TypeMeta,
+					ObjectMeta: csv.ObjectMeta,
+					Spec:       v1alpha1.ClusterServiceVersionSpec{},
+					Status:     v1alpha1.ClusterServiceVersionStatus{},
+				}
+				if csv.Annotations == nil {
+					csv.Annotations = make(map[string]string, 2)
+				}
+				// fake CSV hashes for tracking purposes only
+				csv.Annotations[copyCSVSpecHash] = specHash
+				csv.Annotations[copyCSVStatusHash] = statusHash
+				return csv, nil
+			}
+			return nil, fmt.Errorf("Unable to convert input to CSV")
+		}
+
+		if err := copiedCSVInformer.SetTransform(copiedCSVTransformFunc); err != nil {
+			return nil, err
+		}
+		op.copiedCSVLister = operatorsv1alpha1listers.NewClusterServiceVersionLister(copiedCSVInformer.GetIndexer())
 		informersByNamespace[namespace].CopiedCSVInformer = copiedCSVInformer
 		informersByNamespace[namespace].CopiedCSVLister = op.copiedCSVLister
 
