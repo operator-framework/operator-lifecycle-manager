@@ -49,7 +49,7 @@ func TestCopyToNamespace_MetadataDriftGuard(t *testing.T) {
 		Spec:   v1alpha1.ClusterServiceVersionSpec{Replaces: "replacee"},
 		Status: v1alpha1.ClusterServiceVersionStatus{Phase: "waxing gibbous"},
 	}
-	nonstatus, status, err := copyableCSVHash(&prototype)
+	specHash, statusHash, err := copyableCSVHash(&prototype)
 	require.NoError(t, err)
 
 	// Existing partial copy with observedGeneration mismatched
@@ -61,8 +61,8 @@ func TestCopyToNamespace_MetadataDriftGuard(t *testing.T) {
 			ResourceVersion: "42",
 			Generation:      2,
 			Annotations: map[string]string{
-				nonStatusCopyHashAnnotation:       nonstatus,
-				statusCopyHashAnnotation:          status,
+				nonStatusCopyHashAnnotation:       specHash,
+				statusCopyHashAnnotation:          statusHash,
 				observedGenerationAnnotation:      "1",
 				observedResourceVersionAnnotation: "42",
 			},
@@ -88,7 +88,7 @@ func TestCopyToNamespace_MetadataDriftGuard(t *testing.T) {
 	o := &Operator{copiedCSVLister: lister, client: client, logger: logger}
 
 	protoCopy := prototype.DeepCopy()
-	result, err := o.copyToNamespace(protoCopy, "from", "to", nonstatus, status)
+	result, err := o.copyToNamespace(protoCopy, "from", "to", specHash, statusHash)
 	require.NoError(t, err)
 	require.Equal(t, "name", result.GetName())
 	require.Equal(t, "to", result.GetNamespace())

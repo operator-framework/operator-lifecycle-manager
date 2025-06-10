@@ -8,6 +8,7 @@ import (
 	operatorsv1informers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/operators/v1"
 	operatorsv1alpha1informers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/operators/v1alpha1"
 	operatorsv2informers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/operators/v2"
+	operatorsv1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/sirupsen/logrus"
@@ -30,7 +31,7 @@ type HostOperator interface {
 type Informers struct {
 	CSVInformer                operatorsv1alpha1informers.ClusterServiceVersionInformer
 	CopiedCSVInformer          cache.SharedIndexInformer
-	CopiedCSVLister            metadatalister.Lister
+	CopiedCSVLister            operatorsv1alpha1listers.ClusterServiceVersionLister
 	OperatorGroupInformer      operatorsv1informers.OperatorGroupInformer
 	OperatorConditionInformer  operatorsv2informers.OperatorConditionInformer
 	SubscriptionInformer       operatorsv1alpha1informers.SubscriptionInformer
