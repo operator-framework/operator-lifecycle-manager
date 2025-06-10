@@ -345,7 +345,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 				csv.Annotations[copyCSVStatusHash] = statusHash
 				return csv, nil
 			}
-			return nil, fmt.Errorf("Unable to convert input to CSV")
+			return nil, fmt.Errorf("unable to convert input to CSV")
 		}
 
 		if err := copiedCSVInformer.SetTransform(copiedCSVTransformFunc); err != nil {
