@@ -167,8 +167,8 @@ func TestCopyToNamespace(t *testing.T) {
 					UID:             "uid",
 					ResourceVersion: "42",
 					Annotations: map[string]string{
-						"$copyhash-nonstatus": "hn",
-						"$copyhash-status":    "hs-2",
+						"$copyhash-spec":   "hn",
+						"$copyhash-status": "hs-2",
 					},
 				},
 			},
@@ -220,8 +220,8 @@ func TestCopyToNamespace(t *testing.T) {
 					UID:             "uid",
 					ResourceVersion: "42",
 					Annotations: map[string]string{
-						"$copyhash-nonstatus": "hn-2",
-						"$copyhash-status":    "hs-2",
+						"$copyhash-spec":   "hn-2",
+						"$copyhash-status": "hs-2",
 					},
 				},
 			},
@@ -280,8 +280,8 @@ func TestCopyToNamespace(t *testing.T) {
 					Namespace: "to",
 					UID:       "uid",
 					Annotations: map[string]string{
-						"$copyhash-nonstatus": "hn",
-						"$copyhash-status":    "hs",
+						"$copyhash-spec":   "hn",
+						"$copyhash-status": "hs",
 					},
 				},
 			},
@@ -301,9 +301,8 @@ func TestCopyToNamespace(t *testing.T) {
 			client := fake.NewSimpleClientset()
 
 			if tc.ExistingCopy != nil {
-				client = fake.NewSimpleClientset(&v1alpha1.ClusterServiceVersion{
-					ObjectMeta: tc.ExistingCopy.ObjectMeta,
-				})
+				client = fake.NewSimpleClientset(tc.ExistingCopy)
+				v1alpha1lister.ClusterServiceVersionListerReturns(FakeClusterServiceVersionLister{tc.ExistingCopy})
 			} else {
 				v1alpha1lister.ClusterServiceVersionListerReturns(FakeClusterServiceVersionLister(nil))
 			}
