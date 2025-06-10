@@ -1317,7 +1317,7 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 	}
 }
 
-func (a *Operator) removeDanglingChildCSVs(csv *metav1.PartialObjectMetadata) error {
+func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) error {
 	logger := a.logger.WithFields(logrus.Fields{
 		"id":          queueinformer.NewLoopID(),
 		"csv":         csv.GetName(),
@@ -1365,7 +1365,7 @@ func (a *Operator) removeDanglingChildCSVs(csv *metav1.PartialObjectMetadata) er
 	return nil
 }
 
-func (a *Operator) deleteChild(csv *metav1.PartialObjectMetadata, logger *logrus.Entry) error {
+func (a *Operator) deleteChild(csv *v1alpha1.ClusterServiceVersion, logger *logrus.Entry) error {
 	logger.Debug("gcing csv")
 	return a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(context.TODO(), csv.GetName(), metav1.DeleteOptions{})
 }
@@ -1910,7 +1910,7 @@ func (a *Operator) createCSVCopyingDisabledEvent(csv *v1alpha1.ClusterServiceVer
 }
 
 func (a *Operator) syncGcCsv(obj interface{}) (syncError error) {
-	clusterServiceVersion, ok := obj.(*metav1.PartialObjectMetadata)
+	clusterServiceVersion, ok := obj.(*v1alpha1.ClusterServiceVersion)
 	if !ok {
 		a.logger.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting ClusterServiceVersion failed")
