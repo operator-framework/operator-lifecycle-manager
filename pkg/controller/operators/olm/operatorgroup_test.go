@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,66 +14,12 @@ import (
 	ktesting "k8s.io/client-go/testing"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	listersv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister/operatorlisterfakes"
 	"github.com/operator-framework/operator-registry/pkg/registry"
 )
-
-// fakeCSVNamespaceLister implements metadatalister.NamespaceLister
-type fakeCSVNamespaceLister struct {
-	namespace string
-	items     []*v1alpha1.ClusterServiceVersion
-}
-
-func (n *fakeCSVNamespaceLister) List(selector labels.Selector) ([]*v1alpha1.ClusterServiceVersion, error) {
-	var result []*v1alpha1.ClusterServiceVersion
-	for _, item := range n.items {
-		if item != nil && item.Namespace == n.namespace {
-			result = append(result, item)
-		}
-	}
-	return result, nil
-}
-
-func (n *fakeCSVNamespaceLister) Get(name string) (*v1alpha1.ClusterServiceVersion, error) {
-	for _, item := range n.items {
-		if item != nil && item.Namespace == n.namespace && item.Name == name {
-			return item, nil
-		}
-	}
-	return nil, errors.NewNotFound(v1alpha1.Resource("clusterserviceversion"), name)
-}
-
-// fakeCSVLister implements the full listersv1alpha1.ClusterServiceVersionLister interface
-// so that Operator.copiedCSVLister = &fakeCSVLister{...} works.
-type fakeCSVLister struct {
-	items []*v1alpha1.ClusterServiceVersion
-}
-
-// List returns all CSV metadata items, ignoring namespaces.
-func (f *fakeCSVLister) List(selector labels.Selector) ([]*v1alpha1.ClusterServiceVersion, error) {
-	return f.items, nil
-}
-
-// Get returns the CSV by name, ignoring namespaces.
-func (f *fakeCSVLister) Get(name string) (*v1alpha1.ClusterServiceVersion, error) {
-	for _, item := range f.items {
-		if item != nil && item.Name == name {
-			return item, nil
-		}
-	}
-	return nil, errors.NewNotFound(v1alpha1.Resource("clusterserviceversion"), name)
-}
-
-// Namespace returns a namespace-scoped lister wrapper.
-func (f *fakeCSVLister) ClusterServiceVersions(ns string) listersv1alpha1.ClusterServiceVersionNamespaceLister {
-	return &fakeCSVNamespaceLister{
-		namespace: ns,
-		items:     f.items,
-	}
-}
 
 func TestCopyToNamespace(t *testing.T) {
 	gvr := v1alpha1.SchemeGroupVersion.WithResource("clusterserviceversions")
@@ -101,12 +46,9 @@ func TestCopyToNamespace(t *testing.T) {
 			Name:          "copy created if does not exist",
 			FromNamespace: "from",
 			ToNamespace:   "to",
-			Hash:          "hn-1",
-			StatusHash:    "hs",
 			Prototype: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        "name",
-					Annotations: map[string]string{},
+					Name: "name",
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
 					Replaces: "replacee",
@@ -115,16 +57,11 @@ func TestCopyToNamespace(t *testing.T) {
 					Phase: "waxing gibbous",
 				},
 			},
-			// No ExistingCopy: means there's nothing in "to" namespace yet.
 			ExpectedActions: []ktesting.Action{
-				// Create the new CSV with nonStatusCopyHashAnnotation
 				ktesting.NewCreateAction(gvr, "to", &v1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "name",
 						Namespace: "to",
-						Annotations: map[string]string{
-							"olm.operatorframework.io/nonStatusCopyHash": "hn-1",
-						},
 					},
 					Spec: v1alpha1.ClusterServiceVersionSpec{
 						Replaces: "replacee",
@@ -133,33 +70,10 @@ func TestCopyToNamespace(t *testing.T) {
 						Phase: "waxing gibbous",
 					},
 				}),
-				// UpdateStatus: note that name/namespace remain "name"/"to",
-				//    and we still have nonStatusCopyHashAnnotation: "hn-1".
 				ktesting.NewUpdateSubresourceAction(gvr, "status", "to", &v1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "name",
 						Namespace: "to",
-						Annotations: map[string]string{
-							"olm.operatorframework.io/nonStatusCopyHash": "hn-1",
-						},
-					},
-					Spec: v1alpha1.ClusterServiceVersionSpec{
-						Replaces: "replacee",
-					},
-					Status: v1alpha1.ClusterServiceVersionStatus{
-						Phase: "waxing gibbous",
-					},
-				}),
-				// Normal Update for the statusCopyHashAnnotation = "hs"
-				//    We still keep the "hn-1" annotation as well, plus Name/Namespace as is.
-				ktesting.NewUpdateAction(gvr, "to", &v1alpha1.ClusterServiceVersion{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "name",
-						Namespace: "to",
-						Annotations: map[string]string{
-							"olm.operatorframework.io/nonStatusCopyHash": "hn-1",
-							"olm.operatorframework.io/statusCopyHash":    "hs",
-						},
 					},
 					Spec: v1alpha1.ClusterServiceVersionSpec{
 						Replaces: "replacee",
@@ -184,8 +98,7 @@ func TestCopyToNamespace(t *testing.T) {
 			StatusHash:    "hs",
 			Prototype: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        "name",
-					Annotations: map[string]string{},
+					Name: "name",
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
 					Replaces: "replacee",
@@ -201,23 +114,25 @@ func TestCopyToNamespace(t *testing.T) {
 					UID:             "uid",
 					ResourceVersion: "42",
 					Annotations: map[string]string{
-						copyCSVSpecHash:   "hn-2", // differs => triggers normal Update
-						copyCSVStatusHash: "hs",   // same => no status update
+						"$copyhash-nonstatus": "hn-2",
+						"$copyhash-status":    "hs",
 					},
 				},
 			},
+			ExpectedResult: &v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: "to",
+					UID:       "uid",
+				},
+			},
 			ExpectedActions: []ktesting.Action{
-				// Non-status differs => 1 normal Update
 				ktesting.NewUpdateAction(gvr, "to", &v1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            "name",
 						Namespace:       "to",
 						UID:             "uid",
 						ResourceVersion: "42",
-						// We'll set the new nonStatusCopyHashAnnotation = "hn-1"
-						Annotations: map[string]string{
-							copyCSVSpecHash: "hn-1",
-						},
 					},
 					Spec: v1alpha1.ClusterServiceVersionSpec{
 						Replaces: "replacee",
@@ -226,13 +141,6 @@ func TestCopyToNamespace(t *testing.T) {
 						Phase: "waxing gibbous",
 					},
 				}),
-			},
-			ExpectedResult: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "name",
-					Namespace: "to",
-					UID:       "uid",
-				},
 			},
 		},
 		{
@@ -243,8 +151,7 @@ func TestCopyToNamespace(t *testing.T) {
 			StatusHash:    "hs-1",
 			Prototype: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        "name",
-					Annotations: map[string]string{},
+					Name: "name",
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
 					Replaces: "replacee",
@@ -260,51 +167,10 @@ func TestCopyToNamespace(t *testing.T) {
 					UID:             "uid",
 					ResourceVersion: "42",
 					Annotations: map[string]string{
-						// non-status matches => no normal update
-						copyCSVSpecHash: "hn",
-						// status differs => subresource + normal update
-						copyCSVStatusHash: "hs-2",
+						"$copyhash-nonstatus": "hn",
+						"$copyhash-status":    "hs-2",
 					},
 				},
-			},
-			ExpectedActions: []ktesting.Action{
-				// UpdateStatus (we set the new status, and the in-memory CSV includes the matching nonStatus)
-				ktesting.NewUpdateSubresourceAction(gvr, "status", "to", &v1alpha1.ClusterServiceVersion{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:            "name",
-						Namespace:       "to",
-						UID:             "uid",
-						ResourceVersion: "42",
-						Annotations: map[string]string{
-							copyCSVSpecHash: "hn",
-						},
-					},
-					Spec: v1alpha1.ClusterServiceVersionSpec{
-						Replaces: "replacee",
-					},
-					Status: v1alpha1.ClusterServiceVersionStatus{
-						Phase: "waxing gibbous",
-					},
-				}),
-				// Normal Update to set statusCopyHashAnnotation = "hs-1"
-				ktesting.NewUpdateAction(gvr, "to", &v1alpha1.ClusterServiceVersion{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:            "name",
-						Namespace:       "to",
-						UID:             "uid",
-						ResourceVersion: "42",
-						Annotations: map[string]string{
-							copyCSVSpecHash:   "hn",
-							copyCSVStatusHash: "hs-1",
-						},
-					},
-					Spec: v1alpha1.ClusterServiceVersionSpec{
-						Replaces: "replacee",
-					},
-					Status: v1alpha1.ClusterServiceVersionStatus{
-						Phase: "waxing gibbous",
-					},
-				}),
 			},
 			ExpectedResult: &v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
@@ -312,6 +178,22 @@ func TestCopyToNamespace(t *testing.T) {
 					Namespace: "to",
 					UID:       "uid",
 				},
+			},
+			ExpectedActions: []ktesting.Action{
+				ktesting.NewUpdateSubresourceAction(gvr, "status", "to", &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "name",
+						Namespace:       "to",
+						UID:             "uid",
+						ResourceVersion: "42",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Replaces: "replacee",
+					},
+					Status: v1alpha1.ClusterServiceVersionStatus{
+						Phase: "waxing gibbous",
+					},
+				}),
 			},
 		},
 		{
@@ -322,8 +204,7 @@ func TestCopyToNamespace(t *testing.T) {
 			StatusHash:    "hs-1",
 			Prototype: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        "name",
-					Annotations: map[string]string{},
+					Name: "name",
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
 					Replaces: "replacee",
@@ -339,68 +220,10 @@ func TestCopyToNamespace(t *testing.T) {
 					UID:             "uid",
 					ResourceVersion: "42",
 					Annotations: map[string]string{
-						// Both nonStatus and status mismatch
-						copyCSVSpecHash:   "hn-2",
-						copyCSVStatusHash: "hs-2",
+						"$copyhash-nonstatus": "hn-2",
+						"$copyhash-status":    "hs-2",
 					},
 				},
-			},
-			ExpectedActions: []ktesting.Action{
-				// Normal update for the non-status mismatch
-				ktesting.NewUpdateAction(gvr, "to", &v1alpha1.ClusterServiceVersion{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:            "name",
-						Namespace:       "to",
-						UID:             "uid",
-						ResourceVersion: "42",
-						Annotations: map[string]string{
-							copyCSVSpecHash: "hn-1",
-						},
-					},
-					Spec: v1alpha1.ClusterServiceVersionSpec{
-						Replaces: "replacee",
-					},
-					Status: v1alpha1.ClusterServiceVersionStatus{
-						Phase: "waxing gibbous",
-					},
-				}),
-				// UpdateStatus because status hash mismatch
-				ktesting.NewUpdateSubresourceAction(gvr, "status", "to", &v1alpha1.ClusterServiceVersion{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:            "name",
-						Namespace:       "to",
-						UID:             "uid",
-						ResourceVersion: "42",
-						Annotations: map[string]string{
-							copyCSVSpecHash: "hn-1",
-						},
-					},
-					Spec: v1alpha1.ClusterServiceVersionSpec{
-						Replaces: "replacee",
-					},
-					Status: v1alpha1.ClusterServiceVersionStatus{
-						Phase: "waxing gibbous",
-					},
-				}),
-				// Normal update for the new statusCopyHashAnnotation
-				ktesting.NewUpdateAction(gvr, "to", &v1alpha1.ClusterServiceVersion{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:            "name",
-						Namespace:       "to",
-						UID:             "uid",
-						ResourceVersion: "42",
-						Annotations: map[string]string{
-							copyCSVSpecHash:   "hn-1",
-							copyCSVStatusHash: "hs-1",
-						},
-					},
-					Spec: v1alpha1.ClusterServiceVersionSpec{
-						Replaces: "replacee",
-					},
-					Status: v1alpha1.ClusterServiceVersionStatus{
-						Phase: "waxing gibbous",
-					},
-				}),
 			},
 			ExpectedResult: &v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
@@ -408,6 +231,36 @@ func TestCopyToNamespace(t *testing.T) {
 					Namespace: "to",
 					UID:       "uid",
 				},
+			},
+			ExpectedActions: []ktesting.Action{
+				ktesting.NewUpdateAction(gvr, "to", &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "name",
+						Namespace:       "to",
+						UID:             "uid",
+						ResourceVersion: "42",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Replaces: "replacee",
+					},
+					Status: v1alpha1.ClusterServiceVersionStatus{
+						Phase: "waxing gibbous",
+					},
+				}),
+				ktesting.NewUpdateSubresourceAction(gvr, "status", "to", &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "name",
+						Namespace:       "to",
+						UID:             "uid",
+						ResourceVersion: "42",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Replaces: "replacee",
+					},
+					Status: v1alpha1.ClusterServiceVersionStatus{
+						Phase: "waxing gibbous",
+					},
+				}),
 			},
 		},
 		{
@@ -418,8 +271,7 @@ func TestCopyToNamespace(t *testing.T) {
 			StatusHash:    "hs",
 			Prototype: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        "name",
-					Annotations: map[string]string{},
+					Name: "name",
 				},
 			},
 			ExistingCopy: &v1alpha1.ClusterServiceVersion{
@@ -428,8 +280,8 @@ func TestCopyToNamespace(t *testing.T) {
 					Namespace: "to",
 					UID:       "uid",
 					Annotations: map[string]string{
-						copyCSVSpecHash:   "hn",
-						copyCSVStatusHash: "hs",
+						"$copyhash-nonstatus": "hn",
+						"$copyhash-status":    "hs",
 					},
 				},
 			},
@@ -440,64 +292,43 @@ func TestCopyToNamespace(t *testing.T) {
 					UID:       "uid",
 				},
 			},
-			ExpectedActions: nil, // no update calls if neither hash differs
 		},
 	} {
 		t.Run(tc.Name, func(t *testing.T) {
-			// Create a new fake clientset populated with the "existing copy" if any
+			lister := &operatorlisterfakes.FakeOperatorLister{}
+			v1alpha1lister := &operatorlisterfakes.FakeOperatorsV1alpha1Lister{}
+			lister.OperatorsV1alpha1Returns(v1alpha1lister)
 			client := fake.NewSimpleClientset()
-			var lister listersv1alpha1.ClusterServiceVersionLister
 
-			// If we have an existing CSV in that target namespace, add it to the slice
-			items := []*v1alpha1.ClusterServiceVersion{}
 			if tc.ExistingCopy != nil {
-				existingObj := &v1alpha1.ClusterServiceVersion{
+				client = fake.NewSimpleClientset(&v1alpha1.ClusterServiceVersion{
 					ObjectMeta: tc.ExistingCopy.ObjectMeta,
-					// ... if you want to set Spec/Status in the client, you can
-				}
-				client = fake.NewSimpleClientset(existingObj)
-				items = []*v1alpha1.ClusterServiceVersion{tc.ExistingCopy}
-			}
-
-			// Create the full Lister
-			lister = &fakeCSVLister{
-				items: items,
+				})
+			} else {
+				v1alpha1lister.ClusterServiceVersionListerReturns(FakeClusterServiceVersionLister(nil))
 			}
 
 			logger, _ := test.NewNullLogger()
 			o := &Operator{
-				copiedCSVLister: lister,
+				copiedCSVLister: v1alpha1lister.ClusterServiceVersionLister(),
 				client:          client,
 				logger:          logger,
 			}
 
-			proto := tc.Prototype.DeepCopy()
-			result, err := o.copyToNamespace(proto, tc.FromNamespace, tc.ToNamespace, tc.Hash, tc.StatusHash)
+			result, err := o.copyToNamespace(tc.Prototype.DeepCopy(), tc.FromNamespace, tc.ToNamespace, tc.Hash, tc.StatusHash)
 
 			if tc.ExpectedError == nil {
 				require.NoError(t, err)
-
-				// Ensure the in-memory 'proto' has the correct final annotations
-				annotations := proto.GetObjectMeta().GetAnnotations()
-				require.Equal(t, tc.Hash, annotations[copyCSVSpecHash],
-					"proto should have the non-status hash annotation set")
-				require.Equal(t, tc.StatusHash, annotations[copyCSVStatusHash],
-					"proto should have the status hash annotation set")
 			} else {
 				require.EqualError(t, err, tc.ExpectedError.Error())
 			}
-
-			if diff := cmp.Diff(tc.ExpectedResult, result); diff != "" {
-				t.Errorf("incorrect result: %v", diff)
-			}
+			assert.Equal(t, tc.ExpectedResult, result)
 
 			actions := client.Actions()
 			if len(actions) == 0 {
 				actions = nil
 			}
-			if diff := cmp.Diff(tc.ExpectedActions, actions); diff != "" {
-				t.Errorf("incorrect actions: %v", diff)
-			}
+			assert.Equal(t, tc.ExpectedActions, actions)
 		})
 	}
 }
