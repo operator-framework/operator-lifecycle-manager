@@ -5053,8 +5053,6 @@ func TestSyncOperatorGroups(t *testing.T) {
 						withAnnotations(targetCSV.DeepCopy(), map[string]string{
 							operatorsv1.OperatorGroupAnnotationKey:          "operator-group-1",
 							operatorsv1.OperatorGroupNamespaceAnnotationKey: operatorNamespace,
-							"olm.operatorframework.io/nonStatusCopyHash":    "9ZxHAHQTkxzAQd7Qkk4Qjz3VAkA8lXwuX9mDX6",
-							"olm.operatorframework.io/statusCopyHash":       "bedtcmN999WBSJ1RHvM7JfN2NJITrUjJ0g0MoH",
 						}),
 						labels.Merge(targetCSV.GetLabels(), map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace}),
 					),
@@ -5163,8 +5161,6 @@ func TestSyncOperatorGroups(t *testing.T) {
 						withAnnotations(targetCSV.DeepCopy(), map[string]string{
 							operatorsv1.OperatorGroupAnnotationKey:          "operator-group-1",
 							operatorsv1.OperatorGroupNamespaceAnnotationKey: operatorNamespace,
-							"olm.operatorframework.io/nonStatusCopyHash":    "9ZxHAHQTkxzAQd7Qkk4Qjz3VAkA8lXwuX9mDX6",
-							"olm.operatorframework.io/statusCopyHash":       "bedtcmN999WBSJ1RHvM7JfN2NJITrUjJ0g0MoH",
 						}),
 						labels.Merge(targetCSV.GetLabels(), map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace}),
 					),
@@ -5325,8 +5321,6 @@ func TestSyncOperatorGroups(t *testing.T) {
 						withAnnotations(targetCSV.DeepCopy(), map[string]string{
 							operatorsv1.OperatorGroupAnnotationKey:          "operator-group-1",
 							operatorsv1.OperatorGroupNamespaceAnnotationKey: operatorNamespace,
-							"olm.operatorframework.io/nonStatusCopyHash":    "9ZxHAHQTkxzAQd7Qkk4Qjz3VAkA8lXwuX9mDX6",
-							"olm.operatorframework.io/statusCopyHash":       "bedtcmN999WBSJ1RHvM7JfN2NJITrUjJ0g0MoH",
 						}),
 						labels.Merge(targetCSV.GetLabels(), map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace}),
 					),
