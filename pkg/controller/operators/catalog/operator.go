@@ -271,7 +271,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 			}
 			return csv, nil
 		}
-		return nil, fmt.Errorf("Unable to convert input to CSV")
+		return nil, fmt.Errorf("unable to convert input to CSV")
 	}
 
 	if err := prunedCSVInformer.SetTransform(prunedCSVTransformFunc); err != nil {
