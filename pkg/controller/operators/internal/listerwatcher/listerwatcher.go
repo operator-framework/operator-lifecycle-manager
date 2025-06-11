@@ -1,4 +1,4 @@
-package pruning
+package listerwatcher
 
 import (
 	"context"

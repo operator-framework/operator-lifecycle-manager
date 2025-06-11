@@ -64,7 +64,7 @@ import (
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog/subscription"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/pruning"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/listerwatcher"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
@@ -231,7 +231,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	// Fields are pruned from local copies of the objects managed
 	// by this informer in order to reduce cached size.
 	prunedCSVInformer := cache.NewSharedIndexInformerWithOptions(
-		pruning.NewListerWatcher(
+		listerwatcher.NewListerWatcher(
 			op.client,
 			metav1.NamespaceAll,
 			func(options *metav1.ListOptions) {
