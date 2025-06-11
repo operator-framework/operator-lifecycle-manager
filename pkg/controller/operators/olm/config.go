@@ -101,7 +101,7 @@ func (o *operatorConfig) validate() (err error) {
 
 func defaultOperatorConfig() *operatorConfig {
 	return &operatorConfig{
-		resyncPeriod:                 queueinformer.ResyncWithJitter(30*time.Second, 0.2),
+		resyncPeriod:                 queueinformer.ResyncWithJitter(6*time.Hour, 0.2),
 		operatorNamespace:            "default",
 		watchedNamespaces:            []string{metav1.NamespaceAll},
 		clock:                        utilclock.RealClock{},

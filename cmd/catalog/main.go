@@ -27,7 +27,7 @@ import (
 
 const (
 	catalogNamespaceEnvVarName  = "GLOBAL_CATALOG_NAMESPACE"
-	defaultWakeupInterval       = 15 * time.Minute
+	defaultWakeupInterval       = 6 * time.Hour
 	defaultCatalogNamespace     = "olm"
 	defaultConfigMapServerImage = "quay.io/operator-framework/configmap-operator-registry:latest"
 	defaultOPMImage             = "quay.io/operator-framework/opm:latest"
