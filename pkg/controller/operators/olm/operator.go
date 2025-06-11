@@ -338,8 +338,24 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 					Spec:       v1alpha1.ClusterServiceVersionSpec{},
 					Status:     v1alpha1.ClusterServiceVersionStatus{},
 				}
-				if csv.Annotations == nil {
-					csv.Annotations = make(map[string]string, 2)
+				// copy only the nececessary labels
+				labels := csv.Labels
+				csv.Labels = make(map[string]string, 2)
+				if l, ok := labels[v1alpha1.CopiedLabelKey]; ok {
+					csv.Labels[v1alpha1.CopiedLabelKey] = l
+				}
+				if l, ok := labels[install.OLMManagedLabelKey]; ok {
+					csv.Labels[install.OLMManagedLabelKey] = l
+				}
+
+				// copy only the nececessary annotations
+				annotations := csv.Annotations
+				csv.Annotations = make(map[string]string, 4)
+				if a, ok := annotations[operatorsv1.OperatorGroupAnnotationKey]; ok {
+					csv.Annotations[operatorsv1.OperatorGroupAnnotationKey] = a
+				}
+				if a, ok := annotations[operatorsv1.OperatorGroupNamespaceAnnotationKey]; ok {
+					csv.Annotations[operatorsv1.OperatorGroupNamespaceAnnotationKey] = a
 				}
 				// fake CSV hashes for tracking purposes only
 				csv.Annotations[copyCSVSpecHash] = specHash
