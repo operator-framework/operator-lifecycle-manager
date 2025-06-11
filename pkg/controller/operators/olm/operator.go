@@ -46,7 +46,7 @@ import (
 	operatorsv1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/pruning"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/listerwatcher"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/labeller"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/plugins"
@@ -307,8 +307,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		// A separate informer solely for CSV copies. Fields
 		// are pruned from local copies of the objects managed
 		// by this informer in order to reduce cached size.
+
 		copiedCSVInformer := cache.NewSharedIndexInformerWithOptions(
-			pruning.NewListerWatcher(
+			listerwatcher.NewListerWatcher(
 				op.client,
 				namespace,
 				func(opts *metav1.ListOptions) {
