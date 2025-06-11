@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	defaultWakeupInterval          = 5 * time.Minute
+	defaultWakeupInterval          = 6 * time.Hour
 	defaultOperatorName            = ""
 	defaultPackageServerStatusName = ""
 )
