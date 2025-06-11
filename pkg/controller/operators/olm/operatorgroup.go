@@ -798,6 +798,11 @@ func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, ns
 		return nil, fmt.Errorf("bug: can not copy to active namespace %v", nsFrom)
 	}
 
+	a.logger.WithFields(logrus.Fields{
+		"nsFrom": nsFrom,
+		"nsTo":   nsTo,
+	}).Info("copyToNamespace")
+
 	prototype.Namespace = nsTo
 	prototype.ResourceVersion = ""
 	prototype.UID = ""
