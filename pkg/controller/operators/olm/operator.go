@@ -356,33 +356,11 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		informersByNamespace[namespace].CopiedCSVInformer = copiedCSVInformer
 		informersByNamespace[namespace].CopiedCSVLister = op.copiedCSVLister
 
-		// Register separate queue for reverting copied csvs
-		copiedCSVRevertQueue := workqueue.NewTypedRateLimitingQueueWithConfig[types.NamespacedName](
-			workqueue.DefaultTypedControllerRateLimiter[types.NamespacedName](),
-			workqueue.TypedRateLimitingQueueConfig[types.NamespacedName]{
-				Name: fmt.Sprintf("%s/csv-revert", namespace),
-			})
-		op.copiedCSVGCQueueSet.Set(namespace, copiedCSVRevertQueue)
-		copiedCSVRevertQueueInformer, err := queueinformer.NewQueueInformer(
-			ctx,
-			queueinformer.WithInformer(copiedCSVInformer),
-			queueinformer.WithLogger(op.logger),
-			queueinformer.WithQueue(copiedCSVRevertQueue),
-			queueinformer.WithIndexer(copiedCSVInformer.GetIndexer()),
-			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncRevertCsv).ToSyncer()),
-		)
-		if err != nil {
-			return nil, err
-		}
-		if err := op.RegisterQueueInformer(copiedCSVRevertQueueInformer); err != nil {
-			return nil, err
-		}
-
 		// Register separate queue for gcing copied csvs
 		copiedCSVGCQueue := workqueue.NewTypedRateLimitingQueueWithConfig[types.NamespacedName](
 			workqueue.DefaultTypedControllerRateLimiter[types.NamespacedName](),
 			workqueue.TypedRateLimitingQueueConfig[types.NamespacedName]{
-				Name: fmt.Sprintf("%s/csv-gc", namespace),
+				Name: fmt.Sprintf("%s/csv-gc-revert", namespace),
 			})
 		op.copiedCSVGCQueueSet.Set(namespace, copiedCSVGCQueue)
 		copiedCSVGCQueueInformer, err := queueinformer.NewQueueInformer(
@@ -391,7 +369,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 			queueinformer.WithLogger(op.logger),
 			queueinformer.WithQueue(copiedCSVGCQueue),
 			queueinformer.WithIndexer(copiedCSVInformer.GetIndexer()),
-			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncGcCsv).ToSyncer()),
+			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncRevertGcCsv).ToSyncer()),
 		)
 		if err != nil {
 			return nil, err
@@ -1955,49 +1933,49 @@ func GetCopiedNamespace(c *v1alpha1.ClusterServiceVersion) string {
 	return ""
 }
 
-func (a *Operator) syncRevertCsv(obj interface{}) error {
+func (a *Operator) syncRevertGcCsv(obj interface{}) error {
 	csv, ok := obj.(*v1alpha1.ClusterServiceVersion)
 	if !ok {
 		a.logger.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting ClusterServiceVersion failed")
 	}
-	logger := a.logger.WithField("csv", fmt.Sprintf("%s/%s", csv.GetNamespace(), csv.GetName()))
-	logger.Info("syncRevertCsv")
-	ns := GetCopiedNamespace(csv)
-	if ns == "" {
-		logger.Info("syncRevertCsv: Unable to get copied-from namespace")
+	if !v1alpha1.IsCopied(csv) {
 		return nil
 	}
-	prototype, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Get(context.TODO(), csv.GetName(), metav1.GetOptions{})
+
+	logger := a.logger.WithField("csv", fmt.Sprintf("%s/%s", csv.Namespace, csv.Name))
+
+	// check for any garbage collection
+	logger.Info("syncRevertGcCsv: removeDanglingChildCSVs")
+	err := a.removeDanglingChildCSVs(csv)
 	if err != nil {
-		logger.Info("syncRevertCsv: Unable to get prototype")
+		return err
+	}
+
+	// Check for a revert
+	ns := GetCopiedNamespace(csv)
+	if ns == "" {
+		logger.Info("syncRevertGcCsv: Failed to get copied-from namespace")
+		return nil
+	}
+	prototype, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Get(context.TODO(), csv.Name, metav1.GetOptions{})
+	if err != nil {
+		logger.Info("syncRevertGcCsv: Failed to get prototype")
 		return err
 	}
 	var copyPrototype v1alpha1.ClusterServiceVersion
 	csvCopyPrototype(prototype, &copyPrototype)
 	specHash, statusHash, err := copyableCSVHash(&copyPrototype)
 	if err != nil {
-		logger.Info("syncRevertCsv: Unable to hash")
+		logger.Info("syncRevertGcCsv: Failed to hash")
 		return err
 	}
-	_, err = a.copyToNamespace(&copyPrototype, ns, csv.GetNamespace(), specHash, statusHash)
+	logger.Info("syncRevertGcCsv: copyToNamespace")
+	_, err = a.copyToNamespace(&copyPrototype, ns, csv.Namespace, specHash, statusHash)
 	if err != nil {
-		logger.WithError(err).Info("syncRevertCsv: copyToNamespace failed")
+		logger.WithError(err).Info("syncRevertGcCsv: copyToNamespace failed")
 	}
 	return err
-}
-
-func (a *Operator) syncGcCsv(obj interface{}) (syncError error) {
-	clusterServiceVersion, ok := obj.(*v1alpha1.ClusterServiceVersion)
-	if !ok {
-		a.logger.Debugf("wrong type: %#v", obj)
-		return fmt.Errorf("casting ClusterServiceVersion failed")
-	}
-	if v1alpha1.IsCopied(clusterServiceVersion) {
-		syncError = a.removeDanglingChildCSVs(clusterServiceVersion)
-		return
-	}
-	return
 }
 
 // operatorGroupFromAnnotations returns the OperatorGroup for the CSV only if the CSV is active one in the group
