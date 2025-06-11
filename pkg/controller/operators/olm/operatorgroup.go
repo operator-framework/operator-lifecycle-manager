@@ -812,11 +812,6 @@ func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, ns
 		if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).UpdateStatus(context.TODO(), created, metav1.UpdateOptions{}); err != nil {
 			return nil, fmt.Errorf("failed to update status on new CSV: %w", err)
 		}
-		a.logger.WithFields(logrus.Fields{
-			"nsFrom": nsFrom,
-			"nsTo":   nsTo,
-			"csv":    prototype.Name,
-		}).Info("copyToNamespace: created")
 		return &v1alpha1.ClusterServiceVersion{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      created.Name,
@@ -840,11 +835,6 @@ func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, ns
 		if updated, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), prototype, metav1.UpdateOptions{}); err != nil {
 			return nil, fmt.Errorf("failed to update: %w", err)
 		}
-		a.logger.WithFields(logrus.Fields{
-			"nsFrom": nsFrom,
-			"nsTo":   nsTo,
-			"csv":    updated.Name,
-		}).Info("copyToNamespace: updated Metadata+Spec")
 	} else {
 		// Avoid mutating cached copied CSV.
 		updated = prototype
@@ -855,11 +845,6 @@ func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, ns
 		if _, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).UpdateStatus(context.TODO(), updated, metav1.UpdateOptions{}); err != nil {
 			return nil, fmt.Errorf("failed to update status: %w", err)
 		}
-		a.logger.WithFields(logrus.Fields{
-			"nsFrom": nsFrom,
-			"nsTo":   nsTo,
-			"csv":    updated.Name,
-		}).Info("copyToNamespace: updated Status")
 	}
 	return &v1alpha1.ClusterServiceVersion{
 		ObjectMeta: metav1.ObjectMeta{
