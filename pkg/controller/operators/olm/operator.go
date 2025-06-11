@@ -327,7 +327,6 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		// a hash over the full CSV to store as an annotation
 		copiedCSVTransformFunc := func(i interface{}) (interface{}, error) {
 			if csv, ok := i.(*v1alpha1.ClusterServiceVersion); ok {
-				config.logger.WithField("name", fmt.Sprintf("%s/%s", csv.Namespace, csv.Name)).Info("Transforming copied CSV")
 				specHash, statusHash, err := copyableCSVHash(csv)
 				if err != nil {
 					return nil, err
@@ -385,7 +384,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 			queueinformer.WithLogger(op.logger),
 			queueinformer.WithQueue(copiedCSVGCQueue),
 			queueinformer.WithIndexer(copiedCSVInformer.GetIndexer()),
-			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncRevertGcCsv).ToSyncer()),
+			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncResyncCsv).ToSyncer()),
 		)
 		if err != nil {
 			return nil, err
@@ -1739,8 +1738,6 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 		return fmt.Errorf("casting ClusterServiceVersion failed")
 	}
 
-	a.logger.WithField("name", fmt.Sprintf("%s/%s", clusterServiceVersion.Namespace, clusterServiceVersion.Name)).Info("syncCopyCSV")
-
 	olmConfig, err := a.client.OperatorsV1().OLMConfigs().Get(context.TODO(), "cluster", metav1.GetOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
@@ -1932,24 +1929,7 @@ func (a *Operator) createCSVCopyingDisabledEvent(csv *v1alpha1.ClusterServiceVer
 	return nil
 }
 
-func GetCopiedNamespace(c *v1alpha1.ClusterServiceVersion) string {
-	annotations := c.GetAnnotations()
-	if annotations != nil {
-		operatorNamespace, ok := annotations[v1alpha1.OperatorGroupNamespaceAnnotationKey]
-		if ok && c.GetNamespace() != operatorNamespace {
-			return operatorNamespace
-		}
-	}
-
-	if labels := c.GetLabels(); labels != nil {
-		if l, ok := labels[v1alpha1.CopiedLabelKey]; ok {
-			return l
-		}
-	}
-	return ""
-}
-
-func (a *Operator) syncRevertGcCsv(obj interface{}) error {
+func (a *Operator) syncResyncCsv(obj interface{}) error {
 	csv, ok := obj.(*v1alpha1.ClusterServiceVersion)
 	if !ok {
 		a.logger.Debugf("wrong type: %#v", obj)
@@ -1959,39 +1939,23 @@ func (a *Operator) syncRevertGcCsv(obj interface{}) error {
 		return nil
 	}
 
-	logger := a.logger.WithField("csv", fmt.Sprintf("%s/%s", csv.Namespace, csv.Name))
+	name := csv.GetName()
+	copiedNamespace := csv.GetNamespace()
+	a.logger.WithField("csv", fmt.Sprintf("%s/%s", copiedNamespace, name)).Debug("syncing copied CSV")
 
 	// check for any garbage collection
-	logger.Info("syncRevertGcCsv: removeDanglingChildCSVs")
 	err := a.removeDanglingChildCSVs(csv)
 	if err != nil {
 		return err
 	}
 
-	// Check for a revert
-	ns := GetCopiedNamespace(csv)
-	if ns == "" {
-		logger.Info("syncRevertGcCsv: Failed to get copied-from namespace")
+	// Requeue parent CSV to deal with any changes to the copied CSV
+	copiedFromNamespace, ok := csv.GetLabels()[v1alpha1.CopiedLabelKey]
+	if !ok {
+		a.logger.Infof("no %q label found in CSV, skipping requeue", v1alpha1.CopiedLabelKey)
 		return nil
 	}
-	prototype, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Get(context.TODO(), csv.Name, metav1.GetOptions{})
-	if err != nil {
-		logger.Info("syncRevertGcCsv: Failed to get prototype")
-		return err
-	}
-	var copyPrototype v1alpha1.ClusterServiceVersion
-	csvCopyPrototype(prototype, &copyPrototype)
-	specHash, statusHash, err := copyableCSVHash(&copyPrototype)
-	if err != nil {
-		logger.Info("syncRevertGcCsv: Failed to hash")
-		return err
-	}
-	logger.Info("syncRevertGcCsv: copyToNamespace")
-	_, err = a.copyToNamespace(&copyPrototype, ns, csv.Namespace, specHash, statusHash)
-	if err != nil {
-		logger.WithError(err).Info("syncRevertGcCsv: copyToNamespace failed")
-	}
-	return err
+	return a.csvCopyQueueSet.Requeue(copiedFromNamespace, name)
 }
 
 // operatorGroupFromAnnotations returns the OperatorGroup for the CSV only if the CSV is active one in the group
