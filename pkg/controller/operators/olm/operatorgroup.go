@@ -941,6 +941,7 @@ func namespacesChanged(clusterNamespaces []string, statusNamespaces []string) bo
 
 func (a *Operator) getOperatorGroupTargets(op *operatorsv1.OperatorGroup) (map[string]struct{}, error) {
 	selector, err := metav1.LabelSelectorAsSelector(op.Spec.Selector)
+
 	if err != nil {
 		return nil, err
 	}
