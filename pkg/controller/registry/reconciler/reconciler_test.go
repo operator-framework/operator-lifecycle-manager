@@ -914,32 +914,58 @@ func TestPodNodeSelector(t *testing.T) {
 
 func TestPullPolicy(t *testing.T) {
 	var table = []struct {
-		image  string
-		policy corev1.PullPolicy
+		image          string
+		policy         corev1.PullPolicy
+		opmImage       string
+		extractContent bool
 	}{
 		{
-			image:  "quay.io/operator-framework/olm@sha256:b9d011c0fbfb65b387904f8fafc47ee1a9479d28d395473341288ee126ed993b",
-			policy: corev1.PullIfNotPresent,
+			image:          "quay.io/operator-framework/olm@sha256:b9d011c0fbfb65b387904f8fafc47ee1a9479d28d395473341288ee126ed993b",
+			policy:         corev1.PullIfNotPresent,
+			opmImage:       "opmImage",
+			extractContent: false,
 		},
 		{
-			image:  "gcc@sha256:06a6f170d7fff592e44b089c0d2e68d870573eb9a23d9c66d4b6ea11f8fad18b",
-			policy: corev1.PullIfNotPresent,
+			image:          "gcc@sha256:06a6f170d7fff592e44b089c0d2e68d870573eb9a23d9c66d4b6ea11f8fad18b",
+			policy:         corev1.PullIfNotPresent,
+			opmImage:       "opmImage",
+			extractContent: false,
 		},
 		{
-			image:  "myimage:1.0",
-			policy: corev1.PullAlways,
+			image:          "myimage:1.0",
+			policy:         corev1.PullAlways,
+			opmImage:       "opmImage",
+			extractContent: false,
 		},
 		{
-			image:  "busybox",
-			policy: corev1.PullAlways,
+			image:          "busybox",
+			policy:         corev1.PullAlways,
+			opmImage:       "opmImage",
+			extractContent: false,
 		},
 		{
-			image:  "gcc@sha256:06a6f170d7fff592e44b089c0d2e68",
-			policy: corev1.PullIfNotPresent,
+			image:          "gcc@sha256:06a6f170d7fff592e44b089c0d2e68",
+			policy:         corev1.PullIfNotPresent,
+			opmImage:       "opmImage",
+			extractContent: false,
 		},
 		{
-			image:  "hello@md5:b1946ac92492d2347c6235b4d2611184",
-			policy: corev1.PullIfNotPresent,
+			image:          "hello@md5:b1946ac92492d2347c6235b4d2611184",
+			policy:         corev1.PullIfNotPresent,
+			opmImage:       "opmImage",
+			extractContent: false,
+		},
+		{
+			image:          "quay.io/operator-framework/olm@sha256:b9d011c0fbfb65b387904f8fafc47ee1a9479d28d395473341288ee126ed993b",
+			policy:         corev1.PullIfNotPresent,
+			opmImage:       "quay.io/operator-framework/olm@sha256:b9d011c0fbfb65b387904f8fafc47ee1a9479d28d395473341288ee126ed993b",
+			extractContent: true,
+		},
+		{
+			image:          "quay.io/operator-framework/olm@sha256:b9d011c0fbfb65b387904f8fafc47ee1a9479d28d395473341288ee126ed993b",
+			policy:         corev1.PullAlways,
+			opmImage:       "quay.io/operator-framework/olm:latest",
+			extractContent: true,
 		},
 	}
 
@@ -951,7 +977,16 @@ func TestPullPolicy(t *testing.T) {
 	}
 
 	for _, tt := range table {
-		p, err := Pod(source, "catalog", "opmImage", "utilImage", tt.image, serviceAccount("", "service-account"), nil, nil, int32(0), int32(0), int64(workloadUserID), v1alpha1.Legacy)
+		if tt.extractContent {
+			grpcPodConfig := &v1alpha1.GrpcPodConfig{
+				ExtractContent: &v1alpha1.ExtractContentConfig{
+					CacheDir:   "/tmp/cache",
+					CatalogDir: "/catalog",
+				},
+			}
+			source.Spec.GrpcPodConfig = grpcPodConfig
+		}
+		p, err := Pod(source, "catalog", tt.opmImage, "utilImage", tt.image, serviceAccount("", "service-account"), nil, nil, int32(0), int32(0), int64(workloadUserID), v1alpha1.Legacy)
 		require.NoError(t, err)
 		policy := p.Spec.Containers[0].ImagePullPolicy
 		if policy != tt.policy {

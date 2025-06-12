@@ -305,6 +305,7 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 
 			pod.Spec.Containers[0].Image = opmImg
 			pod.Spec.Containers[0].Command = []string{"/bin/opm"}
+			pod.Spec.Containers[0].ImagePullPolicy = image.InferImagePullPolicy(opmImg)
 			var containerArgs = []string{
 				"serve",
 				filepath.Join(catalogPath, "catalog"),
