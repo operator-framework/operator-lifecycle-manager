@@ -64,7 +64,7 @@ import (
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog/subscription"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/pruning"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/listerwatcher"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
@@ -230,38 +230,53 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 
 	// Fields are pruned from local copies of the objects managed
 	// by this informer in order to reduce cached size.
-	prunedCSVInformer := cache.NewSharedIndexInformer(
-		pruning.NewListerWatcher(op.client, metav1.NamespaceAll,
+	prunedCSVInformer := cache.NewSharedIndexInformerWithOptions(
+		listerwatcher.NewListerWatcher(
+			op.client,
+			metav1.NamespaceAll,
 			func(options *metav1.ListOptions) {
 				options.LabelSelector = fmt.Sprintf("!%s", v1alpha1.CopiedLabelKey)
 			},
-			pruning.PrunerFunc(func(csv *v1alpha1.ClusterServiceVersion) {
-				*csv = v1alpha1.ClusterServiceVersion{
-					TypeMeta: csv.TypeMeta,
-					ObjectMeta: metav1.ObjectMeta{
-						Name:        csv.Name,
-						Namespace:   csv.Namespace,
-						Labels:      csv.Labels,
-						Annotations: csv.Annotations,
-					},
-					Spec: v1alpha1.ClusterServiceVersionSpec{
-						CustomResourceDefinitions: csv.Spec.CustomResourceDefinitions,
-						APIServiceDefinitions:     csv.Spec.APIServiceDefinitions,
-						Replaces:                  csv.Spec.Replaces,
-						Version:                   csv.Spec.Version,
-					},
-					Status: v1alpha1.ClusterServiceVersionStatus{
-						Phase:  csv.Status.Phase,
-						Reason: csv.Status.Reason,
-					},
-				}
-			})),
+		),
 		&v1alpha1.ClusterServiceVersion{},
-		resyncPeriod(),
-		cache.Indexers{
-			cache.NamespaceIndex: cache.MetaNamespaceIndexFunc,
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: resyncPeriod(),
+			Indexers: cache.Indexers{
+				cache.NamespaceIndex: cache.MetaNamespaceIndexFunc,
+			},
 		},
 	)
+
+	// Transformed the CSV to be just the necessary data
+	prunedCSVTransformFunc := func(i interface{}) (interface{}, error) {
+		if csv, ok := i.(*v1alpha1.ClusterServiceVersion); ok {
+			*csv = v1alpha1.ClusterServiceVersion{
+				TypeMeta: csv.TypeMeta,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        csv.Name,
+					Namespace:   csv.Namespace,
+					Labels:      csv.Labels,
+					Annotations: csv.Annotations,
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					CustomResourceDefinitions: csv.Spec.CustomResourceDefinitions,
+					APIServiceDefinitions:     csv.Spec.APIServiceDefinitions,
+					Replaces:                  csv.Spec.Replaces,
+					Version:                   csv.Spec.Version,
+				},
+				Status: v1alpha1.ClusterServiceVersionStatus{
+					Phase:  csv.Status.Phase,
+					Reason: csv.Status.Reason,
+				},
+			}
+			return csv, nil
+		}
+		return nil, fmt.Errorf("unable to convert input to CSV")
+	}
+
+	if err := prunedCSVInformer.SetTransform(prunedCSVTransformFunc); err != nil {
+		return nil, err
+	}
 	csvLister := operatorsv1alpha1listers.NewClusterServiceVersionLister(prunedCSVInformer.GetIndexer())
 	op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(metav1.NamespaceAll, csvLister)
 	if err := op.RegisterInformer(prunedCSVInformer); err != nil {
