@@ -864,7 +864,7 @@ func (a *Operator) pruneFromNamespace(operatorGroupName, namespace string) error
 	for _, csv := range fetchedCSVs {
 		if v1alpha1.IsCopied(csv) && csv.GetAnnotations()[operatorsv1.OperatorGroupAnnotationKey] == operatorGroupName {
 			a.logger.Debugf("Found CSV '%v' in namespace %v to delete", csv.GetName(), namespace)
-			if err := a.copiedCSVGCQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
+			if err := a.copiedCSVQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
 				return err
 			}
 		}
