@@ -385,7 +385,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 			queueinformer.WithQueue(copiedCSVQueue),
 			queueinformer.WithIndexer(copiedCSVInformer.GetIndexer()),
 			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncCopiedCsv).ToSyncer()),
-			queueinformer.WithDeletionHandler(op.deleteCopiedCsv),
+			queueinformer.WithDeletionHandler(op.handleCopiedCSVDeletion),
 		)
 		if err != nil {
 			return nil, err
@@ -1944,7 +1944,7 @@ func (a *Operator) requeueParentCsv(csv *v1alpha1.ClusterServiceVersion) error {
 	return a.csvCopyQueueSet.Requeue(copiedFromNamespace, name)
 }
 
-func (a *Operator) deleteCopiedCsv(obj interface{}) {
+func (a *Operator) handleCopiedCSVDeletion(obj interface{}) {
 	csv, ok := obj.(*v1alpha1.ClusterServiceVersion)
 	if !ok {
 		a.logger.Debugf("casting ClusterServiceVersion failed: wrong type: %#v", obj)
@@ -1954,7 +1954,7 @@ func (a *Operator) deleteCopiedCsv(obj interface{}) {
 		return
 	}
 
-	// Trigger partent reconciliation
+	// Trigger parent reconciliation
 	a.requeueParentCsv(csv)
 }
 
@@ -1974,7 +1974,7 @@ func (a *Operator) syncCopiedCsv(obj interface{}) error {
 		return err
 	}
 
-	// Trigger partent reconciliation
+	// Trigger parent reconciliation
 	return a.requeueParentCsv(csv)
 }
 
