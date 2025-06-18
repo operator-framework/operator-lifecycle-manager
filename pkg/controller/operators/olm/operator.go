@@ -8,8 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/labeller"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/plugins"
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -42,11 +40,16 @@ import (
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	operatorsv1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/listerwatcher"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/labeller"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/plugins"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clients"
 	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
@@ -60,6 +63,14 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
+)
+
+const (
+	// These annotation keys are intentionally invalid -- all writes
+	// to copied CSVs are regenerated from the corresponding non-copied CSV,
+	// so it should never be transmitted back to the API server.
+	copyCSVStatusHash = "$copyhash-status"
+	copyCSVSpecHash   = "$copyhash-spec"
 )
 
 var (
@@ -81,12 +92,12 @@ type Operator struct {
 	client                       versioned.Interface
 	lister                       operatorlister.OperatorLister
 	protectedCopiedCSVNamespaces map[string]struct{}
-	copiedCSVLister              metadatalister.Lister
+	copiedCSVLister              operatorsv1alpha1listers.ClusterServiceVersionLister
 	ogQueueSet                   *queueinformer.ResourceQueueSet
 	csvQueueSet                  *queueinformer.ResourceQueueSet
 	olmConfigQueue               workqueue.TypedRateLimitingInterface[types.NamespacedName]
 	csvCopyQueueSet              *queueinformer.ResourceQueueSet
-	copiedCSVGCQueueSet          *queueinformer.ResourceQueueSet
+	copiedCSVQueueSet            *queueinformer.ResourceQueueSet
 	nsQueueSet                   workqueue.TypedRateLimitingInterface[types.NamespacedName]
 	apiServiceQueue              workqueue.TypedRateLimitingInterface[types.NamespacedName]
 	csvIndexers                  map[string]cache.Indexer
@@ -205,8 +216,8 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 				Name: "olmConfig",
 			}),
 
-		csvCopyQueueSet:     queueinformer.NewEmptyResourceQueueSet(),
-		copiedCSVGCQueueSet: queueinformer.NewEmptyResourceQueueSet(),
+		csvCopyQueueSet:   queueinformer.NewEmptyResourceQueueSet(),
+		copiedCSVQueueSet: queueinformer.NewEmptyResourceQueueSet(),
 		apiServiceQueue: workqueue.NewTypedRateLimitingQueueWithConfig[types.NamespacedName](
 			workqueue.DefaultTypedControllerRateLimiter[types.NamespacedName](),
 			workqueue.TypedRateLimitingQueueConfig[types.NamespacedName]{
@@ -293,42 +304,93 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 			return nil, err
 		}
 
-		// A separate informer solely for CSV copies. Object metadata requests are used
+		// A separate informer solely for CSV copies. Fields
+		// are pruned from local copies of the objects managed
 		// by this informer in order to reduce cached size.
-		gvr := v1alpha1.SchemeGroupVersion.WithResource("clusterserviceversions")
-		copiedCSVInformer := metadatainformer.NewFilteredMetadataInformer(
-			config.metadataClient,
-			gvr,
-			namespace,
-			config.resyncPeriod(),
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-			func(options *metav1.ListOptions) {
-				options.LabelSelector = v1alpha1.CopiedLabelKey
+		copiedCSVInformer := cache.NewSharedIndexInformerWithOptions(
+			listerwatcher.NewListerWatcher(
+				op.client,
+				namespace,
+				func(opts *metav1.ListOptions) {
+					opts.LabelSelector = v1alpha1.CopiedLabelKey
+				},
+			),
+			&v1alpha1.ClusterServiceVersion{},
+			cache.SharedIndexInformerOptions{
+				ResyncPeriod: config.resyncPeriod(),
+				Indexers:     cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 			},
-		).Informer()
-		op.copiedCSVLister = metadatalister.New(copiedCSVInformer.GetIndexer(), gvr)
+		)
+
+		// Transform the copied CSV to be just the Metadata
+		// However, because we have the full copied CSV, we can calculate
+		// a hash over the full CSV to store as an annotation
+		copiedCSVTransformFunc := func(i interface{}) (interface{}, error) {
+			if csv, ok := i.(*v1alpha1.ClusterServiceVersion); ok {
+				specHash, statusHash, err := copyableCSVHash(csv)
+				if err != nil {
+					return nil, err
+				}
+				*csv = v1alpha1.ClusterServiceVersion{
+					TypeMeta:   csv.TypeMeta,
+					ObjectMeta: csv.ObjectMeta,
+					Spec:       v1alpha1.ClusterServiceVersionSpec{},
+					Status:     v1alpha1.ClusterServiceVersionStatus{},
+				}
+				// copy only the nececessary labels
+				labels := csv.Labels
+				csv.Labels = make(map[string]string, 2)
+				if l, ok := labels[v1alpha1.CopiedLabelKey]; ok {
+					csv.Labels[v1alpha1.CopiedLabelKey] = l
+				}
+				if l, ok := labels[install.OLMManagedLabelKey]; ok {
+					csv.Labels[install.OLMManagedLabelKey] = l
+				}
+
+				// copy only the nececessary annotations
+				annotations := csv.Annotations
+				csv.Annotations = make(map[string]string, 4)
+				if a, ok := annotations[operatorsv1.OperatorGroupAnnotationKey]; ok {
+					csv.Annotations[operatorsv1.OperatorGroupAnnotationKey] = a
+				}
+				if a, ok := annotations[operatorsv1.OperatorGroupNamespaceAnnotationKey]; ok {
+					csv.Annotations[operatorsv1.OperatorGroupNamespaceAnnotationKey] = a
+				}
+				// fake CSV hashes for tracking purposes only
+				csv.Annotations[copyCSVSpecHash] = specHash
+				csv.Annotations[copyCSVStatusHash] = statusHash
+				return csv, nil
+			}
+			return nil, fmt.Errorf("unable to convert input to CSV")
+		}
+
+		if err := copiedCSVInformer.SetTransform(copiedCSVTransformFunc); err != nil {
+			return nil, err
+		}
+		op.copiedCSVLister = operatorsv1alpha1listers.NewClusterServiceVersionLister(copiedCSVInformer.GetIndexer())
 		informersByNamespace[namespace].CopiedCSVInformer = copiedCSVInformer
 		informersByNamespace[namespace].CopiedCSVLister = op.copiedCSVLister
 
-		// Register separate queue for gcing copied csvs
-		copiedCSVGCQueue := workqueue.NewTypedRateLimitingQueueWithConfig[types.NamespacedName](
+		// Register separate queue for gcing/syncing/deletion of copied csvs
+		copiedCSVQueue := workqueue.NewTypedRateLimitingQueueWithConfig[types.NamespacedName](
 			workqueue.DefaultTypedControllerRateLimiter[types.NamespacedName](),
 			workqueue.TypedRateLimitingQueueConfig[types.NamespacedName]{
-				Name: fmt.Sprintf("%s/csv-gc", namespace),
+				Name: fmt.Sprintf("%s/csv-copied-sync", namespace),
 			})
-		op.copiedCSVGCQueueSet.Set(namespace, copiedCSVGCQueue)
-		copiedCSVGCQueueInformer, err := queueinformer.NewQueueInformer(
+		op.copiedCSVQueueSet.Set(namespace, copiedCSVQueue)
+		copiedCSVQueueInformer, err := queueinformer.NewQueueInformer(
 			ctx,
 			queueinformer.WithInformer(copiedCSVInformer),
 			queueinformer.WithLogger(op.logger),
-			queueinformer.WithQueue(copiedCSVGCQueue),
+			queueinformer.WithQueue(copiedCSVQueue),
 			queueinformer.WithIndexer(copiedCSVInformer.GetIndexer()),
-			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncGcCsv).ToSyncer()),
+			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncCopiedCsv).ToSyncer()),
+			queueinformer.WithDeletionHandler(op.handleCopiedCSVDeletion),
 		)
 		if err != nil {
 			return nil, err
 		}
-		if err := op.RegisterQueueInformer(copiedCSVGCQueueInformer); err != nil {
+		if err := op.RegisterQueueInformer(copiedCSVQueueInformer); err != nil {
 			return nil, err
 		}
 
@@ -1205,7 +1267,7 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 	for _, namespace := range namespaces {
 		if namespace != operatorNamespace {
 			logger.WithField("targetNamespace", namespace).Debug("requeueing child csv for deletion")
-			if err := a.copiedCSVGCQueueSet.Requeue(namespace, clusterServiceVersion.GetName()); err != nil {
+			if err := a.copiedCSVQueueSet.Requeue(namespace, clusterServiceVersion.GetName()); err != nil {
 				logger.WithError(err).Warn("unable to requeue")
 			}
 		}
@@ -1272,7 +1334,7 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 	}
 }
 
-func (a *Operator) removeDanglingChildCSVs(csv *metav1.PartialObjectMetadata) error {
+func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) error {
 	logger := a.logger.WithFields(logrus.Fields{
 		"id":          queueinformer.NewLoopID(),
 		"csv":         csv.GetName(),
@@ -1320,7 +1382,7 @@ func (a *Operator) removeDanglingChildCSVs(csv *metav1.PartialObjectMetadata) er
 	return nil
 }
 
-func (a *Operator) deleteChild(csv *metav1.PartialObjectMetadata, logger *logrus.Entry) error {
+func (a *Operator) deleteChild(csv *v1alpha1.ClusterServiceVersion, logger *logrus.Entry) error {
 	logger.Debug("gcing csv")
 	return a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(context.TODO(), csv.GetName(), metav1.DeleteOptions{})
 }
@@ -1704,9 +1766,13 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 		return
 	}
 
-	logger.WithFields(logrus.Fields{
-		"targetNamespaces": strings.Join(operatorGroup.Status.Namespaces, ","),
-	}).Debug("copying csv to targets")
+	if len(operatorGroup.Status.Namespaces) == 1 && operatorGroup.Status.Namespaces[0] == "" {
+		logger.Debug("copying csv to targets in all namespaces")
+	} else {
+		logger.WithFields(logrus.Fields{
+			"targetNamespaces": strings.Join(operatorGroup.Status.Namespaces, ","),
+		}).Debug("copying csv to targets")
+	}
 
 	copiedCSVsAreEnabled, err := a.copiedCSVsAreEnabled()
 	if err != nil {
@@ -1864,17 +1930,52 @@ func (a *Operator) createCSVCopyingDisabledEvent(csv *v1alpha1.ClusterServiceVer
 	return nil
 }
 
-func (a *Operator) syncGcCsv(obj interface{}) (syncError error) {
-	clusterServiceVersion, ok := obj.(*metav1.PartialObjectMetadata)
+func (a *Operator) requeueParentCsv(csv *v1alpha1.ClusterServiceVersion) error {
+	name := csv.GetName()
+	copiedNamespace := csv.GetNamespace()
+	a.logger.WithField("csv", fmt.Sprintf("%s/%s", copiedNamespace, name)).Debug("syncing copied CSV")
+
+	// Requeue parent CSV to deal with any changes to the copied CSV
+	copiedFromNamespace, ok := csv.GetLabels()[v1alpha1.CopiedLabelKey]
+	if !ok {
+		a.logger.Infof("no %q label found in CSV, skipping requeue", v1alpha1.CopiedLabelKey)
+		return nil
+	}
+	return a.csvCopyQueueSet.Requeue(copiedFromNamespace, name)
+}
+
+func (a *Operator) handleCopiedCSVDeletion(obj interface{}) {
+	csv, ok := obj.(*v1alpha1.ClusterServiceVersion)
+	if !ok {
+		a.logger.Debugf("casting ClusterServiceVersion failed: wrong type: %#v", obj)
+		return
+	}
+	if !v1alpha1.IsCopied(csv) {
+		return
+	}
+
+	// Trigger parent reconciliation
+	a.requeueParentCsv(csv)
+}
+
+func (a *Operator) syncCopiedCsv(obj interface{}) error {
+	csv, ok := obj.(*v1alpha1.ClusterServiceVersion)
 	if !ok {
 		a.logger.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting ClusterServiceVersion failed")
 	}
-	if v1alpha1.IsCopied(clusterServiceVersion) {
-		syncError = a.removeDanglingChildCSVs(clusterServiceVersion)
-		return
+	if !v1alpha1.IsCopied(csv) {
+		return nil
 	}
-	return
+
+	// check for any garbage collection
+	err := a.removeDanglingChildCSVs(csv)
+	if err != nil {
+		return err
+	}
+
+	// Trigger parent reconciliation
+	return a.requeueParentCsv(csv)
 }
 
 // operatorGroupFromAnnotations returns the OperatorGroup for the CSV only if the CSV is active one in the group
