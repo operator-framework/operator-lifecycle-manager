@@ -61,13 +61,25 @@ func NewFilteredOperatorInformer(client versioned.Interface, resyncPeriod time.D
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorsV1().Operators().List(context.TODO(), options)
+				return client.OperatorsV1().Operators().List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorsV1().Operators().Watch(context.TODO(), options)
+				return client.OperatorsV1().Operators().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorsV1().Operators().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorsV1().Operators().Watch(ctx, options)
 			},
 		},
 		&pkgoperatorsv1.Operator{},
