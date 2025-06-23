@@ -62,13 +62,25 @@ func NewFilteredInstallPlanInformer(client versioned.Interface, namespace string
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorsV1alpha1().InstallPlans(namespace).List(context.TODO(), options)
+				return client.OperatorsV1alpha1().InstallPlans(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorsV1alpha1().InstallPlans(namespace).Watch(context.TODO(), options)
+				return client.OperatorsV1alpha1().InstallPlans(namespace).Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorsV1alpha1().InstallPlans(namespace).List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorsV1alpha1().InstallPlans(namespace).Watch(ctx, options)
 			},
 		},
 		&pkgoperatorsv1alpha1.InstallPlan{},
