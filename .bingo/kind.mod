@@ -4,4 +4,4 @@ go 1.22.0
 
 toolchain go1.22.3
 
-require sigs.k8s.io/kind v0.26.0
+require sigs.k8s.io/kind v0.29.0
