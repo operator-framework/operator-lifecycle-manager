@@ -62,13 +62,25 @@ func NewFilteredOperatorGroupInformer(client versioned.Interface, namespace stri
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorsV1().OperatorGroups(namespace).List(context.TODO(), options)
+				return client.OperatorsV1().OperatorGroups(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorsV1().OperatorGroups(namespace).Watch(context.TODO(), options)
+				return client.OperatorsV1().OperatorGroups(namespace).Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorsV1().OperatorGroups(namespace).List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.OperatorsV1().OperatorGroups(namespace).Watch(ctx, options)
 			},
 		},
 		&pkgoperatorsv1.OperatorGroup{},
