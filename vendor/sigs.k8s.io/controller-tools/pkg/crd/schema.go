@@ -27,7 +27,6 @@ import (
 
 	apiext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	crdmarkers "sigs.k8s.io/controller-tools/pkg/crd/markers"
-
 	"sigs.k8s.io/controller-tools/pkg/loader"
 	"sigs.k8s.io/controller-tools/pkg/markers"
 )
@@ -247,7 +246,7 @@ func typeToSchema(ctx *schemaContext, rawType ast.Expr) *apiext.JSONSchemaProps 
 // escapes).
 func qualifiedName(pkgName, typeName string) string {
 	if pkgName != "" {
-		return strings.Replace(pkgName, "/", "~1", -1) + "~0" + typeName
+		return strings.ReplaceAll(pkgName, "/", "~1") + "~0" + typeName
 	}
 	return typeName
 }
@@ -448,12 +447,12 @@ func structToSchema(ctx *schemaContext, structType *ast.StructType) *apiext.JSON
 
 		switch {
 		case field.Markers.Get("kubebuilder:validation:Optional") != nil:
-			// explicity optional - kubebuilder
+			// explicitly optional - kubebuilder
 		case field.Markers.Get("kubebuilder:validation:Required") != nil:
 			// explicitly required - kubebuilder
 			props.Required = append(props.Required, fieldName)
 		case field.Markers.Get("optional") != nil:
-			// explicity optional - kubernetes
+			// explicitly optional - kubernetes
 		case field.Markers.Get("required") != nil:
 			// explicitly required - kubernetes
 			props.Required = append(props.Required, fieldName)
