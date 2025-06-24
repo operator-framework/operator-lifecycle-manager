@@ -209,7 +209,7 @@ func loadBundle(csvName string, dir string) (*Bundle, error) {
 		}
 		defer fileReader.Close()
 
-		decoder := yaml.NewYAMLOrJSONDecoder(fileReader, 30)
+		decoder := yaml.NewYAMLToJSONDecoder(fileReader)
 		obj := &unstructured.Unstructured{}
 		if err = decoder.Decode(obj); err != nil {
 			errs = append(errs, fmt.Errorf("unable to decode object: %s", err))
