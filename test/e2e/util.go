@@ -51,7 +51,7 @@ import (
 
 const (
 	pollInterval = 100 * time.Millisecond
-	pollDuration = 5 * time.Minute
+	pollDuration = 15 * time.Minute
 
 	olmConfigMap = "olm-operators" // No-longer used, how long do we keep this around?
 
