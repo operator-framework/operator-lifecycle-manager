@@ -170,9 +170,7 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 					if snapshot.Valid() {
 						result.snapshots[key] = snapshot
 					} else {
-						if !snapshot.RequestSentinelActive() {
-							misses = append(misses, key)
-						}
+						misses = append(misses, key)
 					}
 				}()
 			}
