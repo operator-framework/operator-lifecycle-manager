@@ -1,23 +1,24 @@
 
 # approval == this is a good idea /approve
 approvers:
-  - kevinrizza
-  - perdasilva
+  - anik120
+  - dtfranz
   - grokspawn
   - joelanford
+  - kevinrizza
+  - oceanc80
+  - perdasilva
   - tmshort
-  - dtfranz
-  - anik120
 
 # review == this code is good /lgtm
 reviewers:
-  - kevinrizza
-  - camilamacedo86
   - anik120
   - ankitathomas
-  - joelanford
-  - perdasilva
-  - oceanc80
-  - grokspawn
+  - camilamacedo86
   - dtfranz
+  - grokspawn
+  - joelanford
+  - kevinrizza
+  - oceanc80
+  - perdasilva
   - tmshort
