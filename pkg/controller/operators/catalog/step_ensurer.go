@@ -151,7 +151,7 @@ func (o *StepEnsurer) EnsureServiceAccount(namespace string, sa *corev1.ServiceA
 		return
 	}
 
-	// Carrying secrets through the service account update.
+	// Carrying secrets and annotations through the service account update.
 	preSa, getErr := o.kubeClient.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(context.TODO(),
 		sa.Name,
 		metav1.GetOptions{})
@@ -161,6 +161,16 @@ func (o *StepEnsurer) EnsureServiceAccount(namespace string, sa *corev1.ServiceA
 	}
 	sa.Secrets = preSa.Secrets
 	sa.OwnerReferences = mergedOwnerReferences(preSa.OwnerReferences, sa.OwnerReferences)
+
+	// Merge annotations, giving precedence to the new ones.
+	if sa.Annotations == nil {
+		sa.Annotations = make(map[string]string)
+	}
+	for k, v := range preSa.Annotations {
+		if _, ok := sa.Annotations[k]; !ok {
+			sa.Annotations[k] = v
+		}
+	}
 
 	sa.SetNamespace(namespace)
 
