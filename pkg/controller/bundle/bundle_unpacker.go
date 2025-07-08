@@ -234,6 +234,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 						"kubernetes.io/os": "linux",
 					},
 					Tolerations: []corev1.Toleration{
+						// arch-specific tolerations
 						{
 							Key:      "kubernetes.io/arch",
 							Value:    "amd64",
@@ -253,6 +254,24 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 							Key:      "kubernetes.io/arch",
 							Value:    "s390x",
 							Operator: "Equal",
+						},
+						// control-plane-specific tolerations
+						{
+							Key:      "node-role.kubernetes.io/master",
+							Operator: "Exists",
+							Effect:   "NoSchedule",
+						},
+						{
+							Key:               "node.kubernetes.io/unreachable",
+							Operator:          "Exists",
+							Effect:            "NoExecute",
+							TolerationSeconds: ptr.To[int64](120),
+						},
+						{
+							Key:               "node.kubernetes.io/not-ready",
+							Operator:          "Exists",
+							Effect:            "NoExecute",
+							TolerationSeconds: ptr.To[int64](120),
 						},
 					},
 				},

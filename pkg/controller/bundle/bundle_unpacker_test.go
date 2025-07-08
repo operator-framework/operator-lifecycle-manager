@@ -59,6 +59,48 @@ func TestConfigMapUnpacker(t *testing.T) {
 	customAnnotationDuration := 2 * time.Minute
 	customAnnotationTimeoutSeconds := int64(customAnnotationDuration.Seconds())
 
+	podTolerations := []corev1.Toleration{
+		// arch-specific tolerations
+		{
+			Key:      "kubernetes.io/arch",
+			Value:    "amd64",
+			Operator: "Equal",
+		},
+		{
+			Key:      "kubernetes.io/arch",
+			Value:    "arm64",
+			Operator: "Equal",
+		},
+		{
+			Key:      "kubernetes.io/arch",
+			Value:    "ppc64le",
+			Operator: "Equal",
+		},
+		{
+			Key:      "kubernetes.io/arch",
+			Value:    "s390x",
+			Operator: "Equal",
+		},
+		// control-plane-specific tolerations
+		{
+			Key:      "node-role.kubernetes.io/master",
+			Operator: "Exists",
+			Effect:   "NoSchedule",
+		},
+		{
+			Key:               "node.kubernetes.io/unreachable",
+			Operator:          "Exists",
+			Effect:            "NoExecute",
+			TolerationSeconds: ptr.To[int64](120),
+		},
+		{
+			Key:               "node.kubernetes.io/not-ready",
+			Operator:          "Exists",
+			Effect:            "NoExecute",
+			TolerationSeconds: ptr.To[int64](120),
+		},
+	}
+
 	type fields struct {
 		objs []runtime.Object
 		crs  []runtime.Object
@@ -345,28 +387,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									NodeSelector: map[string]string{
 										"kubernetes.io/os": "linux",
 									},
-									Tolerations: []corev1.Toleration{
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "amd64",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "arm64",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "ppc64le",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "s390x",
-											Operator: "Equal",
-										},
-									},
+									Tolerations: podTolerations,
 								},
 							},
 						},
@@ -582,28 +603,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									NodeSelector: map[string]string{
 										"kubernetes.io/os": "linux",
 									},
-									Tolerations: []corev1.Toleration{
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "amd64",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "arm64",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "ppc64le",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "s390x",
-											Operator: "Equal",
-										},
-									},
+									Tolerations: podTolerations,
 								},
 							},
 						},
@@ -859,28 +859,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									NodeSelector: map[string]string{
 										"kubernetes.io/os": "linux",
 									},
-									Tolerations: []corev1.Toleration{
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "amd64",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "arm64",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "ppc64le",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "s390x",
-											Operator: "Equal",
-										},
-									},
+									Tolerations: podTolerations,
 								},
 							},
 						},
@@ -1131,28 +1110,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									NodeSelector: map[string]string{
 										"kubernetes.io/os": "linux",
 									},
-									Tolerations: []corev1.Toleration{
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "amd64",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "arm64",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "ppc64le",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "s390x",
-											Operator: "Equal",
-										},
-									},
+									Tolerations: podTolerations,
 								},
 							},
 						},
@@ -1373,28 +1331,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									NodeSelector: map[string]string{
 										"kubernetes.io/os": "linux",
 									},
-									Tolerations: []corev1.Toleration{
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "amd64",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "arm64",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "ppc64le",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "s390x",
-											Operator: "Equal",
-										},
-									},
+									Tolerations: podTolerations,
 								},
 							},
 						},
@@ -1628,28 +1565,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									NodeSelector: map[string]string{
 										"kubernetes.io/os": "linux",
 									},
-									Tolerations: []corev1.Toleration{
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "amd64",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "arm64",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "ppc64le",
-											Operator: "Equal",
-										},
-										{
-											Key:      "kubernetes.io/arch",
-											Value:    "s390x",
-											Operator: "Equal",
-										},
-									},
+									Tolerations: podTolerations,
 								},
 							},
 						},
