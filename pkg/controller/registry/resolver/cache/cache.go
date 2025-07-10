@@ -212,12 +212,15 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 
 	// remove any with a "live" outstanding request
 	misses = slices.DeleteFunc(misses, func(key SourceKey) bool {
+		fl := c.logger.(logrus.FieldLogger)
+		fl.Errorf(">>> checking for outstanding request for %s", key)
+
 		hdr := c.snapshots[key]
 
 		// if we already have a request timestamp, we have an outstanding request, so prevent stacking
 		// and just send new requests if the previous one has expired
 		if hdr != nil && hdr.RequestSentinelActive() {
-			c.logger.Printf("Skipping new request for %s, already in progress", key)
+			fl.Errorf("skipping new request for %s, already in progress", key)
 			return true
 		}
 		return false
