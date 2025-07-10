@@ -20,7 +20,7 @@ import (
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/informers"
-	utilversion "k8s.io/component-base/version"
+	utilversion "k8s.io/component-base/compatibility"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver/generic"
 	generatedopenapi "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/openapi"
@@ -40,7 +40,7 @@ type completedConfig struct {
 
 // Complete fills in any fields not set that are required to have valid data. It's mutating the receiver.
 func (c *Config) Complete(informers informers.SharedInformerFactory) completedConfig {
-	c.GenericConfig.EffectiveVersion = utilversion.NewEffectiveVersion(version.VersionInfo().String())
+	c.GenericConfig.EffectiveVersion = utilversion.NewEffectiveVersionFromString(version.VersionInfo().String(), "", "")
 
 	// enable OpenAPI schemas
 	c.GenericConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(generic.Scheme))
