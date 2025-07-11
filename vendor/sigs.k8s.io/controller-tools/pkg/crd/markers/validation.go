@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	apiext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-
 	"sigs.k8s.io/controller-tools/pkg/markers"
 )
 
@@ -104,6 +103,9 @@ var FieldOnlyMarkers = []*definitionWithHelp{
 
 	must(markers.MakeDefinition(SchemalessName, markers.DescribesField, Schemaless{})).
 		WithHelp(Schemaless{}.Help()),
+
+	must(markers.MakeAnyTypeDefinition("kubebuilder:title", markers.DescribesField, Title{})).
+		WithHelp(Title{}.Help()),
 }
 
 // ValidationIshMarkers are field-and-type markers that don't fall under the
@@ -244,6 +246,17 @@ type Default struct {
 }
 
 // +controllertools:marker:generateHelp:category="CRD validation"
+// Title sets the title for this field.
+//
+// The title is metadata that makes the OpenAPI documentation more user-friendly,
+// making the schema more understandable when viewed in documentation tools.
+// It's a metadata field that doesn't affect validation but provides
+// important context about what the schema represents.
+type Title struct {
+	Value interface{}
+}
+
+// +controllertools:marker:generateHelp:category="CRD validation"
 // Default sets the default value for this field.
 //
 // A default value will be accepted as any value valid for the field.
@@ -313,7 +326,7 @@ type XIntOrString struct{}
 type Schemaless struct{}
 
 func hasNumericType(schema *apiext.JSONSchemaProps) bool {
-	return schema.Type == "integer" || schema.Type == "number"
+	return schema.Type == string(Integer) || schema.Type == string(Number)
 }
 
 func hasTextualType(schema *apiext.JSONSchemaProps) bool {
@@ -336,6 +349,7 @@ type XValidation struct {
 	MessageExpression string `marker:"messageExpression,optional"`
 	Reason            string `marker:"reason,optional"`
 	FieldPath         string `marker:"fieldPath,optional"`
+	OptionalOldSelf   *bool  `marker:"optionalOldSelf,optional"`
 }
 
 func (m Maximum) ApplyToSchema(schema *apiext.JSONSchemaProps) error {
@@ -343,7 +357,7 @@ func (m Maximum) ApplyToSchema(schema *apiext.JSONSchemaProps) error {
 		return fmt.Errorf("must apply maximum to a numeric value, found %s", schema.Type)
 	}
 
-	if schema.Type == "integer" && !isIntegral(m.Value()) {
+	if schema.Type == string(Integer) && !isIntegral(m.Value()) {
 		return fmt.Errorf("cannot apply non-integral maximum validation (%v) to integer value", m.Value())
 	}
 
@@ -424,7 +438,7 @@ func (m Pattern) ApplyToSchema(schema *apiext.JSONSchemaProps) error {
 }
 
 func (m MaxItems) ApplyToSchema(schema *apiext.JSONSchemaProps) error {
-	if schema.Type != "array" {
+	if schema.Type != string(Array) {
 		return fmt.Errorf("must apply maxitem to an array")
 	}
 	val := int64(m)
@@ -433,7 +447,7 @@ func (m MaxItems) ApplyToSchema(schema *apiext.JSONSchemaProps) error {
 }
 
 func (m MinItems) ApplyToSchema(schema *apiext.JSONSchemaProps) error {
-	if schema.Type != "array" {
+	if schema.Type != string(Array) {
 		return fmt.Errorf("must apply minitems to an array")
 	}
 	val := int64(m)
@@ -527,6 +541,19 @@ func (m Default) ApplyPriority() ApplyPriority {
 	return 10
 }
 
+func (m Title) ApplyToSchema(schema *apiext.JSONSchemaProps) error {
+	if m.Value == nil {
+		// only apply to the schema if we have a non-nil title
+		return nil
+	}
+	title, isStr := m.Value.(string)
+	if !isStr {
+		return fmt.Errorf("expected string, got %T", m.Value)
+	}
+	schema.Title = title
+	return nil
+}
+
 func (m *KubernetesDefault) ParseMarker(_ string, _ string, restFields string) error {
 	if strings.HasPrefix(strings.TrimSpace(restFields), "ref(") {
 		// Skip +default=ref(...) values for now, since we don't have a good way to evaluate go constant values via AST.
@@ -604,6 +631,7 @@ func (m XValidation) ApplyToSchema(schema *apiext.JSONSchemaProps) error {
 		MessageExpression: m.MessageExpression,
 		Reason:            reason,
 		FieldPath:         m.FieldPath,
+		OptionalOldSelf:   m.OptionalOldSelf,
 	})
 	return nil
 }
