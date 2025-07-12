@@ -513,7 +513,7 @@ func (data *multiArchValidator) checkNodeAffinity(images map[string][]platform) 
 			if !imagePlatformDataValid {
 				// Node affinity info is missing from CSV (or invalid)
 				data.warns = append(data.warns,
-					fmt.Errorf("check if the CSV is missing a node affinity configuration for the image: %q. "+
+					fmt.Errorf("check if the CSV is missing a node affinity configuration for the image: %q. ",
 						image,
 					))
 			}
