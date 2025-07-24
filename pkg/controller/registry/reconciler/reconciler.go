@@ -191,7 +191,7 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 						},
 					},
 					SecurityContext: &corev1.SecurityContext{
-						ReadOnlyRootFilesystem: ptr.To(false),
+						ReadOnlyRootFilesystem: ptr.To(true),
 					},
 					ImagePullPolicy:          image.InferImagePullPolicy(img),
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
@@ -361,6 +361,7 @@ func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
 			pod.Spec.InitContainers[i].SecurityContext = &corev1.SecurityContext{}
 		}
 		pod.Spec.InitContainers[i].SecurityContext.AllowPrivilegeEscalation = ptr.To(false)
+		pod.Spec.InitContainers[i].SecurityContext.ReadOnlyRootFilesystem = ptr.To(true)
 		pod.Spec.InitContainers[i].SecurityContext.Capabilities = &corev1.Capabilities{
 			Drop: []corev1.Capability{"ALL"},
 		}
@@ -370,6 +371,7 @@ func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
 			pod.Spec.Containers[i].SecurityContext = &corev1.SecurityContext{}
 		}
 		pod.Spec.Containers[i].SecurityContext.AllowPrivilegeEscalation = ptr.To(false)
+		pod.Spec.InitContainers[i].SecurityContext.ReadOnlyRootFilesystem = ptr.To(true)
 		pod.Spec.Containers[i].SecurityContext.Capabilities = &corev1.Capabilities{
 			Drop: []corev1.Capability{"ALL"},
 		}

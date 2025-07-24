@@ -154,6 +154,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 							},
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: ptr.To(bool(false)),
+								ReadOnlyRootFilesystem:   ptr.To(true),
 								Capabilities: &corev1.Capabilities{
 									Drop: []corev1.Capability{"ALL"},
 								},
@@ -180,6 +181,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 							},
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: ptr.To(bool(false)),
+								ReadOnlyRootFilesystem:   ptr.To(true),
 								Capabilities: &corev1.Capabilities{
 									Drop: []corev1.Capability{"ALL"},
 								},
@@ -209,6 +211,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 							},
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: ptr.To(bool(false)),
+								ReadOnlyRootFilesystem:   ptr.To(true),
 								Capabilities: &corev1.Capabilities{
 									Drop: []corev1.Capability{"ALL"},
 								},
