@@ -35,10 +35,13 @@ spec:
         secret:
           secretName: {{ .Values.catalog.clientCASecret }}
       {{- end }}
+      - name: tmpfs
+        emptyDir: {}
       containers:
         - name: catalog-operator
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: [ "ALL" ]
           {{- if or .Values.catalog.tlsSecret .Values.catalog.clientCASecret }}
@@ -54,6 +57,8 @@ spec:
             mountPath: "/profile-collector-cert"
             readOnly: true
           {{- end }}
+          - name: tmpfs
+            mountPath: /tmp
           command:
           - /bin/catalog
           args:

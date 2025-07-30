@@ -35,10 +35,13 @@ spec:
         secret:
           secretName: {{ .Values.olm.clientCASecret }}
       {{- end }}
+      - name: tmpfs
+        emptyDir: {}
       containers:
         - name: olm-operator
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: [ "ALL" ]
           {{- if or .Values.olm.tlsSecret .Values.olm.clientCASecret }}
@@ -54,6 +57,8 @@ spec:
             mountPath: "/profile-collector-cert"
             readOnly: true
           {{- end }}
+          - name: tmpfs
+            mountPath: /tmp
           command:
           - /bin/olm
           args:
