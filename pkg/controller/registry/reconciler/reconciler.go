@@ -371,7 +371,7 @@ func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
 			pod.Spec.Containers[i].SecurityContext = &corev1.SecurityContext{}
 		}
 		pod.Spec.Containers[i].SecurityContext.AllowPrivilegeEscalation = ptr.To(false)
-		pod.Spec.InitContainers[i].SecurityContext.ReadOnlyRootFilesystem = ptr.To(true)
+		pod.Spec.Containers[i].SecurityContext.ReadOnlyRootFilesystem = ptr.To(true)
 		pod.Spec.Containers[i].SecurityContext.Capabilities = &corev1.Capabilities{
 			Drop: []corev1.Capability{"ALL"},
 		}
