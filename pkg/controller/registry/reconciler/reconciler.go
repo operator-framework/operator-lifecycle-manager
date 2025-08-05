@@ -191,7 +191,7 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 						},
 					},
 					SecurityContext: &corev1.SecurityContext{
-						ReadOnlyRootFilesystem: ptr.To(true),
+						ReadOnlyRootFilesystem: ptr.To(false),
 					},
 					ImagePullPolicy:          image.InferImagePullPolicy(img),
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,

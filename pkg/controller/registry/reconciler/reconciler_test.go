@@ -1017,7 +1017,7 @@ func TestPodContainerSecurityContext(t *testing.T) {
 				Capabilities: &corev1.Capabilities{
 					Drop: []corev1.Capability{"ALL"},
 				},
-				ReadOnlyRootFilesystem: ptr.To(false), // Reflecting expected 'restricted' settings
+				ReadOnlyRootFilesystem: ptr.To(true), // Reflecting expected 'restricted' settings
 			},
 			expectedSecurityContext: &corev1.PodSecurityContext{
 				SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
@@ -1052,7 +1052,7 @@ func TestPodContainerSecurityContext(t *testing.T) {
 				Capabilities: &corev1.Capabilities{
 					Drop: []corev1.Capability{"ALL"},
 				},
-				ReadOnlyRootFilesystem: ptr.To(false),
+				ReadOnlyRootFilesystem: ptr.To(true),
 			},
 			expectedSecurityContext: &corev1.PodSecurityContext{
 				SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
@@ -1107,7 +1107,7 @@ func TestPodContainerSecurityContext(t *testing.T) {
 			},
 			namespacePodSecurityConfig: v1alpha1.Legacy, // set to the opposite of the config to catch possible errors
 			expectedContainerSecurityContext: &corev1.SecurityContext{
-				ReadOnlyRootFilesystem:   ptr.To(false),
+				ReadOnlyRootFilesystem:   ptr.To(true),
 				AllowPrivilegeEscalation: ptr.To(false),
 				Capabilities: &corev1.Capabilities{
 					Drop: []corev1.Capability{"ALL"},
