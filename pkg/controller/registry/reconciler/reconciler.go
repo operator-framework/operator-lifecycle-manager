@@ -356,12 +356,22 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 }
 
 func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
+	pod.Spec.SecurityContext = &corev1.PodSecurityContext{
+		SeccompProfile: &corev1.SeccompProfile{
+			Type: corev1.SeccompProfileTypeRuntimeDefault,
+		},
+	}
+	if runAsUser > 0 {
+		pod.Spec.SecurityContext.RunAsUser = &runAsUser
+		pod.Spec.SecurityContext.RunAsNonRoot = ptr.To(true)
+	}
+
 	for i := range pod.Spec.InitContainers {
 		if pod.Spec.InitContainers[i].SecurityContext == nil {
 			pod.Spec.InitContainers[i].SecurityContext = &corev1.SecurityContext{}
 		}
 		pod.Spec.InitContainers[i].SecurityContext.AllowPrivilegeEscalation = ptr.To(false)
-		pod.Spec.InitContainers[i].SecurityContext.ReadOnlyRootFilesystem = ptr.To(true)
+		pod.Spec.InitContainers[i].SecurityContext.ReadOnlyRootFilesystem = pod.Spec.SecurityContext.RunAsNonRoot
 		pod.Spec.InitContainers[i].SecurityContext.Capabilities = &corev1.Capabilities{
 			Drop: []corev1.Capability{"ALL"},
 		}
@@ -371,20 +381,10 @@ func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
 			pod.Spec.Containers[i].SecurityContext = &corev1.SecurityContext{}
 		}
 		pod.Spec.Containers[i].SecurityContext.AllowPrivilegeEscalation = ptr.To(false)
-		pod.Spec.Containers[i].SecurityContext.ReadOnlyRootFilesystem = ptr.To(true)
+		pod.Spec.Containers[i].SecurityContext.ReadOnlyRootFilesystem = pod.Spec.SecurityContext.RunAsNonRoot
 		pod.Spec.Containers[i].SecurityContext.Capabilities = &corev1.Capabilities{
 			Drop: []corev1.Capability{"ALL"},
 		}
-	}
-
-	pod.Spec.SecurityContext = &corev1.PodSecurityContext{
-		SeccompProfile: &corev1.SeccompProfile{
-			Type: corev1.SeccompProfileTypeRuntimeDefault,
-		},
-	}
-	if runAsUser > 0 {
-		pod.Spec.SecurityContext.RunAsUser = &runAsUser
-		pod.Spec.SecurityContext.RunAsNonRoot = ptr.To(true)
 	}
 }
 
