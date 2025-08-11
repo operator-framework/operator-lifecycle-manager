@@ -293,6 +293,9 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 				Args:                     []string{"/bin/copy-content", fmt.Sprintf("%s/copy-content", utilitiesPath)},
 				VolumeMounts:             []corev1.VolumeMount{utilitiesVolumeMount},
 				TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+				SecurityContext: &corev1.SecurityContext{
+					ReadOnlyRootFilesystem: ptr.To(true),
+				},
 			}, corev1.Container{
 				Name:                     "extract-content",
 				Image:                    img,
@@ -301,8 +304,12 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 				Args:                     extractArgs,
 				VolumeMounts:             []corev1.VolumeMount{utilitiesVolumeMount, contentVolumeMount},
 				TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+				SecurityContext: &corev1.SecurityContext{
+					ReadOnlyRootFilesystem: ptr.To(true),
+				},
 			})
 
+			pod.Spec.Containers[0].SecurityContext.ReadOnlyRootFilesystem = ptr.To(true)
 			pod.Spec.Containers[0].Image = opmImg
 			pod.Spec.Containers[0].Command = []string{"/bin/opm"}
 			pod.Spec.Containers[0].ImagePullPolicy = image.InferImagePullPolicy(opmImg)
@@ -371,7 +378,6 @@ func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
 			pod.Spec.InitContainers[i].SecurityContext = &corev1.SecurityContext{}
 		}
 		pod.Spec.InitContainers[i].SecurityContext.AllowPrivilegeEscalation = ptr.To(false)
-		pod.Spec.InitContainers[i].SecurityContext.ReadOnlyRootFilesystem = pod.Spec.SecurityContext.RunAsNonRoot
 		pod.Spec.InitContainers[i].SecurityContext.Capabilities = &corev1.Capabilities{
 			Drop: []corev1.Capability{"ALL"},
 		}
@@ -381,7 +387,6 @@ func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
 			pod.Spec.Containers[i].SecurityContext = &corev1.SecurityContext{}
 		}
 		pod.Spec.Containers[i].SecurityContext.AllowPrivilegeEscalation = ptr.To(false)
-		pod.Spec.Containers[i].SecurityContext.ReadOnlyRootFilesystem = pod.Spec.SecurityContext.RunAsNonRoot
 		pod.Spec.Containers[i].SecurityContext.Capabilities = &corev1.Capabilities{
 			Drop: []corev1.Capability{"ALL"},
 		}
