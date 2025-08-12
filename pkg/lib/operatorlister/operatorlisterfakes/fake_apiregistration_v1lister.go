@@ -116,10 +116,6 @@ func (fake *FakeAPIRegistrationV1Lister) RegisterAPIServiceListerArgsForCall(i i
 func (fake *FakeAPIRegistrationV1Lister) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.aPIServiceListerMutex.RLock()
-	defer fake.aPIServiceListerMutex.RUnlock()
-	fake.registerAPIServiceListerMutex.RLock()
-	defer fake.registerAPIServiceListerMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

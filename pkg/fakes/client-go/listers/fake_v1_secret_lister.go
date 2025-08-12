@@ -166,10 +166,6 @@ func (fake *FakeSecretLister) SecretsReturnsOnCall(i int, result1 v1.SecretNames
 func (fake *FakeSecretLister) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.listMutex.RLock()
-	defer fake.listMutex.RUnlock()
-	fake.secretsMutex.RLock()
-	defer fake.secretsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

@@ -843,28 +843,6 @@ func (fake *FakeInstallStrategyDeploymentInterface) GetServiceAccountByNameRetur
 func (fake *FakeInstallStrategyDeploymentInterface) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.createDeploymentMutex.RLock()
-	defer fake.createDeploymentMutex.RUnlock()
-	fake.createOrUpdateDeploymentMutex.RLock()
-	defer fake.createOrUpdateDeploymentMutex.RUnlock()
-	fake.createRoleMutex.RLock()
-	defer fake.createRoleMutex.RUnlock()
-	fake.createRoleBindingMutex.RLock()
-	defer fake.createRoleBindingMutex.RUnlock()
-	fake.deleteDeploymentMutex.RLock()
-	defer fake.deleteDeploymentMutex.RUnlock()
-	fake.ensureServiceAccountMutex.RLock()
-	defer fake.ensureServiceAccountMutex.RUnlock()
-	fake.findAnyDeploymentsMatchingLabelsMutex.RLock()
-	defer fake.findAnyDeploymentsMatchingLabelsMutex.RUnlock()
-	fake.findAnyDeploymentsMatchingNamesMutex.RLock()
-	defer fake.findAnyDeploymentsMatchingNamesMutex.RUnlock()
-	fake.getOpClientMutex.RLock()
-	defer fake.getOpClientMutex.RUnlock()
-	fake.getOpListerMutex.RLock()
-	defer fake.getOpListerMutex.RUnlock()
-	fake.getServiceAccountByNameMutex.RLock()
-	defer fake.getServiceAccountByNameMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

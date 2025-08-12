@@ -424,22 +424,6 @@ func (fake *FakeOperatorsV1alpha1Lister) SubscriptionListerReturnsOnCall(i int, 
 func (fake *FakeOperatorsV1alpha1Lister) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.catalogSourceListerMutex.RLock()
-	defer fake.catalogSourceListerMutex.RUnlock()
-	fake.clusterServiceVersionListerMutex.RLock()
-	defer fake.clusterServiceVersionListerMutex.RUnlock()
-	fake.installPlanListerMutex.RLock()
-	defer fake.installPlanListerMutex.RUnlock()
-	fake.registerCatalogSourceListerMutex.RLock()
-	defer fake.registerCatalogSourceListerMutex.RUnlock()
-	fake.registerClusterServiceVersionListerMutex.RLock()
-	defer fake.registerClusterServiceVersionListerMutex.RUnlock()
-	fake.registerInstallPlanListerMutex.RLock()
-	defer fake.registerInstallPlanListerMutex.RUnlock()
-	fake.registerSubscriptionListerMutex.RLock()
-	defer fake.registerSubscriptionListerMutex.RUnlock()
-	fake.subscriptionListerMutex.RLock()
-	defer fake.subscriptionListerMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

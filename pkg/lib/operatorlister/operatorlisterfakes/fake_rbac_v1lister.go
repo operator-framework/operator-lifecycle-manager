@@ -420,22 +420,6 @@ func (fake *FakeRbacV1Lister) RoleListerReturnsOnCall(i int, result1 v1.RoleList
 func (fake *FakeRbacV1Lister) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.clusterRoleBindingListerMutex.RLock()
-	defer fake.clusterRoleBindingListerMutex.RUnlock()
-	fake.clusterRoleListerMutex.RLock()
-	defer fake.clusterRoleListerMutex.RUnlock()
-	fake.registerClusterRoleBindingListerMutex.RLock()
-	defer fake.registerClusterRoleBindingListerMutex.RUnlock()
-	fake.registerClusterRoleListerMutex.RLock()
-	defer fake.registerClusterRoleListerMutex.RUnlock()
-	fake.registerRoleBindingListerMutex.RLock()
-	defer fake.registerRoleBindingListerMutex.RUnlock()
-	fake.registerRoleListerMutex.RLock()
-	defer fake.registerRoleListerMutex.RUnlock()
-	fake.roleBindingListerMutex.RLock()
-	defer fake.roleBindingListerMutex.RUnlock()
-	fake.roleListerMutex.RLock()
-	defer fake.roleListerMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

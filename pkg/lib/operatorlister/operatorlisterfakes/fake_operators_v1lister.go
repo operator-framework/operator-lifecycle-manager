@@ -118,10 +118,6 @@ func (fake *FakeOperatorsV1Lister) RegisterOperatorGroupListerArgsForCall(i int)
 func (fake *FakeOperatorsV1Lister) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.operatorGroupListerMutex.RLock()
-	defer fake.operatorGroupListerMutex.RUnlock()
-	fake.registerOperatorGroupListerMutex.RLock()
-	defer fake.registerOperatorGroupListerMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

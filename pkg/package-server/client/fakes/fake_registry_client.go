@@ -827,26 +827,6 @@ func (fake *FakeRegistryClient) ListPackagesReturnsOnCall(i int, result1 api.Reg
 func (fake *FakeRegistryClient) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.getBundleMutex.RLock()
-	defer fake.getBundleMutex.RUnlock()
-	fake.getBundleForChannelMutex.RLock()
-	defer fake.getBundleForChannelMutex.RUnlock()
-	fake.getBundleThatReplacesMutex.RLock()
-	defer fake.getBundleThatReplacesMutex.RUnlock()
-	fake.getChannelEntriesThatProvideMutex.RLock()
-	defer fake.getChannelEntriesThatProvideMutex.RUnlock()
-	fake.getChannelEntriesThatReplaceMutex.RLock()
-	defer fake.getChannelEntriesThatReplaceMutex.RUnlock()
-	fake.getDefaultBundleThatProvidesMutex.RLock()
-	defer fake.getDefaultBundleThatProvidesMutex.RUnlock()
-	fake.getLatestChannelEntriesThatProvideMutex.RLock()
-	defer fake.getLatestChannelEntriesThatProvideMutex.RUnlock()
-	fake.getPackageMutex.RLock()
-	defer fake.getPackageMutex.RUnlock()
-	fake.listBundlesMutex.RLock()
-	defer fake.listBundlesMutex.RUnlock()
-	fake.listPackagesMutex.RLock()
-	defer fake.listPackagesMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

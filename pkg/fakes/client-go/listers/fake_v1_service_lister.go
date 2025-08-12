@@ -166,10 +166,6 @@ func (fake *FakeServiceLister) ServicesReturnsOnCall(i int, result1 v1.ServiceNa
 func (fake *FakeServiceLister) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.listMutex.RLock()
-	defer fake.listMutex.RUnlock()
-	fake.servicesMutex.RLock()
-	defer fake.servicesMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

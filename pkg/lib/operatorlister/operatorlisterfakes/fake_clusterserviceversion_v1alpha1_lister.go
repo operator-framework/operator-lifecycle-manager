@@ -166,10 +166,6 @@ func (fake *FakeClusterServiceVersionLister) ListReturnsOnCall(i int, result1 []
 func (fake *FakeClusterServiceVersionLister) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.clusterServiceVersionsMutex.RLock()
-	defer fake.clusterServiceVersionsMutex.RUnlock()
-	fake.listMutex.RLock()
-	defer fake.listMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

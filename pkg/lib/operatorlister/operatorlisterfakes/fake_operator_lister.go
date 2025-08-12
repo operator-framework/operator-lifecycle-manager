@@ -582,24 +582,6 @@ func (fake *FakeOperatorLister) RbacV1ReturnsOnCall(i int, result1 operatorliste
 func (fake *FakeOperatorLister) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.aPIExtensionsV1Mutex.RLock()
-	defer fake.aPIExtensionsV1Mutex.RUnlock()
-	fake.aPIRegistrationV1Mutex.RLock()
-	defer fake.aPIRegistrationV1Mutex.RUnlock()
-	fake.appsV1Mutex.RLock()
-	defer fake.appsV1Mutex.RUnlock()
-	fake.coreV1Mutex.RLock()
-	defer fake.coreV1Mutex.RUnlock()
-	fake.networkingV1Mutex.RLock()
-	defer fake.networkingV1Mutex.RUnlock()
-	fake.operatorsV1Mutex.RLock()
-	defer fake.operatorsV1Mutex.RUnlock()
-	fake.operatorsV1alpha1Mutex.RLock()
-	defer fake.operatorsV1alpha1Mutex.RUnlock()
-	fake.operatorsV2Mutex.RLock()
-	defer fake.operatorsV2Mutex.RUnlock()
-	fake.rbacV1Mutex.RLock()
-	defer fake.rbacV1Mutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value
