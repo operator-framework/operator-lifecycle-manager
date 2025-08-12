@@ -78,8 +78,6 @@ func (fake *FakeStrategy) GetStrategyNameReturnsOnCall(i int, result1 string) {
 func (fake *FakeStrategy) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.getStrategyNameMutex.RLock()
-	defer fake.getStrategyNameMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

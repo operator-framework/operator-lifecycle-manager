@@ -368,16 +368,6 @@ func (fake *FakeStrategyInstaller) ShouldRotateCertsReturnsOnCall(i int, result1
 func (fake *FakeStrategyInstaller) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.certsRotateAtMutex.RLock()
-	defer fake.certsRotateAtMutex.RUnlock()
-	fake.certsRotatedMutex.RLock()
-	defer fake.certsRotatedMutex.RUnlock()
-	fake.checkInstalledMutex.RLock()
-	defer fake.checkInstalledMutex.RUnlock()
-	fake.installMutex.RLock()
-	defer fake.installMutex.RUnlock()
-	fake.shouldRotateCertsMutex.RLock()
-	defer fake.shouldRotateCertsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

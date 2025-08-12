@@ -171,10 +171,6 @@ func (fake *FakeSecretNamespaceLister) ListReturnsOnCall(i int, result1 []*v1a.S
 func (fake *FakeSecretNamespaceLister) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.getMutex.RLock()
-	defer fake.getMutex.RUnlock()
-	fake.listMutex.RLock()
-	defer fake.listMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

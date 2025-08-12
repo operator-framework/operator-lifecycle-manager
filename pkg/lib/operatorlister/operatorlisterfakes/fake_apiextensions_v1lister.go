@@ -116,10 +116,6 @@ func (fake *FakeAPIExtensionsV1Lister) RegisterCustomResourceDefinitionListerArg
 func (fake *FakeAPIExtensionsV1Lister) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.customResourceDefinitionListerMutex.RLock()
-	defer fake.customResourceDefinitionListerMutex.RUnlock()
-	fake.registerCustomResourceDefinitionListerMutex.RLock()
-	defer fake.registerCustomResourceDefinitionListerMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

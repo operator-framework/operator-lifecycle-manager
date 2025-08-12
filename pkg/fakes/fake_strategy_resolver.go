@@ -192,10 +192,6 @@ func (fake *FakeStrategyResolverInterface) UnmarshalStrategyReturnsOnCall(i int,
 func (fake *FakeStrategyResolverInterface) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.installerForStrategyMutex.RLock()
-	defer fake.installerForStrategyMutex.RUnlock()
-	fake.unmarshalStrategyMutex.RLock()
-	defer fake.unmarshalStrategyMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

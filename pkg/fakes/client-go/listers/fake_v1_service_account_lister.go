@@ -166,10 +166,6 @@ func (fake *FakeServiceAccountLister) ServiceAccountsReturnsOnCall(i int, result
 func (fake *FakeServiceAccountLister) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.listMutex.RLock()
-	defer fake.listMutex.RUnlock()
-	fake.serviceAccountsMutex.RLock()
-	defer fake.serviceAccountsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

@@ -170,10 +170,6 @@ func (fake *FakeRegistryReconciler) EnsureRegistryServerReturnsOnCall(i int, res
 func (fake *FakeRegistryReconciler) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.checkRegistryServerMutex.RLock()
-	defer fake.checkRegistryServerMutex.RUnlock()
-	fake.ensureRegistryServerMutex.RLock()
-	defer fake.ensureRegistryServerMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

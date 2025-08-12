@@ -166,10 +166,6 @@ func (fake *FakeRoleLister) RolesReturnsOnCall(i int, result1 v1.RoleNamespaceLi
 func (fake *FakeRoleLister) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.listMutex.RLock()
-	defer fake.listMutex.RUnlock()
-	fake.rolesMutex.RLock()
-	defer fake.rolesMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

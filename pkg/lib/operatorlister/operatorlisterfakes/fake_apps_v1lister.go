@@ -118,10 +118,6 @@ func (fake *FakeAppsV1Lister) RegisterDeploymentListerArgsForCall(i int) (string
 func (fake *FakeAppsV1Lister) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.deploymentListerMutex.RLock()
-	defer fake.deploymentListerMutex.RUnlock()
-	fake.registerDeploymentListerMutex.RLock()
-	defer fake.registerDeploymentListerMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

@@ -103,8 +103,6 @@ func (fake *FakeStepResolver) ResolveStepsReturnsOnCall(i int, result1 []*v1alph
 func (fake *FakeStepResolver) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.resolveStepsMutex.RLock()
-	defer fake.resolveStepsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value
