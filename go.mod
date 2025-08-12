@@ -26,7 +26,7 @@ require (
 	github.com/operator-framework/operator-registry v1.56.0
 	github.com/otiai10/copy v1.14.1
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.22.0
+	github.com/prometheus/client_golang v1.23.0
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.65.0
 	github.com/sirupsen/logrus v1.9.3
