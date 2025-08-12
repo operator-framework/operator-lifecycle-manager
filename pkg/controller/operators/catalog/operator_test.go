@@ -863,7 +863,7 @@ func TestSyncCatalogSourcesSecurityPolicy(t *testing.T) {
 			RunAsUser:      ptr.To(int64(1001)),
 		}, pod.Spec.SecurityContext)
 		require.Equal(t, &corev1.SecurityContext{
-			ReadOnlyRootFilesystem:   ptr.To(true),
+			ReadOnlyRootFilesystem:   ptr.To(false),
 			AllowPrivilegeEscalation: ptr.To(false),
 			Capabilities: &corev1.Capabilities{
 				Drop: []corev1.Capability{"ALL"},
