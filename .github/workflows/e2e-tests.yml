@@ -17,7 +17,7 @@ jobs:
       sha: ${{ steps.vars.outputs.sha }}
     steps:
       # checkout code and setup go
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
@@ -49,7 +49,7 @@ jobs:
       E2E_KUBECONFIG_ROOT: ${{ github.workspace }}/kubeconfigs
     steps:
       # checkout code and setup go
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
@@ -136,7 +136,7 @@ jobs:
       E2E_KUBECONFIG_ROOT: ${{ github.workspace }}/kubeconfigs
     steps:
       # checkout code and setup go
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
