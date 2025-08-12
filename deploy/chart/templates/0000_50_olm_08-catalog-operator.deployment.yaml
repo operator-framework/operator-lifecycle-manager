@@ -22,9 +22,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       serviceAccountName: olm-operator-serviceaccount
-      {{- if or .Values.catalog.tlsSecret .Values.catalog.clientCASecret }}
       volumes:
-      {{- end }}
       {{- if .Values.catalog.tlsSecret }}
       - name: srv-cert
         secret:
@@ -35,15 +33,16 @@ spec:
         secret:
           secretName: {{ .Values.catalog.clientCASecret }}
       {{- end }}
+      - name: tmpfs
+        emptyDir: {}
       containers:
         - name: catalog-operator
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: [ "ALL" ]
-          {{- if or .Values.catalog.tlsSecret .Values.catalog.clientCASecret }}
           volumeMounts:
-          {{- end }}
           {{- if .Values.catalog.tlsSecret }}
           - name: srv-cert
             mountPath: "/srv-cert"
@@ -54,6 +53,8 @@ spec:
             mountPath: "/profile-collector-cert"
             readOnly: true
           {{- end }}
+          - name: tmpfs
+            mountPath: /tmp
           command:
           - /bin/catalog
           args:

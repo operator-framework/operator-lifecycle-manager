@@ -285,7 +285,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "5MSUJs07MqD3fl9supmPaRNxD9N6tK8Bjo4OFl", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "r86WYqCuUPyC9whJJfiyFBVtwoKEghJ74gCQO", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -307,6 +307,9 @@ func TestPodExtractContent(t *testing.T) {
 							Args:                     []string{"/bin/copy-content", "/utilities/copy-content"},
 							VolumeMounts:             []corev1.VolumeMount{{Name: "utilities", MountPath: "/utilities"}},
 							TerminationMessagePolicy: "FallbackToLogsOnError",
+							SecurityContext: &corev1.SecurityContext{
+								ReadOnlyRootFilesystem: ptr.To(true),
+							},
 						},
 						{
 							Name:            "extract-content",
@@ -324,6 +327,9 @@ func TestPodExtractContent(t *testing.T) {
 								{Name: "catalog-content", MountPath: "/extracted-catalog"},
 							},
 							TerminationMessagePolicy: "FallbackToLogsOnError",
+							SecurityContext: &corev1.SecurityContext{
+								ReadOnlyRootFilesystem: ptr.To(true),
+							},
 						},
 					},
 					Containers: []corev1.Container{
@@ -368,7 +374,7 @@ func TestPodExtractContent(t *testing.T) {
 								},
 							},
 							SecurityContext: &corev1.SecurityContext{
-								ReadOnlyRootFilesystem: ptr.To(false),
+								ReadOnlyRootFilesystem: ptr.To(true),
 							},
 							ImagePullPolicy:          image.InferImagePullPolicy("image"),
 							TerminationMessagePolicy: "FallbackToLogsOnError",
@@ -400,7 +406,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "b4ns9MTvaRBYOarmuFe6PLYK0r2kxj5Vo06WTU", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "5ToGGS7RLuy9Fq91z7IjESOJXfurg09nHAxtfK", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -422,6 +428,9 @@ func TestPodExtractContent(t *testing.T) {
 							Args:                     []string{"/bin/copy-content", "/utilities/copy-content"},
 							VolumeMounts:             []corev1.VolumeMount{{Name: "utilities", MountPath: "/utilities"}},
 							TerminationMessagePolicy: "FallbackToLogsOnError",
+							SecurityContext: &corev1.SecurityContext{
+								ReadOnlyRootFilesystem: ptr.To(true),
+							},
 						},
 						{
 							Name:            "extract-content",
@@ -437,6 +446,9 @@ func TestPodExtractContent(t *testing.T) {
 								{Name: "catalog-content", MountPath: "/extracted-catalog"},
 							},
 							TerminationMessagePolicy: "FallbackToLogsOnError",
+							SecurityContext: &corev1.SecurityContext{
+								ReadOnlyRootFilesystem: ptr.To(true),
+							},
 						},
 					},
 					Containers: []corev1.Container{
@@ -481,7 +493,7 @@ func TestPodExtractContent(t *testing.T) {
 								},
 							},
 							SecurityContext: &corev1.SecurityContext{
-								ReadOnlyRootFilesystem: ptr.To(false),
+								ReadOnlyRootFilesystem: ptr.To(true),
 							},
 							ImagePullPolicy:          image.InferImagePullPolicy("image"),
 							TerminationMessagePolicy: "FallbackToLogsOnError",
@@ -589,7 +601,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "1X4YqbfXuc9SB9ztW03WNOyanr9aIhKfijeBHH", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "aeGb70iG9mui6QaqbaM6RAJG5fNVrXUjiEzEb7", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -612,6 +624,7 @@ func TestPodExtractContent(t *testing.T) {
 							SecurityContext: &corev1.SecurityContext{
 								Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
 								AllowPrivilegeEscalation: ptr.To(false),
+								ReadOnlyRootFilesystem:   ptr.To(true),
 							},
 							VolumeMounts:             []corev1.VolumeMount{{Name: "utilities", MountPath: "/utilities"}},
 							TerminationMessagePolicy: "FallbackToLogsOnError",
@@ -630,6 +643,7 @@ func TestPodExtractContent(t *testing.T) {
 							SecurityContext: &corev1.SecurityContext{
 								Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
 								AllowPrivilegeEscalation: ptr.To(false),
+								ReadOnlyRootFilesystem:   ptr.To(true),
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{Name: "utilities", MountPath: "/utilities"},
@@ -683,7 +697,7 @@ func TestPodExtractContent(t *testing.T) {
 							SecurityContext: &corev1.SecurityContext{
 								Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
 								AllowPrivilegeEscalation: ptr.To(false),
-								ReadOnlyRootFilesystem:   ptr.To(false),
+								ReadOnlyRootFilesystem:   ptr.To(true),
 							},
 							TerminationMessagePolicy: "FallbackToLogsOnError",
 							VolumeMounts:             []corev1.VolumeMount{{Name: "catalog-content", MountPath: "/extracted-catalog"}},
@@ -719,7 +733,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "cO4moUo3vz6jZlcoBcxY4BB8o8a4E7m5GXCzI", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "bhL1lOcUJhtisRddUp8tRQupbIii64C6qz9drn", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -742,6 +756,7 @@ func TestPodExtractContent(t *testing.T) {
 							SecurityContext: &corev1.SecurityContext{
 								Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
 								AllowPrivilegeEscalation: ptr.To(false),
+								ReadOnlyRootFilesystem:   ptr.To(true),
 							},
 							VolumeMounts:             []corev1.VolumeMount{{Name: "utilities", MountPath: "/utilities"}},
 							TerminationMessagePolicy: "FallbackToLogsOnError",
@@ -758,6 +773,7 @@ func TestPodExtractContent(t *testing.T) {
 							SecurityContext: &corev1.SecurityContext{
 								Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
 								AllowPrivilegeEscalation: ptr.To(false),
+								ReadOnlyRootFilesystem:   ptr.To(true),
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{Name: "utilities", MountPath: "/utilities"},
@@ -811,7 +827,7 @@ func TestPodExtractContent(t *testing.T) {
 							SecurityContext: &corev1.SecurityContext{
 								Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
 								AllowPrivilegeEscalation: ptr.To(false),
-								ReadOnlyRootFilesystem:   ptr.To(false),
+								ReadOnlyRootFilesystem:   ptr.To(true),
 							},
 							TerminationMessagePolicy: "FallbackToLogsOnError",
 							VolumeMounts:             []corev1.VolumeMount{{Name: "catalog-content", MountPath: "/extracted-catalog"}},

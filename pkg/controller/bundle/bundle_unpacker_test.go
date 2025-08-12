@@ -308,6 +308,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -334,6 +335,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -363,6 +365,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -524,6 +527,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -550,6 +554,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -579,6 +584,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -780,6 +786,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -806,6 +813,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -835,6 +843,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1031,6 +1040,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1057,6 +1067,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1086,6 +1097,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1252,6 +1264,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1278,6 +1291,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1307,6 +1321,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1486,6 +1501,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1512,6 +1528,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1541,6 +1558,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 											SecurityContext: &corev1.SecurityContext{
 												AllowPrivilegeEscalation: ptr.To(bool(false)),
+												ReadOnlyRootFilesystem:   ptr.To(true),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},

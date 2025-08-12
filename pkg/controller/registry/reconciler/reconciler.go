@@ -293,6 +293,9 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 				Args:                     []string{"/bin/copy-content", fmt.Sprintf("%s/copy-content", utilitiesPath)},
 				VolumeMounts:             []corev1.VolumeMount{utilitiesVolumeMount},
 				TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+				SecurityContext: &corev1.SecurityContext{
+					ReadOnlyRootFilesystem: ptr.To(true),
+				},
 			}, corev1.Container{
 				Name:                     "extract-content",
 				Image:                    img,
@@ -301,8 +304,12 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 				Args:                     extractArgs,
 				VolumeMounts:             []corev1.VolumeMount{utilitiesVolumeMount, contentVolumeMount},
 				TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+				SecurityContext: &corev1.SecurityContext{
+					ReadOnlyRootFilesystem: ptr.To(true),
+				},
 			})
 
+			pod.Spec.Containers[0].SecurityContext.ReadOnlyRootFilesystem = ptr.To(true)
 			pod.Spec.Containers[0].Image = opmImg
 			pod.Spec.Containers[0].Command = []string{"/bin/opm"}
 			pod.Spec.Containers[0].ImagePullPolicy = image.InferImagePullPolicy(opmImg)
@@ -356,6 +363,16 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 }
 
 func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
+	pod.Spec.SecurityContext = &corev1.PodSecurityContext{
+		SeccompProfile: &corev1.SeccompProfile{
+			Type: corev1.SeccompProfileTypeRuntimeDefault,
+		},
+	}
+	if runAsUser > 0 {
+		pod.Spec.SecurityContext.RunAsUser = &runAsUser
+		pod.Spec.SecurityContext.RunAsNonRoot = ptr.To(true)
+	}
+
 	for i := range pod.Spec.InitContainers {
 		if pod.Spec.InitContainers[i].SecurityContext == nil {
 			pod.Spec.InitContainers[i].SecurityContext = &corev1.SecurityContext{}
@@ -373,16 +390,6 @@ func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
 		pod.Spec.Containers[i].SecurityContext.Capabilities = &corev1.Capabilities{
 			Drop: []corev1.Capability{"ALL"},
 		}
-	}
-
-	pod.Spec.SecurityContext = &corev1.PodSecurityContext{
-		SeccompProfile: &corev1.SeccompProfile{
-			Type: corev1.SeccompProfileTypeRuntimeDefault,
-		},
-	}
-	if runAsUser > 0 {
-		pod.Spec.SecurityContext.RunAsUser = &runAsUser
-		pod.Spec.SecurityContext.RunAsNonRoot = ptr.To(true)
 	}
 }
 
