@@ -147,10 +147,6 @@ func (fake *{{$.Name}}{{$.GenericTypeParameters}}) {{Title .Name}}ReturnsOnCall(
 func (fake *{{.Name}}{{$.GenericTypeParameters}}) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	{{- range .Methods}}
-	fake.{{UnExport .Name}}Mutex.RLock()
-	defer fake.{{UnExport .Name}}Mutex.RUnlock()
-	{{- end}}
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

@@ -15,7 +15,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.7.0
 	github.com/itchyny/gojq v0.12.17
-	github.com/maxbrunsfeld/counterfeiter/v6 v6.11.2
+	github.com/maxbrunsfeld/counterfeiter/v6 v6.11.3
 	github.com/mitchellh/hashstructure v1.1.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/onsi/ginkgo/v2 v2.23.4
