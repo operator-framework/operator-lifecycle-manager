@@ -47,7 +47,8 @@ var _ = Describe("Installing bundles with new object types", Label("ObjectTypes"
 		TeardownNamespace(generatedNamespace.GetName())
 	})
 
-	When("a bundle with a pdb, priorityclass, and VPA object is installed", func() {
+	When("a bundle that includes supported resources is installed", func() {
+		// Supported resources installed are a NetworkPolicy, pdb, priorityclass, and VPA object
 		const (
 			packageName = "busybox"
 			channelName = "alpha"
@@ -141,6 +142,7 @@ var _ = Describe("Installing bundles with new object types", Label("ObjectTypes"
 				pdbName           = "busybox-pdb"
 				priorityClassName = "super-priority"
 				vpaName           = "busybox-vpa"
+				networkPolicyName = "busybox-networkpolicy"
 			)
 
 			var resource = schema.GroupVersionResource{
@@ -164,6 +166,11 @@ var _ = Describe("Installing bundles with new object types", Label("ObjectTypes"
 				_, err := kubeClient.KubernetesInterface().PolicyV1().PodDisruptionBudgets(generatedNamespace.GetName()).Get(context.Background(), pdbName, metav1.GetOptions{})
 				return err
 			}).Should(Succeed(), "expected no error getting pdb object associated with CSV")
+
+			Eventually(func() error {
+				_, err := kubeClient.KubernetesInterface().NetworkingV1().NetworkPolicies(generatedNamespace.GetName()).Get(context.Background(), networkPolicyName, metav1.GetOptions{})
+				return err
+			}).Should(Succeed(), "expected no error finding networkpolicy object associated with CSV")
 		})
 
 		AfterEach(func() {
