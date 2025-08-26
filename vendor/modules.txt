@@ -627,7 +627,7 @@ github.com/spf13/pflag
 # github.com/stoewer/go-strcase v1.3.1
 ## explicit; go 1.11
 github.com/stoewer/go-strcase
-# github.com/stretchr/testify v1.10.0
+# github.com/stretchr/testify v1.11.0
 ## explicit; go 1.17
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/assert/yaml
