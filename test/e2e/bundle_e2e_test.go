@@ -60,7 +60,7 @@ var _ = Describe("Installing bundles with new object types", Label("ObjectTypes"
 			By("first installing the VPA CRD on cluster")
 			const (
 				sourceName = "test-catalog"
-				imageName  = "quay.io/olmtest/single-bundle-index:pdb-v1"
+				imageName  = "quay.io/olmtest/single-bundle-index:pdb-v2"
 			)
 
 			By("create VPA CRD on cluster")

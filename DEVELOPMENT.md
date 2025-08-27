@@ -46,6 +46,14 @@ To run a specific e2e test locally:
 $ make e2e-local TEST=TestCreateInstallPlanManualApproval
 ```
 
+##### Updating test images
+
+Sometimes you will need to update the index or bundle images used in the unit or e2e tests. To update those images, you will need to be logged into quay.io with membership in the `olmtest` organization. Then simply run `./scripts/build_e2e_test_images.sh` which will build all the required bundle images, push those to quay.io, build all the index images, and push those to quay.io as well.
+
+Please be aware that these scripts push directly to the image tags used by the actual e2e tests.
+
+The contents and Containerfiles of these bundles can be found in `./test/images/`.
+
 [controller-runtime instructions]: https://pkg.go.dev/sigs.k8s.io/controller-runtime/tools/setup-envtest#section-readme
 
 #### Building
