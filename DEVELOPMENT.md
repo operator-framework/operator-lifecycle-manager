@@ -46,6 +46,19 @@ To run a specific e2e test locally:
 $ make e2e-local TEST=TestCreateInstallPlanManualApproval
 ```
 
+##### Updating test images
+
+Sometimes you will need to update the index or bundle images used in the unit or e2e tests. To update those images, you can use the following 2 scripts in the ./scripts/ directory:
+
+```sh
+./scripts/build_test_images.sh
+./scripts/build_e2e_test_images.sh
+```
+
+Please be aware that these scripts push directly to the image tags used by the actual unit and e2e tests.
+
+The contents and Containerfiles of these bundles can be found in `./test/images/`.
+
 [controller-runtime instructions]: https://pkg.go.dev/sigs.k8s.io/controller-runtime/tools/setup-envtest#section-readme
 
 #### Building
