@@ -67,7 +67,7 @@ func NewConfigMapLoaderWithClient(configMapName, namespace, manifestsDir string,
 }
 
 func TranslateInvalidChars(input string) string {
-	validConfigMapKey := unallowedKeyChars.ReplaceAllString(input, "~")
+	validConfigMapKey := unallowedKeyChars.ReplaceAllString(input, "-")
 	return validConfigMapKey
 }
 
