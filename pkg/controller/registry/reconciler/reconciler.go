@@ -319,6 +319,22 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 			}
 			if grpcPodConfig.ExtractContent.CacheDir != "" {
 				containerArgs = append(containerArgs, "--cache-dir="+filepath.Join(catalogPath, "cache"))
+			} else {
+				// opm serve does not allow us to specify an empty cache directory, which means that it will
+				// only create new caches in /tmp/, so we need to provide adequate write access there
+				const tmpdirPath = "/tmp/"
+				tmpdirVolumeMount := corev1.VolumeMount{
+					Name:      "tmpdir",
+					MountPath: tmpdirPath,
+				}
+				pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+					Name: "tmpdir",
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				})
+
+				pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, tmpdirVolumeMount)
 			}
 			pod.Spec.Containers[0].Args = containerArgs
 			pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, contentVolumeMount)

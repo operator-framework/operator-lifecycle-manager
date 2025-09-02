@@ -406,7 +406,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "5ToGGS7RLuy9Fq91z7IjESOJXfurg09nHAxtfK", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "7W3t15wWurp7a9W1VVX392SnNYQu3OLbGDJ0wy", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -417,6 +417,10 @@ func TestPodExtractContent(t *testing.T) {
 						},
 						{
 							Name:         "catalog-content",
+							VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+						},
+						{
+							Name:         "tmpdir",
 							VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
 						},
 					},
@@ -497,7 +501,7 @@ func TestPodExtractContent(t *testing.T) {
 							},
 							ImagePullPolicy:          image.InferImagePullPolicy("image"),
 							TerminationMessagePolicy: "FallbackToLogsOnError",
-							VolumeMounts:             []corev1.VolumeMount{{Name: "catalog-content", MountPath: "/extracted-catalog"}},
+							VolumeMounts:             []corev1.VolumeMount{{Name: "tmpdir", MountPath: "/tmp/"}, {Name: "catalog-content", MountPath: "/extracted-catalog"}},
 						},
 					},
 					NodeSelector:       map[string]string{"kubernetes.io/os": "linux"},
@@ -733,7 +737,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "bhL1lOcUJhtisRddUp8tRQupbIii64C6qz9drn", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "8ed7duDhuISxUmqWPMZfQu9rc02OOJaOeyT6ML", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -744,6 +748,10 @@ func TestPodExtractContent(t *testing.T) {
 						},
 						{
 							Name:         "catalog-content",
+							VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+						},
+						{
+							Name:         "tmpdir",
 							VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
 						},
 					},
@@ -830,7 +838,7 @@ func TestPodExtractContent(t *testing.T) {
 								ReadOnlyRootFilesystem:   ptr.To(true),
 							},
 							TerminationMessagePolicy: "FallbackToLogsOnError",
-							VolumeMounts:             []corev1.VolumeMount{{Name: "catalog-content", MountPath: "/extracted-catalog"}},
+							VolumeMounts:             []corev1.VolumeMount{{Name: "tmpdir", MountPath: "/tmp/"}, {Name: "catalog-content", MountPath: "/extracted-catalog"}},
 						},
 					},
 					NodeSelector: map[string]string{"kubernetes.io/os": "linux"},
