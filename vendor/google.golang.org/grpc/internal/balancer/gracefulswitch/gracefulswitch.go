@@ -109,8 +109,9 @@ func (gsb *Balancer) switchTo(builder balancer.Builder) (*balancerWrapper, error
 		return nil, errBalancerClosed
 	}
 	bw := &balancerWrapper{
-		builder: builder,
-		gsb:     gsb,
+		ClientConn: gsb.cc,
+		builder:    builder,
+		gsb:        gsb,
 		lastState: balancer.State{
 			ConnectivityState: connectivity.Connecting,
 			Picker:            base.NewErrPicker(balancer.ErrNoSubConnAvailable),
@@ -169,7 +170,6 @@ func (gsb *Balancer) latestBalancer() *balancerWrapper {
 func (gsb *Balancer) UpdateClientConnState(state balancer.ClientConnState) error {
 	// The resolver data is only relevant to the most recent LB Policy.
 	balToUpdate := gsb.latestBalancer()
-
 	gsbCfg, ok := state.BalancerConfig.(*lbConfig)
 	if ok {
 		// Switch to the child in the config unless it is already active.
@@ -223,15 +223,7 @@ func (gsb *Balancer) ExitIdle() {
 	// There is no need to protect this read with a mutex, as the write to the
 	// Balancer field happens in SwitchTo, which completes before this can be
 	// called.
-	if ei, ok := balToUpdate.Balancer.(balancer.ExitIdler); ok {
-		ei.ExitIdle()
-		return
-	}
-	gsb.mu.Lock()
-	defer gsb.mu.Unlock()
-	for sc := range balToUpdate.subconns {
-		sc.Connect()
-	}
+	balToUpdate.ExitIdle()
 }
 
 // updateSubConnState forwards the update to the appropriate child.
@@ -294,6 +286,7 @@ func (gsb *Balancer) Close() {
 // State updates from the wrapped balancer can result in invocation of the
 // graceful switch logic.
 type balancerWrapper struct {
+	balancer.ClientConn
 	balancer.Balancer
 	gsb     *Balancer
 	builder balancer.Builder
@@ -413,8 +406,4 @@ func (bw *balancerWrapper) UpdateAddresses(sc balancer.SubConn, addrs []resolver
 	}
 	bw.gsb.mu.Unlock()
 	bw.gsb.cc.UpdateAddresses(sc, addrs)
-}
-
-func (bw *balancerWrapper) Target() string {
-	return bw.gsb.cc.Target()
 }
