@@ -163,7 +163,7 @@ func grpcConnection(address string) (*grpc.ClientConn, error) {
 		}))
 	}
 
-	return grpc.Dial(address, dialOptions...)
+	return grpc.NewClient(address, dialOptions...)
 }
 
 func (s *SourceStore) Add(key registry.CatalogKey, address string) (*SourceConn, error) {
