@@ -322,13 +322,13 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 			} else {
 				// opm serve does not allow us to specify an empty cache directory, which means that it will
 				// only create new caches in /tmp/, so we need to provide adequate write access there
-				const tmpdirPath = "/tmp/"
+				const tmpdirName = "tmpdir"
 				tmpdirVolumeMount := corev1.VolumeMount{
-					Name:      "tmpdir",
-					MountPath: tmpdirPath,
+					Name:      tmpdirName,
+					MountPath: "/tmp/",
 				}
 				pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
-					Name: "tmpdir",
+					Name: tmpdirName,
 					VolumeSource: corev1.VolumeSource{
 						EmptyDir: &corev1.EmptyDirVolumeSource{},
 					},
