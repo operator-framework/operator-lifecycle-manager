@@ -183,24 +183,11 @@ require (
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.33.0 // indirect
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.7.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-// v1.64.0 brings in go1.23, which we aren't ready to go to just yet
-// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/3284
-replace google.golang.org/grpc => google.golang.org/grpc v1.63.2
-
-// cel-go v0.23.0 upgrade causes errors raised from the vendor source which lead to think in
-// incompatibilities scenarios. After upgrade to use the latest versions of k8s/api v0.33+
-// we should try to see if we could fix this one and remove this replace
-replace github.com/google/cel-go => github.com/google/cel-go v0.22.1
-
-replace (
-	// controller runtime
-	github.com/openshift/api => github.com/openshift/api v0.0.0-20221021112143-4226c2167e40 // release-4.12
-	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20221019143426-16aed247da5c // release-4.12
-)
+// controller runtime
+replace github.com/openshift/api => github.com/openshift/api v0.0.0-20221021112143-4226c2167e40 // release-4.12
 
 retract v3.11.0+incompatible // https://github.com/operator-framework/operator-lifecycle-manager/issues/2253
