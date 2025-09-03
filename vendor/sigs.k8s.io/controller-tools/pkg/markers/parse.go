@@ -868,11 +868,8 @@ func (d *Definition) Parse(rawMarker string) (interface{}, error) {
 		seen[""] = struct{}{} // mark as seen for strict definitions
 	} else if !d.Empty() && scanner.Peek() != sc.EOF {
 		// if we expect *and* actually have arguments passed
-		for {
-			// parse the argument name
-			if !expect(scanner, sc.Ident, "argument name") {
-				break
-			}
+		// parse the argument name
+		for expect(scanner, sc.Ident, "argument name") {
 			argName := scanner.TokenText()
 			if !expect(scanner, '=', "equals") {
 				break
