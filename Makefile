@@ -104,9 +104,6 @@ endif
 ENVTEST_KUBE_VERSION ?= $(KUBE_MINOR).x
 KUBEBUILDER_ASSETS ?= $(shell $(SETUP_ENVTEST) use -p path $(KUBE_MINOR).x)
 
-# Kind node image tags are in the format x.y.z we pin to version x.y.0 because patch releases and node images
-# are not guaranteed to be available when a new version of the kube apis is released
-KIND_CLUSTER_IMAGE := kindest/node:v$(KUBE_MINOR).0
 KIND_CLUSTER_NAME ?= kind-olmv0
 
 # Targets #
@@ -224,7 +221,8 @@ kind-clean: $(KIND) #HELP Delete kind cluster $KIND_CLUSTER_NAME (default: kind-
 
 .PHONY: kind-create
 kind-create: kind-clean #HELP Create a new kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0)
-	$(KIND) create cluster --name $(KIND_CLUSTER_NAME) --image $(KIND_CLUSTER_IMAGE) $(KIND_CREATE_OPTS)
+	env K8S_VERSION=v$(KUBE_MINOR) KIND=$(KIND) GOBIN=$(GOBIN) hack/tools/validate_kindest_node.sh
+	$(KIND) create cluster --name $(KIND_CLUSTER_NAME) $(KIND_CREATE_OPTS)
 	$(KIND) export kubeconfig --name $(KIND_CLUSTER_NAME)
 
 .PHONY: deploy
