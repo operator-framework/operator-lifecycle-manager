@@ -685,18 +685,18 @@ func (c *ConfigMapUnpacker) ensureConfigmap(csRef *corev1.ObjectReference, name 
 	return
 }
 
-func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference, timeout time.Duration, unpackRetryInterval time.Duration) (job *batchv1.Job, err error) {
+func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference, timeout time.Duration, unpackRetryInterval time.Duration) (*batchv1.Job, error) {
 	fresh := c.job(cmRef, bundlePath, secrets, timeout)
 	var jobs, toDelete []*batchv1.Job
-	jobs, err = c.jobLister.Jobs(fresh.GetNamespace()).List(k8slabels.ValidatedSetSelector{BundleUnpackRefLabel: cmRef.Name})
+	jobs, err := c.jobLister.Jobs(fresh.GetNamespace()).List(k8slabels.ValidatedSetSelector{BundleUnpackRefLabel: cmRef.Name})
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	// This is to ensure that we account for any existing unpack jobs that may be missing the label
 	jobWithoutLabel, err := c.jobLister.Jobs(fresh.GetNamespace()).Get(cmRef.Name)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return
+		return nil, err
 	}
 	if jobWithoutLabel != nil {
 		_, labelExists := jobWithoutLabel.Labels[BundleUnpackRefLabel]
@@ -706,12 +706,11 @@ func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath 
 	}
 
 	if len(jobs) == 0 {
-		job, err = c.client.BatchV1().Jobs(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
-		return
+		return c.client.BatchV1().Jobs(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
 	}
 
-	maxRetainedJobs := 5                                  // TODO: make this configurable
-	job, toDelete = sortUnpackJobs(jobs, maxRetainedJobs) // choose latest or on-failed job attempt
+	maxRetainedJobs := 5                                   // TODO: make this configurable
+	job, toDelete := sortUnpackJobs(jobs, maxRetainedJobs) // choose latest or on-failed job attempt
 
 	// only check for retries if an unpackRetryInterval is specified
 	if unpackRetryInterval > 0 {
@@ -720,7 +719,7 @@ func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath 
 			if cond, failed := getCondition(job, batchv1.JobFailed); failed {
 				if time.Now().After(cond.LastTransitionTime.Time.Add(unpackRetryInterval)) {
 					fresh.SetName(names.SimpleNameGenerator.GenerateName(fresh.GetName()))
-					job, err = c.client.BatchV1().Jobs(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
+					return c.client.BatchV1().Jobs(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
 				}
 			}
 
@@ -728,18 +727,15 @@ func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath 
 			for _, j := range toDelete {
 				_ = c.client.BatchV1().Jobs(j.GetNamespace()).Delete(context.TODO(), j.GetName(), metav1.DeleteOptions{})
 			}
-			return
 		}
 	}
 
 	if equality.Semantic.DeepDerivative(fresh.GetOwnerReferences(), job.GetOwnerReferences()) && equality.Semantic.DeepDerivative(fresh.Spec, job.Spec) {
-		return
+		return job, nil
 	}
 
 	// TODO: Decide when to fail-out instead of deleting the job
-	err = c.client.BatchV1().Jobs(job.GetNamespace()).Delete(context.TODO(), job.GetName(), metav1.DeleteOptions{})
-	job = nil
-	return
+	return nil, c.client.BatchV1().Jobs(job.GetNamespace()).Delete(context.TODO(), job.GetName(), metav1.DeleteOptions{})
 }
 
 func (c *ConfigMapUnpacker) ensureRole(cmRef *corev1.ObjectReference) (role *rbacv1.Role, err error) {
