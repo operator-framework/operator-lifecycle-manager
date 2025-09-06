@@ -1601,29 +1601,19 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 			})
 		})
 	})
-	When("The namespace is labled as Pod Security Admission policy enforce:restricted", func() {
+	When("The namespace is labeled as Pod Security Admission policy enforce:restricted", func() {
 		BeforeEach(func() {
-			var err error
-			testNS := &corev1.Namespace{}
 			Eventually(func() error {
-				testNS, err = c.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), generatedNamespace.GetName(), metav1.GetOptions{})
+				testNS, err := c.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), generatedNamespace.GetName(), metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
-				return nil
-			}).Should(BeNil())
-
-			testNS.ObjectMeta.Labels = map[string]string{
-				"pod-security.kubernetes.io/enforce":         "restricted",
-				"pod-security.kubernetes.io/enforce-version": "latest",
-			}
-
-			Eventually(func() error {
-				_, err := c.KubernetesInterface().CoreV1().Namespaces().Update(context.TODO(), testNS, metav1.UpdateOptions{})
-				if err != nil {
-					return err
+				testNS.ObjectMeta.Labels = map[string]string{
+					"pod-security.kubernetes.io/enforce":         "restricted",
+					"pod-security.kubernetes.io/enforce-version": "latest",
 				}
-				return nil
+				_, err = c.KubernetesInterface().CoreV1().Namespaces().Update(context.TODO(), testNS, metav1.UpdateOptions{})
+				return err
 			}).Should(BeNil())
 		})
 		When("A CatalogSource built with opm v1.21.0 (<v1.23.2)is created with spec.GrpcPodConfig.SecurityContextConfig set to restricted", func() {
@@ -1674,27 +1664,17 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 	})
 	When("The namespace is labled as Pod Security Admission policy enforce:baseline", func() {
 		BeforeEach(func() {
-			var err error
-			testNS := &corev1.Namespace{}
 			Eventually(func() error {
-				testNS, err = c.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), generatedNamespace.GetName(), metav1.GetOptions{})
+				testNS, err := c.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), generatedNamespace.GetName(), metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
-				return nil
-			}).Should(BeNil())
-
-			testNS.ObjectMeta.Labels = map[string]string{
-				"pod-security.kubernetes.io/enforce":         "baseline",
-				"pod-security.kubernetes.io/enforce-version": "latest",
-			}
-
-			Eventually(func() error {
-				_, err := c.KubernetesInterface().CoreV1().Namespaces().Update(context.TODO(), testNS, metav1.UpdateOptions{})
-				if err != nil {
-					return err
+				testNS.ObjectMeta.Labels = map[string]string{
+					"pod-security.kubernetes.io/enforce":         "baseline",
+					"pod-security.kubernetes.io/enforce-version": "latest",
 				}
-				return nil
+				_, err = c.KubernetesInterface().CoreV1().Namespaces().Update(context.TODO(), testNS, metav1.UpdateOptions{})
+				return err
 			}).Should(BeNil())
 		})
 		When("A CatalogSource built with opm v1.21.0 (<v1.23.2)is created with spec.GrpcPodConfig.SecurityContextConfig set to legacy", func() {
