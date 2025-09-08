@@ -104,6 +104,72 @@ func (f *Fake) IsFunction() bool {
 	return ok
 }
 
+// IsConstraintInterface indicates whether the interface is a constraint interface
+// (contains type constraints like ~string) which cannot be implemented by concrete types.
+func (f *Fake) IsConstraintInterface() bool {
+	if !f.IsInterface() {
+		return false
+	}
+
+	iface, ok := f.Target.Type().Underlying().(*types.Interface)
+	if !ok {
+		return false
+	}
+
+	// check if the interface has any type constraints
+	for i := 0; i < iface.NumEmbeddeds(); i++ {
+		if _, ok := iface.EmbeddedType(i).(*types.Union); ok {
+			return true
+		}
+	}
+
+	// check for approximation constraints by examining the string representation
+	// a bit of a hack, but the Go types API doesn't expose type constraints cleanly
+	return strings.Contains(iface.String(), "~")
+}
+
+// HasConstraintInterface indicates whether any of the generic type constraints
+// are constraint interfaces that cannot be used in type assertions.
+func (f *Fake) HasConstraintInterface() bool {
+	if f.Target == nil || f.Target.Type() == nil {
+		return false
+	}
+
+	named, ok := f.Target.Type().(*types.Named)
+	if !ok {
+		return false
+	}
+
+	typeParams := named.TypeParams()
+	if typeParams.Len() == 0 {
+		return false
+	}
+
+	for i := 0; i < typeParams.Len(); i++ {
+		param := typeParams.At(i)
+		constraint := param.Constraint()
+
+		// check if the constraint is a constraint interface
+		if iface, ok := constraint.Underlying().(*types.Interface); ok {
+			// check if this interface contains type constraints
+			for j := 0; j < iface.NumEmbeddeds(); j++ {
+				if _, ok := iface.EmbeddedType(j).(*types.Union); ok {
+					return true
+				}
+			}
+
+			// check for approximation constraints by examining the string representation
+			// a bit of a hack, but the Go types API doesn't expose type constraints cleanly
+			constraintStr := constraint.String()
+			if strings.Contains(constraintStr, "~") {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func unexport(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
