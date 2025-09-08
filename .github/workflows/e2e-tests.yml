@@ -18,7 +18,7 @@ jobs:
     steps:
       # checkout code and setup go
       - uses: actions/checkout@v5
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
       # build binaries and image for e2e test (includes experimental features)
@@ -50,7 +50,7 @@ jobs:
     steps:
       # checkout code and setup go
       - uses: actions/checkout@v5
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
 
@@ -137,7 +137,7 @@ jobs:
     steps:
       # checkout code and setup go
       - uses: actions/checkout@v5
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
 
