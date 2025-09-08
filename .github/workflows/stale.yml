@@ -33,7 +33,7 @@ jobs:
       issues: write            # allow labeling, commenting, closing issues
       pull-requests: write     # allow labeling, commenting, closing PRs
     steps:
-      - uses: actions/stale@v9
+      - uses: actions/stale@v10
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           days-before-stale: 90
