@@ -34,6 +34,12 @@ spec:
                 command:
                   - sleep
                   - "9000"
+      permissions:
+      - serviceAccountName: busybox-operator
+        rules:
+        - apiGroups: ["networking.k8s.io"]
+          resources: ["networkpolicies"]
+          verbs: ["get", "list", "create", "update", "delete"]
     strategy: deployment
   installModes:
   - supported: true

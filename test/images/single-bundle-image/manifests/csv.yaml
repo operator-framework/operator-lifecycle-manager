@@ -1,0 +1,42 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: busybox.v2.0.0
+  namespace: operators
+spec:
+  description: busybox
+  displayName: busybox
+  install:
+    spec:
+      deployments:
+        - name: busybox
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: busybox
+            template:
+              metadata:
+                labels:
+                  app: busybox
+              spec:
+                containers:
+                  - command:
+                      - sleep
+                      - "9000"
+                    image: busybox
+                    name: busybox
+    strategy: deployment
+  installModes:
+    - supported: true
+      type: OwnNamespace
+    - supported: true
+      type: SingleNamespace
+    - supported: true
+      type: MultiNamespace
+    - supported: true
+      type: AllNamespaces
+  maturity: alpha
+  provider:
+    name: Red Hat
+  version: 2.0.0
