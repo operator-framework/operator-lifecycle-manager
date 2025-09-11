@@ -138,6 +138,10 @@ func (f *Fake) findPackage() error {
 		if !f.IsInterface() && !f.IsFunction() {
 			return fmt.Errorf("cannot generate a fake for %s because it is not an interface or function", f.TargetName)
 		}
+
+		if f.IsConstraintInterface() {
+			return fmt.Errorf("cannot generate a fake for %s because it is a constraint interface (contains type constraints like ~string) which cannot be implemented by concrete types", f.TargetName)
+		}
 	}
 
 	if f.IsInterface() {
