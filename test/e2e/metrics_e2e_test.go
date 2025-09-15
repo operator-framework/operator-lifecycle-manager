@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -552,7 +553,7 @@ func getMetricsFromPod(client operatorclient.ClientInterface, pod *corev1.Pod) [
 		if err != nil {
 			return err
 		}
-		var p expfmt.TextParser
+		p := expfmt.NewTextParser(model.UTF8Validation)
 		mfs, err = p.TextToMetricFamilies(bytes.NewReader(raw))
 		if err != nil {
 			return err
