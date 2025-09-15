@@ -7,10 +7,10 @@ import (
 
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
-	"github.com/containers/common/pkg/auth"
-	"github.com/containers/image/v5/pkg/docker/config"
-	"github.com/containers/image/v5/types"
 	dockerconfig "github.com/docker/cli/cli/config"
+	"go.podman.io/common/pkg/auth"
+	"go.podman.io/image/v5/pkg/docker/config"
+	"go.podman.io/image/v5/types"
 )
 
 func NewResolver(client *http.Client, configDir string, plainHTTP bool, repo string) (remotes.Resolver, error) {
