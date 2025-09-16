@@ -4,7 +4,7 @@ go 1.24.4
 
 require (
 	github.com/blang/semver/v4 v4.0.0
-	github.com/containers/image/v5 v5.36.1
+	github.com/containers/image/v5 v5.36.2
 	github.com/coreos/go-semver v0.3.1
 	github.com/distribution/reference v0.6.0
 	github.com/evanphx/json-patch v5.9.11+incompatible
