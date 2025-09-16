@@ -288,6 +288,10 @@ func (c *Channel) validateReplacesChain() error {
 		if _, ok := chainFrom[cur.Name]; !ok {
 			chainFrom[cur.Name] = []string{cur.Name}
 		}
+		// if the replaces edge is known to be skipped, disregard it
+		if skippedBundles.Has(cur.Replaces) {
+			break
+		}
 		for k := range chainFrom {
 			chainFrom[k] = append(chainFrom[k], cur.Replaces)
 		}
