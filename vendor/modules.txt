@@ -138,62 +138,12 @@ github.com/containerd/ttrpc
 # github.com/containerd/typeurl/v2 v2.2.3
 ## explicit; go 1.21
 github.com/containerd/typeurl/v2
-# github.com/containers/image/v5 v5.36.2
-## explicit; go 1.23.3
-github.com/containers/image/v5/docker
-github.com/containers/image/v5/docker/policyconfiguration
-github.com/containers/image/v5/docker/reference
-github.com/containers/image/v5/internal/blobinfocache
-github.com/containers/image/v5/internal/image
-github.com/containers/image/v5/internal/imagedestination/impl
-github.com/containers/image/v5/internal/imagedestination/stubs
-github.com/containers/image/v5/internal/imagesource
-github.com/containers/image/v5/internal/imagesource/impl
-github.com/containers/image/v5/internal/imagesource/stubs
-github.com/containers/image/v5/internal/iolimits
-github.com/containers/image/v5/internal/manifest
-github.com/containers/image/v5/internal/multierr
-github.com/containers/image/v5/internal/pkg/platform
-github.com/containers/image/v5/internal/private
-github.com/containers/image/v5/internal/putblobdigest
-github.com/containers/image/v5/internal/rootless
-github.com/containers/image/v5/internal/set
-github.com/containers/image/v5/internal/signature
-github.com/containers/image/v5/internal/streamdigest
-github.com/containers/image/v5/internal/tmpdir
-github.com/containers/image/v5/internal/uploadreader
-github.com/containers/image/v5/internal/useragent
-github.com/containers/image/v5/manifest
-github.com/containers/image/v5/pkg/blobinfocache/none
-github.com/containers/image/v5/pkg/compression/internal
-github.com/containers/image/v5/pkg/compression/types
-github.com/containers/image/v5/pkg/docker/config
-github.com/containers/image/v5/pkg/strslice
-github.com/containers/image/v5/pkg/sysregistriesv2
-github.com/containers/image/v5/pkg/tlsclientconfig
-github.com/containers/image/v5/transports
-github.com/containers/image/v5/types
-github.com/containers/image/v5/version
 # github.com/containers/libtrust v0.0.0-20230121012942-c1716e8a8d01
 ## explicit
 github.com/containers/libtrust
 # github.com/containers/ocicrypt v1.2.1
 ## explicit; go 1.22
 github.com/containers/ocicrypt/spec
-# github.com/containers/storage v1.59.1
-## explicit; go 1.23.0
-github.com/containers/storage/internal/rawfilelock
-github.com/containers/storage/pkg/fileutils
-github.com/containers/storage/pkg/homedir
-github.com/containers/storage/pkg/idtools
-github.com/containers/storage/pkg/ioutils
-github.com/containers/storage/pkg/lockfile
-github.com/containers/storage/pkg/longpath
-github.com/containers/storage/pkg/mount
-github.com/containers/storage/pkg/reexec
-github.com/containers/storage/pkg/regexp
-github.com/containers/storage/pkg/system
-github.com/containers/storage/pkg/unshare
 # github.com/coreos/go-semver v0.3.1
 ## explicit; go 1.8
 github.com/coreos/go-semver/semver
