@@ -8,8 +8,8 @@ OLM deployment resources are templated so that they can be easily configured for
 
 Installing the CRDs first gives them a chance to register before installing the rest, which requires the CRDs exist.
 ```bash
-kubectl create -f deploy/upstream/quickstart/crds.yaml
-kubectl create -f deploy/upstream/quickstart/olm.yaml
+kubectl create -f https://github.com/operator-framework/operator-lifecycle-manager/releases/latest/download/crds.yaml
+kubectl create -f https://github.com/operator-framework/operator-lifecycle-manager/releases/latest/download/olm.yaml
 ```
 
 ## Install a Release
