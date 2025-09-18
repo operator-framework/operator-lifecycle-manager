@@ -23,15 +23,13 @@ spec:
           type: RuntimeDefault
       serviceAccountName: olm-operator-serviceaccount
       volumes:
-      {{- if .Values.catalog.tlsSecret }}
+      {{- if .Values.certManager.enabled }}
       - name: srv-cert
         secret:
-          secretName: {{ .Values.catalog.tlsSecret }}
-      {{- end }}
-      {{- if .Values.catalog.clientCASecret }}
+          secretName: {{ .Values.certManager.certificate.secretName }}
       - name: profile-collector-cert
         secret:
-          secretName: {{ .Values.catalog.clientCASecret }}
+          secretName: {{ .Values.certManager.certificate.secretName }}
       {{- end }}
       - name: tmpfs
         emptyDir: {}
@@ -43,12 +41,10 @@ spec:
             capabilities:
               drop: [ "ALL" ]
           volumeMounts:
-          {{- if .Values.catalog.tlsSecret }}
+          {{- if .Values.certManager.enabled }}
           - name: srv-cert
             mountPath: "/srv-cert"
             readOnly: true
-          {{- end }}
-          {{- if .Values.catalog.clientCASecret }}
           - name: profile-collector-cert
             mountPath: "/profile-collector-cert"
             readOnly: true
@@ -75,13 +71,11 @@ spec:
           - --writeStatusName
           - {{ .Values.writeStatusNameCatalog }}
           {{- end }}
-          {{- if .Values.catalog.tlsSecret }}
+          {{- if .Values.certManager.enabled }}
           - --tls-cert
           - /srv-cert/tls.crt
           - --tls-key
           - /srv-cert/tls.key
-          {{- end }}
-          {{- if .Values.catalog.clientCASecret }}
           - --client-ca
           - /profile-collector-cert/tls.crt
           {{- end }}
@@ -98,18 +92,18 @@ spec:
           {{- end }}
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.olm.service.internalPort }}
+            - containerPort: {{ if .Values.certManager.enabled }}{{ .Values.catalog.service.internalPortHttps }}{{ else }}{{ .Values.catalog.service.internalPort }}{{ end }}
               name: metrics
           livenessProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.catalog.service.internalPort }}
-              scheme: {{ if .Values.catalog.tlsSecret }}HTTPS{{ else }}HTTP{{end}}
+              port: {{ if .Values.certManager.enabled }}{{ .Values.catalog.service.internalPortHttps }}{{ else }}{{ .Values.catalog.service.internalPort }}{{ end }}
+              scheme: {{ if .Values.certManager.enabled }}HTTPS{{ else }}HTTP{{ end }}
           readinessProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.catalog.service.internalPort }}
-              scheme: {{ if .Values.catalog.tlsSecret }}HTTPS{{ else }}HTTP{{end}}
+              port: {{ if .Values.certManager.enabled }}{{ .Values.catalog.service.internalPortHttps }}{{ else }}{{ .Values.catalog.service.internalPort }}{{ end }}
+              scheme: {{ if .Values.certManager.enabled }}HTTPS{{ else }}HTTP{{ end }}
           terminationMessagePolicy: FallbackToLogsOnError
           {{- if .Values.catalog.resources }}
           resources:
