@@ -157,7 +157,16 @@ local-build: IMAGE_TAG = local
 local-build: image
 
 .PHONY: run-local
-run-local: local-build kind-create deploy
+run-local: local-build kind-create deploy tmp-certs
+
+.PHONY: tmp-certs
+tmp-certs:
+	kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.18.2/cert-manager.yaml
+	kubectl wait --for=condition=Available --namespace=cert-manager deployment/cert-manager-webhook --timeout=60s
+	kubectl wait --for=condition=Available --namespace=cert-manager deployment/cert-manager-cainjector --timeout=60s
+	kubectl wait --for=condition=Available --namespace=cert-manager deployment/cert-manager --timeout=60s
+	kubectl apply -f issuer.yaml
+	kubectl apply -f certificate.yaml
 
 .PHONY: clean
 clean: #HELP Clean up build artifacts
@@ -233,14 +242,19 @@ deploy: $(KIND) $(HELM) #HELP Deploy OLM to kind cluster $KIND_CLUSTER_NAME (def
 		--set debug=true \
 		--set olm.image.ref=$(OLM_IMAGE) \
 		--set olm.image.pullPolicy=IfNotPresent \
+		--set olm.tlsSecret=olm-cert \
+		--set olm.clientCASecret=olm-cert \
+		--set olm.service.internalPort=8443 \
 		--set catalog.image.ref=$(OLM_IMAGE) \
 		--set catalog.image.pullPolicy=IfNotPresent \
+		--set catalog.tlsSecret=olm-cert \
+		--set catalog.clientCASecret=olm-cert \
+		--set catalog.service.internalPort=8443 \
 		--set catalog.commandArgs=--configmapServerImage=$(CONFIGMAP_SERVER_IMAGE) \
 		--set catalog.opmImageArgs=--opmImage=$(OPERATOR_REGISTRY_IMAGE) \
 		--set package.image.ref=$(OLM_IMAGE) \
 		--set package.image.pullPolicy=IfNotPresent \
-		$(HELM_INSTALL_OPTS) \
-		--wait;
+		$(HELM_INSTALL_OPTS);
 
 .PHONY: undeploy
 undeploy: $(KIND) $(HELM) #HELP Uninstall OLM from kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0)
