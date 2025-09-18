@@ -203,6 +203,11 @@ func (s *SourceStore) stateTimeout(state connectivity.State) time.Duration {
 
 func (s *SourceStore) watch(ctx context.Context, key registry.CatalogKey, source SourceConn) {
 	state := source.ConnectionState
+
+	// Make initial connection
+	source.Conn.Connect()
+
+	// Periodically observe connection state change
 	for {
 		select {
 		case <-ctx.Done():
