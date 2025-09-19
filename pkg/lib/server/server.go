@@ -78,9 +78,9 @@ func (sc *serverConfig) tlsEnabled() (bool, error) {
 
 func (sc *serverConfig) getAddress(tlsEnabled bool) string {
 	if tlsEnabled {
-		return ":8443"
+		return "127.0.0.1:8443"
 	}
-	return ":8080"
+	return "127.0.0.1:8080"
 }
 
 func (sc serverConfig) getListenAndServeFunc() (func() error, error) {
