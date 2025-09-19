@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	apiext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	crdmarkers "sigs.k8s.io/controller-tools/pkg/crd/markers"
 	"sigs.k8s.io/controller-tools/pkg/loader"
 	"sigs.k8s.io/controller-tools/pkg/markers"
@@ -397,6 +398,8 @@ func mapToSchema(ctx *schemaContext, mapType *ast.MapType) *apiext.JSONSchemaPro
 
 // structToSchema creates a schema for the given struct.  Embedded fields are placed in AllOf,
 // and can be flattened later with a Flattener.
+//
+//nolint:gocyclo
 func structToSchema(ctx *schemaContext, structType *ast.StructType) *apiext.JSONSchemaProps {
 	props := &apiext.JSONSchemaProps{
 		Type:       "object",
@@ -405,6 +408,17 @@ func structToSchema(ctx *schemaContext, structType *ast.StructType) *apiext.JSON
 
 	if ctx.info.RawSpec.Type != structType {
 		ctx.pkg.AddError(loader.ErrFromNode(fmt.Errorf("encountered non-top-level struct (possibly embedded), those aren't allowed"), structType))
+		return props
+	}
+
+	exactlyOneOf, err := oneOfValuesToSet(ctx.info.Markers[crdmarkers.ValidationExactlyOneOfPrefix])
+	if err != nil {
+		ctx.pkg.AddError(loader.ErrFromNode(err, structType))
+		return props
+	}
+	atMostOneOf, err := oneOfValuesToSet(ctx.info.Markers[crdmarkers.ValidationAtMostOneOfPrefix])
+	if err != nil {
+		ctx.pkg.AddError(loader.ErrFromNode(err, structType))
 		return props
 	}
 
@@ -449,11 +463,19 @@ func structToSchema(ctx *schemaContext, structType *ast.StructType) *apiext.JSON
 		case field.Markers.Get("kubebuilder:validation:Optional") != nil:
 			// explicitly optional - kubebuilder
 		case field.Markers.Get("kubebuilder:validation:Required") != nil:
+			if exactlyOneOf.Has(fieldName) || atMostOneOf.Has(fieldName) {
+				ctx.pkg.AddError(loader.ErrFromNode(fmt.Errorf("field %s is part of OneOf constraint and cannot be marked as required", fieldName), structType))
+				return props
+			}
 			// explicitly required - kubebuilder
 			props.Required = append(props.Required, fieldName)
 		case field.Markers.Get("optional") != nil:
 			// explicitly optional - kubernetes
 		case field.Markers.Get("required") != nil:
+			if exactlyOneOf.Has(fieldName) || atMostOneOf.Has(fieldName) {
+				ctx.pkg.AddError(loader.ErrFromNode(fmt.Errorf("field %s is part of OneOf constraint and cannot be marked as required", fieldName), structType))
+				return props
+			}
 			// explicitly required - kubernetes
 			props.Required = append(props.Required, fieldName)
 
@@ -461,6 +483,10 @@ func structToSchema(ctx *schemaContext, structType *ast.StructType) *apiext.JSON
 		case defaultMode == "required":
 			// ...everything that's not inline / omitempty is required
 			if !inline && !omitEmpty {
+				if exactlyOneOf.Has(fieldName) || atMostOneOf.Has(fieldName) {
+					ctx.pkg.AddError(loader.ErrFromNode(fmt.Errorf("field %s is part of OneOf constraint and must have omitempty tag", fieldName), structType))
+					return props
+				}
 				props.Required = append(props.Required, fieldName)
 			}
 
@@ -488,6 +514,41 @@ func structToSchema(ctx *schemaContext, structType *ast.StructType) *apiext.JSON
 	}
 
 	return props
+}
+
+func oneOfValuesToSet(oneOfGroups []any) (sets.Set[string], error) {
+	set := sets.New[string]()
+	for _, oneOf := range oneOfGroups {
+		switch vals := oneOf.(type) {
+		case crdmarkers.ExactlyOneOf:
+			if err := validateOneOfValues(vals...); err != nil {
+				return nil, fmt.Errorf("%s: %w", crdmarkers.ValidationExactlyOneOfPrefix, err)
+			}
+			set.Insert(vals...)
+		case crdmarkers.AtMostOneOf:
+			if err := validateOneOfValues(vals...); err != nil {
+				return nil, fmt.Errorf("%s: %w", crdmarkers.ValidationAtMostOneOfPrefix, err)
+			}
+			set.Insert(vals...)
+		default:
+			return nil, fmt.Errorf("expected ExactlyOneOf or AtMostOneOf, got %T", oneOf)
+		}
+	}
+	return set, nil
+}
+
+func validateOneOfValues(fields ...string) error {
+	var invalid []string
+	for _, field := range fields {
+		if strings.Contains(field, ".") {
+			// nested fields are not allowed in OneOf validation markers
+			invalid = append(invalid, field)
+		}
+	}
+	if len(invalid) > 0 {
+		return fmt.Errorf("cannot reference nested fields: %s", strings.Join(invalid, ","))
+	}
+	return nil
 }
 
 // builtinToType converts builtin basic types to their equivalent JSON schema form.

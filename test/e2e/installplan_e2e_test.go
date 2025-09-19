@@ -770,8 +770,8 @@ var _ = Describe("Install Plan", Label("InstallPlan"), func() {
 		By(`Fetch installplan again to check for unnecessary control loops`)
 		fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), generatedNamespace.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
 			By(`Don't compare object meta as labels can be applied by the operator controller.`)
-			Expect(equality.Semantic.DeepEqual(fetchedInstallPlan.Spec, fip.Spec)).Should(BeTrue(), diff.ObjectDiff(fetchedInstallPlan, fip))
-			Expect(equality.Semantic.DeepEqual(fetchedInstallPlan.Status, fip.Status)).Should(BeTrue(), diff.ObjectDiff(fetchedInstallPlan, fip))
+			Expect(equality.Semantic.DeepEqual(fetchedInstallPlan.Spec, fip.Spec)).Should(BeTrue(), diff.Diff(fetchedInstallPlan, fip))
+			Expect(equality.Semantic.DeepEqual(fetchedInstallPlan.Status, fip.Status)).Should(BeTrue(), diff.Diff(fetchedInstallPlan, fip))
 			return true
 		})
 		require.NoError(GinkgoT(), err)
@@ -941,7 +941,7 @@ var _ = Describe("Install Plan", Label("InstallPlan"), func() {
 
 			By(`Fetch installplan again to check for unnecessary control loops`)
 			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), generatedNamespace.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
-				Expect(equality.Semantic.DeepEqual(fetchedInstallPlan, fip)).Should(BeTrue(), diff.ObjectDiff(fetchedInstallPlan, fip))
+				Expect(equality.Semantic.DeepEqual(fetchedInstallPlan, fip)).Should(BeTrue(), diff.Diff(fetchedInstallPlan, fip))
 				return true
 			})
 			require.NoError(GinkgoT(), err)
@@ -2496,7 +2496,7 @@ var _ = Describe("Install Plan", Label("InstallPlan"), func() {
 
 			By(`Fetch installplan again to check for unnecessary control loops`)
 			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), generatedNamespace.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
-				Expect(equality.Semantic.DeepEqual(fetchedInstallPlan, fip)).Should(BeTrue(), diff.ObjectDiff(fetchedInstallPlan, fip))
+				Expect(equality.Semantic.DeepEqual(fetchedInstallPlan, fip)).Should(BeTrue(), diff.Diff(fetchedInstallPlan, fip))
 				return true
 			})
 			require.NoError(GinkgoT(), err)
@@ -2696,7 +2696,7 @@ var _ = Describe("Install Plan", Label("InstallPlan"), func() {
 
 			By(`Fetch installplan again to check for unnecessary control loops`)
 			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), generatedNamespace.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
-				Expect(equality.Semantic.DeepEqual(fetchedInstallPlan, fip)).Should(BeTrue(), diff.ObjectDiff(fetchedInstallPlan, fip))
+				Expect(equality.Semantic.DeepEqual(fetchedInstallPlan, fip)).Should(BeTrue(), diff.Diff(fetchedInstallPlan, fip))
 				return true
 			})
 			require.NoError(GinkgoT(), err)

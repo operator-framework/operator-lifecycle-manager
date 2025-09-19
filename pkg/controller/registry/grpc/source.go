@@ -163,7 +163,7 @@ func grpcConnection(address string) (*grpc.ClientConn, error) {
 		}))
 	}
 
-	return grpc.Dial(address, dialOptions...)
+	return grpc.NewClient(address, dialOptions...)
 }
 
 func (s *SourceStore) Add(key registry.CatalogKey, address string) (*SourceConn, error) {
@@ -203,6 +203,11 @@ func (s *SourceStore) stateTimeout(state connectivity.State) time.Duration {
 
 func (s *SourceStore) watch(ctx context.Context, key registry.CatalogKey, source SourceConn) {
 	state := source.ConnectionState
+
+	// Make initial connection
+	source.Conn.Connect()
+
+	// Periodically observe connection state change
 	for {
 		select {
 		case <-ctx.Done():

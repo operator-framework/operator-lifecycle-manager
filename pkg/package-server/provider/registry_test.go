@@ -2067,7 +2067,7 @@ func TestRegistryProviderListLabels(t *testing.T) {
 }
 
 func newTestRegistryClient(t *testing.T, catsrc *operatorsv1alpha1.CatalogSource) *registryClient {
-	conn, err := grpc.Dial(address+catsrc.Status.RegistryServiceStatus.Port, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(address+catsrc.Status.RegistryServiceStatus.Port, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err, "could not set up test grpc connection")
 	return newRegistryClient(catsrc, conn)
 }
