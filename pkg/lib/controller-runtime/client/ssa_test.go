@@ -78,10 +78,6 @@ func TestServerSideApply(t *testing.T) {
 				return nil
 			},
 			want: &corev1.Pod{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Pod",
-					APIVersion: "v1",
-				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "testpod",
 					Namespace: "testns",
@@ -106,10 +102,6 @@ func TestServerSideApply(t *testing.T) {
 				return nil
 			},
 			want: &corev1.Pod{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Pod",
-					APIVersion: "v1",
-				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "testpod",
 					Namespace: "testns",
@@ -137,10 +129,6 @@ func TestServerSideApply(t *testing.T) {
 				return unstructured.SetNestedField(u.Object, "new", "status", "message")
 			},
 			want: &corev1.Pod{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Pod",
-					APIVersion: "v1",
-				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "testpod",
 					Namespace: "testns",
