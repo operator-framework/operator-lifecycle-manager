@@ -214,7 +214,7 @@ func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct
 			log.Errorf("Failed to get related objects: %v", err)
 		}
 		if !reflect.DeepEqual(previousStatus.RelatedObjects, existing.Status.RelatedObjects) {
-			diffString := diff.ObjectDiff(previousStatus.RelatedObjects, existing.Status.RelatedObjects)
+			diffString := diff.Diff(previousStatus.RelatedObjects, existing.Status.RelatedObjects)
 			log.Debugf("Update required for related objects: %v", diffString)
 		}
 

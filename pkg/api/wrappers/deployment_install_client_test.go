@@ -441,7 +441,7 @@ func TestEnsureServiceAccount(t *testing.T) {
 
 			require.True(t, equality.Semantic.DeepEqual(tt.expect.returnedServiceAccount, sa),
 				"Resources do not match <expected, actual>: %s",
-				diff.ObjectDiff(tt.expect.returnedServiceAccount, sa))
+				diff.Diff(tt.expect.returnedServiceAccount, sa))
 
 			require.EqualValues(t, tt.expect.returnedError, errors.Cause(err))
 
