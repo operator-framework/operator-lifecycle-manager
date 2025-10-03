@@ -22,6 +22,7 @@ const (
 	ConsoleLinkKind           = "ConsoleLink"
 	ConsolePlugin             = "ConsolePlugin"
 	NetworkPolicyKind         = "NetworkPolicy"
+	PodMonitorKind            = "PodMonitor"
 )
 
 // Namespaced indicates whether the resource is namespace scoped (true) or cluster-scoped (false).
@@ -51,6 +52,7 @@ var supportedResources = map[string]Namespaced{
 	ConsoleLinkKind:           false,
 	ConsolePlugin:             false,
 	NetworkPolicyKind:         true,
+	PodMonitorKind:            true,
 }
 
 // IsSupported checks if the object kind is OLM-supported and if it is namespaced
