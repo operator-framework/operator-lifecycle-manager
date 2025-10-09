@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
-	v1 "k8s.io/client-go/listers/apps/v1"
+	"k8s.io/client-go/listers/apps/v1"
 )
 
 type FakeAppsV1Lister struct {

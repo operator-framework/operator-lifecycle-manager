@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
-	v1 "k8s.io/kube-aggregator/pkg/client/listers/apiregistration/v1"
+	"k8s.io/kube-aggregator/pkg/client/listers/apiregistration/v1"
 )
 
 type FakeAPIRegistrationV1Lister struct {

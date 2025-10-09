@@ -6,7 +6,7 @@ import (
 
 	v1a "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	v1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/listers/core/v1"
 )
 
 type FakeServiceAccountNamespaceLister struct {
