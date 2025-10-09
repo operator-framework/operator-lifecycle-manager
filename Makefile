@@ -286,12 +286,16 @@ codegen: #HELP Generate clients, deepcopy, listers, and informers
 
 .PHONY: mockgen
 mockgen: #HELP Generate mocks
-	# Generate mocks and silence the followign warning:
+	# Generate mocks and silence the following warning:
 	# WARNING: Invoking counterfeiter multiple times from "go generate" is slow.
 	# Consider using counterfeiter:generate directives to speed things up.
 	# See https://github.com/maxbrunsfeld/counterfeiter#step-2b---add-counterfeitergenerate-directives for more information.
 	# Set the "COUNTERFEITER_NO_GENERATE_WARNING" environment variable to suppress this message.
-	COUNTERFEITER_NO_GENERATE_WARNING=1 go generate ./pkg/...
+	@set -e; \
+	overlay_file=$$(mktemp "$(CURDIR)/hack/overlays/goimports_overlay.XXXXXX.json"); \
+	trap 'rm -f "$$overlay_file"' EXIT; \
+	printf '{\n  "Replace": {\n    "%s/vendor/golang.org/x/tools/imports/vendorlesspath.go": "%s/hack/overlays/goimports_vendorlesspath.go"\n  }\n}\n' "$(CURDIR)" "$(CURDIR)" > "$$overlay_file"; \
+	GO111MODULE=on GOWORK=off COUNTERFEITER_NO_GENERATE_WARNING=1 GOFLAGS="$$GOFLAGS -overlay=$$overlay_file" go generate ./pkg/...
 
 #SECTION Verification
 

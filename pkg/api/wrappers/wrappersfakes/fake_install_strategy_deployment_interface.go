@@ -8,7 +8,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
-	v1 "k8s.io/api/apps/v1"
+	"k8s.io/api/apps/v1"
 	v1b "k8s.io/api/core/v1"
 	v1a "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/labels"

@@ -25,8 +25,8 @@ import (
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/client-go/listers/fake_rbac_v1_rolebinding_namespace_lister.go k8s.io/client-go/listers/rbac/v1.RoleBindingNamespaceLister
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/client-go/listers/fake_rbac_v1_clusterrolebinding_lister.go k8s.io/client-go/listers/rbac/v1.ClusterRoleBindingLister
 
-//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ./operatorlisterfakes/fake_clusterserviceversion_v1alpha1_lister.go ../../api/client/listers/operators/v1alpha1.ClusterServiceVersionLister
-//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ./operatorlisterfakes/fake_clusterserviceversion_v1alpha1_namespace_lister.go ../../api/client/listers/operators/v1alpha1.ClusterServiceVersionNamespaceLister
+//go:generate ../../../hack/scripts/run-counterfeiter.sh ./operatorlisterfakes/fake_clusterserviceversion_v1alpha1_lister.go ../../api/client/listers/operators/v1alpha1 ClusterServiceVersionLister
+//go:generate ../../../hack/scripts/run-counterfeiter.sh ./operatorlisterfakes/fake_clusterserviceversion_v1alpha1_namespace_lister.go ../../api/client/listers/operators/v1alpha1 ClusterServiceVersionNamespaceLister
 
 // OperatorLister is a union of versioned informer listers
 //

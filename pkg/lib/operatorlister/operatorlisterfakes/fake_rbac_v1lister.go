@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
-	v1 "k8s.io/client-go/listers/rbac/v1"
+	"k8s.io/client-go/listers/rbac/v1"
 )
 
 type FakeRbacV1Lister struct {
