@@ -22,16 +22,14 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       serviceAccountName: olm-operator-serviceaccount
-      volumes: 
-      {{- if .Values.olm.tlsSecret }}
+      volumes:
+      {{- if .Values.certManager.enabled }}
       - name: srv-cert
         secret:
-          secretName: {{ .Values.olm.tlsSecret }}
-      {{- end }}
-      {{- if .Values.olm.clientCASecret }}
+          secretName: {{ .Values.certManager.certificate.secretName }}
       - name: profile-collector-cert
         secret:
-          secretName: {{ .Values.olm.clientCASecret }}
+          secretName: {{ .Values.certManager.certificate.secretName }}
       {{- end }}
       - name: tmpfs
         emptyDir: {}
@@ -43,12 +41,10 @@ spec:
             capabilities:
               drop: [ "ALL" ]
           volumeMounts:
-          {{- if .Values.olm.tlsSecret }}
+          {{- if .Values.certManager.enabled }}
           - name: srv-cert
             mountPath: "/srv-cert"
             readOnly: true
-          {{- end }}
-          {{- if .Values.olm.clientCASecret }}
           - name: profile-collector-cert
             mountPath: "/profile-collector-cert"
             readOnly: true
@@ -78,31 +74,29 @@ spec:
           - --writePackageServerStatusName
           - {{ .Values.writePackageServerStatusName }}
           {{- end }}
-         {{- if .Values.olm.tlsSecret }}
+         {{- if .Values.certManager.enabled }}
           - --tls-cert
           - /srv-cert/tls.crt
           - --tls-key
           - /srv-cert/tls.key
-          {{- end }}
-          {{- if .Values.olm.clientCASecret }}
           - --client-ca
           - /profile-collector-cert/tls.crt
           {{- end }}
           image: {{ .Values.olm.image.ref }}
           imagePullPolicy: {{ .Values.olm.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.olm.service.internalPort }}
+            - containerPort: {{ if .Values.certManager.enabled }}{{ .Values.olm.service.internalPortHttps }}{{ else }}{{ .Values.olm.service.internalPort }}{{ end }}
               name: metrics
           livenessProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.olm.service.internalPort }}
-              scheme: {{ if .Values.olm.tlsSecret }}HTTPS{{ else }}HTTP{{end}}
+              port: {{ if .Values.certManager.enabled }}{{ .Values.olm.service.internalPortHttps }}{{ else }}{{ .Values.olm.service.internalPort }}{{ end }}
+              scheme: {{ if .Values.certManager.enabled }}HTTPS{{ else }}HTTP{{ end }}
           readinessProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.olm.service.internalPort }}
-              scheme: {{ if .Values.olm.tlsSecret }}HTTPS{{ else }}HTTP{{end}}
+              port: {{ if .Values.certManager.enabled }}{{ .Values.olm.service.internalPortHttps }}{{ else }}{{ .Values.olm.service.internalPort }}{{ end }}
+              scheme: {{ if .Values.certManager.enabled }}HTTPS{{ else }}HTTP{{ end }}
           terminationMessagePolicy: FallbackToLogsOnError
           env:
           - name: OPERATOR_NAMESPACE
