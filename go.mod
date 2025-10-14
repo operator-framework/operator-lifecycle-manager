@@ -22,7 +22,7 @@ require (
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/openshift/client-go v0.0.0-20220525160904-9e1acff93e4a
 	github.com/operator-framework/api v0.35.0
-	github.com/operator-framework/operator-registry v1.59.0
+	github.com/operator-framework/operator-registry v1.60.0
 	github.com/otiai10/copy v1.14.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.23.2
