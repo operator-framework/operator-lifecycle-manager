@@ -19,7 +19,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/onsi/ginkgo/v2 v2.26.0
 	github.com/onsi/gomega v1.38.2
-	github.com/openshift/api v3.9.0+incompatible
+	github.com/openshift/api v0.0.0-20221021112143-4226c2167e40
 	github.com/openshift/client-go v0.0.0-20220525160904-9e1acff93e4a
 	github.com/operator-framework/api v0.35.0
 	github.com/operator-framework/operator-registry v1.60.0
@@ -186,8 +186,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-// controller runtime
-replace github.com/openshift/api => github.com/openshift/api v0.0.0-20221021112143-4226c2167e40 // release-4.12
 
 retract v3.11.0+incompatible // https://github.com/operator-framework/operator-lifecycle-manager/issues/2253
