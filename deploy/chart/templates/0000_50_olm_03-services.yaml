@@ -1,39 +1,43 @@
-{{ if .Values.monitoring.enabled }}
+{{- if or .Values.monitoring.enabled .Values.serviceCa.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: olm-operator-metrics
+  name: {{ .Values.olm.service.name }}
   namespace: {{ .Values.namespace }}
+  {{- if .Values.serviceCa.enabled }}
   annotations:
-    service.alpha.openshift.io/serving-cert-secret-name: olm-operator-serving-cert
+    service.alpha.openshift.io/serving-cert-secret-name: {{ .Values.serviceCa.olmOperator.secretName }}
+  {{- end }}
   labels:
     app: olm-operator
 spec:
   type: ClusterIP
   ports:
   - name: https-metrics
-    port: {{ .Values.olm.service.externalPort }}
+    port: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.olm.service.internalPortHttps }}{{ else }}{{ .Values.olm.service.externalPort }}{{ end }}
     protocol: TCP
-    targetPort: {{ .Values.olm.service.internalPort }}
+    targetPort: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.olm.service.internalPortHttps }}{{ else }}{{ .Values.olm.service.internalPort }}{{ end }}
   selector:
     app: olm-operator
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: catalog-operator-metrics
+  name: {{ .Values.catalog.service.name }}
   namespace: {{ .Values.namespace }}
+  {{- if .Values.serviceCa.enabled }}
   annotations:
-    service.alpha.openshift.io/serving-cert-secret-name: catalog-operator-serving-cert
+    service.alpha.openshift.io/serving-cert-secret-name: {{ .Values.serviceCa.catalogOperator.secretName }}
+  {{- end }}
   labels:
     app: catalog-operator
 spec:
   type: ClusterIP
   ports:
   - name: https-metrics
-    port: {{ .Values.catalog.service.externalPort }}
+    port: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.catalog.service.internalPortHttps }}{{ else }}{{ .Values.catalog.service.externalPort }}{{ end }}
     protocol: TCP
-    targetPort: {{ .Values.catalog.service.internalPort }}
+    targetPort: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.catalog.service.internalPortHttps }}{{ else }}{{ .Values.catalog.service.internalPort }}{{ end }}
   selector:
     app: catalog-operator
 {{ end }}
