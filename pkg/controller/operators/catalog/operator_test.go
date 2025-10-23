@@ -9,6 +9,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"testing/quick"
 	"time"
@@ -2558,4 +2559,108 @@ func hasExpectedCondition(ip *v1alpha1.InstallPlan, expectedCondition v1alpha1.I
 		}
 	}
 	return false
+}
+
+// TestEnsureInstallPlanConcurrency tests that concurrent calls to ensureInstallPlan
+// do not create duplicate InstallPlans for the same subscription.
+// This test verifies the fix for a TOCTOU race condition where multiple worker threads
+// could create duplicate InstallPlans if they both check for existing plans before either
+// has created one.
+func TestEnsureInstallPlanConcurrency(t *testing.T) {
+	namespace := "test-ns"
+	gen := 1
+	numGoroutines := 10
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	// Create a fake operator
+	op, err := NewFakeOperator(ctx, namespace, []string{namespace})
+	require.NoError(t, err)
+
+	// Create a test subscription
+	sub := &v1alpha1.Subscription{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-sub",
+			Namespace: namespace,
+			UID:       types.UID("test-uid"),
+		},
+		Spec: &v1alpha1.SubscriptionSpec{
+			Package: "test-package",
+		},
+	}
+
+	// Create test steps for the InstallPlan
+	steps := []*v1alpha1.Step{
+		{
+			Resolving: "test-csv",
+			Resource: v1alpha1.StepResource{
+				CatalogSource:          "test-catalog",
+				CatalogSourceNamespace: namespace,
+				Group:                  "operators.coreos.com",
+				Version:                "v1alpha1",
+				Kind:                   "ClusterServiceVersion",
+				Name:                   "test-csv",
+				Manifest:               toManifest(t, csv("test-csv", namespace, nil, nil)),
+			},
+			Status: v1alpha1.StepStatusUnknown,
+		},
+	}
+
+	// Use WaitGroup to synchronize goroutines
+	var wg sync.WaitGroup
+	// Use a channel to collect results
+	results := make(chan *corev1.ObjectReference, numGoroutines)
+	// Use a sync.Once-like mechanism to start all goroutines at roughly the same time
+	startBarrier := make(chan struct{})
+
+	logger := logrus.NewEntry(logrus.New())
+
+	// Launch multiple goroutines that will call ensureInstallPlan concurrently
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// Wait for the start signal
+			<-startBarrier
+
+			// Call ensureInstallPlan
+			ref, err := op.ensureInstallPlan(logger, namespace, gen, []*v1alpha1.Subscription{sub}, v1alpha1.ApprovalAutomatic, steps, nil)
+			require.NoError(t, err)
+			results <- ref
+		}()
+	}
+
+	// Start all goroutines
+	close(startBarrier)
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+	close(results)
+
+	// Collect all results
+	var refs []*corev1.ObjectReference
+	for ref := range results {
+		refs = append(refs, ref)
+	}
+
+	// Verify we got the expected number of results
+	require.Len(t, refs, numGoroutines, "should have received results from all goroutines")
+
+	// Verify all refs point to the same InstallPlan
+	firstRef := refs[0]
+	for i, ref := range refs {
+		require.Equal(t, firstRef.Name, ref.Name, "goroutine %d returned different InstallPlan name", i)
+		require.Equal(t, firstRef.Namespace, ref.Namespace, "goroutine %d returned different InstallPlan namespace", i)
+		require.Equal(t, firstRef.UID, ref.UID, "goroutine %d returned different InstallPlan UID", i)
+	}
+
+	// Verify only one InstallPlan was created in the cluster
+	ipList, err := op.client.OperatorsV1alpha1().InstallPlans(namespace).List(ctx, metav1.ListOptions{})
+	require.NoError(t, err)
+	require.Len(t, ipList.Items, 1, "exactly one InstallPlan should have been created")
+
+	// Verify the created InstallPlan has the correct generation
+	createdIP := &ipList.Items[0]
+	require.Equal(t, gen, createdIP.Spec.Generation, "InstallPlan should have the correct generation")
 }

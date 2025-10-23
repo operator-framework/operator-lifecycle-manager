@@ -1654,12 +1654,6 @@ func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, gen
 		return nil, nil
 	}
 
-	// Check if any existing installplans are creating the same resources
-	installPlans, err := o.listInstallPlans(namespace)
-	if err != nil {
-		return nil, err
-	}
-
 	// There are multiple(2) worker threads process the namespaceQueue.
 	// Both worker can work at the same time when 2 separate updates are made for the namespace.
 	// The following sequence causes 2 installplans are created for a subscription
@@ -1679,6 +1673,13 @@ func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, gen
 	// 8. worker 2 unlocks
 	o.muInstallPlan.Lock()
 	defer o.muInstallPlan.Unlock()
+
+	// Check if any existing installplans are creating the same resources
+	// This must be done inside the lock to prevent TOCTOU race condition
+	installPlans, err := o.listInstallPlans(namespace)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, installPlan := range installPlans {
 		if installPlan.Spec.Generation == gen {

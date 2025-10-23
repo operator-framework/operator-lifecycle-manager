@@ -5853,6 +5853,12 @@ func RequireObjectsInCache(t *testing.T, lister operatorlister.OperatorLister, n
 			fetched, err = lister.RbacV1().RoleBindingLister().RoleBindings(namespace).Get(o.GetName())
 		case *v1alpha1.ClusterServiceVersion:
 			fetched, err = lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).Get(o.GetName())
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					return err
+				}
+				return errors.Join(err, fmt.Errorf("namespace: %v, error: %v", namespace, err))
+			}
 			// We don't care about finalizers
 			object.(*v1alpha1.ClusterServiceVersion).Finalizers = nil
 			fetched.(*v1alpha1.ClusterServiceVersion).Finalizers = nil
