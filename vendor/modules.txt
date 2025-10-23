@@ -157,7 +157,7 @@ github.com/davecgh/go-spew/spew
 # github.com/distribution/reference v0.6.0
 ## explicit; go 1.20
 github.com/distribution/reference
-# github.com/docker/cli v28.4.0+incompatible
+# github.com/docker/cli v28.5.1+incompatible
 ## explicit
 github.com/docker/cli/cli/config
 github.com/docker/cli/cli/config/configfile
@@ -168,10 +168,10 @@ github.com/docker/cli/cli/config/types
 ## explicit
 github.com/docker/distribution/registry/api/errcode
 github.com/docker/distribution/registry/api/v2
-# github.com/docker/docker v28.3.3+incompatible
+# github.com/docker/docker v28.5.1+incompatible
 ## explicit
 github.com/docker/docker/api/types/versions
-# github.com/docker/docker-credential-helpers v0.9.3
+# github.com/docker/docker-credential-helpers v0.9.4
 ## explicit; go 1.21
 github.com/docker/docker-credential-helpers/client
 github.com/docker/docker-credential-helpers/credentials
@@ -685,8 +685,8 @@ go.podman.io/common/pkg/auth
 go.podman.io/common/pkg/capabilities
 go.podman.io/common/pkg/completion
 go.podman.io/common/pkg/password
-# go.podman.io/image/v5 v5.37.0
-## explicit; go 1.23.3
+# go.podman.io/image/v5 v5.38.0
+## explicit; go 1.24.0
 go.podman.io/image/v5/docker
 go.podman.io/image/v5/docker/policyconfiguration
 go.podman.io/image/v5/docker/reference
@@ -721,8 +721,8 @@ go.podman.io/image/v5/pkg/tlsclientconfig
 go.podman.io/image/v5/transports
 go.podman.io/image/v5/types
 go.podman.io/image/v5/version
-# go.podman.io/storage v1.60.0
-## explicit; go 1.23.3
+# go.podman.io/storage v1.61.0
+## explicit; go 1.24.0
 go.podman.io/storage/internal/rawfilelock
 go.podman.io/storage/pkg/fileutils
 go.podman.io/storage/pkg/homedir
@@ -798,7 +798,7 @@ golang.org/x/net/internal/timeseries
 golang.org/x/net/proxy
 golang.org/x/net/trace
 golang.org/x/net/websocket
-# golang.org/x/oauth2 v0.31.0
+# golang.org/x/oauth2 v0.32.0
 ## explicit; go 1.24.0
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
