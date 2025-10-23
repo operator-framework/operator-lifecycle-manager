@@ -1,43 +1,39 @@
-{{- if or .Values.monitoring.enabled .Values.serviceCa.enabled }}
+{{ if .Values.monitoring.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.olm.service.name }}
+  name: olm-operator-metrics
   namespace: {{ .Values.namespace }}
-  {{- if .Values.serviceCa.enabled }}
   annotations:
-    service.alpha.openshift.io/serving-cert-secret-name: {{ .Values.serviceCa.olmOperator.secretName }}
-  {{- end }}
+    service.alpha.openshift.io/serving-cert-secret-name: olm-operator-serving-cert
   labels:
     app: olm-operator
 spec:
   type: ClusterIP
   ports:
   - name: https-metrics
-    port: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.olm.service.internalPortHttps }}{{ else }}{{ .Values.olm.service.externalPort }}{{ end }}
+    port: {{ .Values.olm.service.externalPort }}
     protocol: TCP
-    targetPort: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.olm.service.internalPortHttps }}{{ else }}{{ .Values.olm.service.internalPort }}{{ end }}
+    targetPort: {{ .Values.olm.service.internalPort }}
   selector:
     app: olm-operator
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.catalog.service.name }}
+  name: catalog-operator-metrics
   namespace: {{ .Values.namespace }}
-  {{- if .Values.serviceCa.enabled }}
   annotations:
-    service.alpha.openshift.io/serving-cert-secret-name: {{ .Values.serviceCa.catalogOperator.secretName }}
-  {{- end }}
+    service.alpha.openshift.io/serving-cert-secret-name: catalog-operator-serving-cert
   labels:
     app: catalog-operator
 spec:
   type: ClusterIP
   ports:
   - name: https-metrics
-    port: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.catalog.service.internalPortHttps }}{{ else }}{{ .Values.catalog.service.externalPort }}{{ end }}
+    port: {{ .Values.catalog.service.externalPort }}
     protocol: TCP
-    targetPort: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.catalog.service.internalPortHttps }}{{ else }}{{ .Values.catalog.service.internalPort }}{{ end }}
+    targetPort: {{ .Values.catalog.service.internalPort }}
   selector:
     app: catalog-operator
 {{ end }}
