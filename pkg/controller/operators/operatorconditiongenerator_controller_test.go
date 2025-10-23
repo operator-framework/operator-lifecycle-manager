@@ -260,7 +260,7 @@ func newNginxInstallStrategy(name string, permissions []operatorsv1alpha1.Strate
 						Spec: corev1.PodSpec{Containers: []corev1.Container{
 							{
 								Name:            genName("nginx"),
-								Image:           "bitnami/nginx:latest",
+								Image:           "docker.io/bitnami/nginx:latest",
 								Ports:           []corev1.ContainerPort{{ContainerPort: 80}},
 								ImagePullPolicy: corev1.PullIfNotPresent,
 							},

@@ -414,7 +414,7 @@ func deployment(deploymentName, namespace, serviceAccountName string, templateAn
 					Containers: []corev1.Container{
 						{
 							Name:  deploymentName + "-c1",
-							Image: "nginx:1.7.9",
+							Image: "docker.io/nginx:1.7.9",
 							Ports: []corev1.ContainerPort{
 								{
 									ContainerPort: 80,
@@ -681,7 +681,7 @@ func installStrategy(deploymentName string, permissions []v1alpha1.StrategyDeplo
 							Containers: []corev1.Container{
 								{
 									Name:  deploymentName + "-c1",
-									Image: "nginx:1.7.9",
+									Image: "docker.io/nginx:1.7.9",
 									Ports: []corev1.ContainerPort{
 										{
 											ContainerPort: 80,
