@@ -48,12 +48,6 @@ GINKGO := $(TOOL_EXEC) github.com/onsi/ginkgo/v2/ginkgo
 
 # Target environment and Dependencies #
 
-# Cert-manager version - update this for new releases
-CERT_MANAGER_VERSION ?= v1.18.2
-
-# Cert-manager deployment timeout
-CERT_MANAGER_TIMEOUT ?= 120s
-
 # Minor Kubernetes version to build against derived from the client-go dependency version
 KUBE_MINOR ?= $(shell go list -m k8s.io/client-go | cut -d" " -f2 | sed 's/^v0\.\([[:digit:]]\{1,\}\)\.[[:digit:]]\{1,\}$$/1.\1/')
 
@@ -163,29 +157,7 @@ local-build: IMAGE_TAG = local
 local-build: image
 
 .PHONY: run-local
-run-local: local-build kind-create cert-manager-install deploy
-
-.PHONY: cert-manager-install
-cert-manager-install: #HELP Install cert-manager $(CERT_MANAGER_VERSION)
-	@echo "Installing cert-manager $(CERT_MANAGER_VERSION)"
-	kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/$(CERT_MANAGER_VERSION)/cert-manager.yaml
-	@echo "Waiting for cert-manager to be ready..."
-	kubectl wait --for=condition=Available --namespace=cert-manager deployment/cert-manager --timeout=$(CERT_MANAGER_TIMEOUT)
-	kubectl wait --for=condition=Available --namespace=cert-manager deployment/cert-manager-cainjector --timeout=$(CERT_MANAGER_TIMEOUT)
-	kubectl wait --for=condition=Available --namespace=cert-manager deployment/cert-manager-webhook --timeout=$(CERT_MANAGER_TIMEOUT)
-	@echo "Waiting for cert-manager webhook to be ready..."
-	kubectl wait --for=condition=Ready --namespace=cert-manager pod -l app=webhook --timeout=$(CERT_MANAGER_TIMEOUT)
-	@echo "Waiting for cert-manager CRDs to be available..."
-	kubectl wait --for condition=established --timeout=$(CERT_MANAGER_TIMEOUT) crd/certificates.cert-manager.io
-	kubectl wait --for condition=established --timeout=$(CERT_MANAGER_TIMEOUT) crd/issuers.cert-manager.io
-	@echo "cert-manager $(CERT_MANAGER_VERSION) installed successfully"
-
-.PHONY: cert-manager-uninstall
-cert-manager-uninstall: #HELP Uninstall cert-manager
-	@echo "Uninstalling cert-manager..."
-	kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download/$(CERT_MANAGER_VERSION)/cert-manager.yaml --ignore-not-found=true
-	@echo "cert-manager uninstalled"
-
+run-local: local-build kind-create deploy
 
 .PHONY: clean
 clean: #HELP Clean up build artifacts
@@ -259,7 +231,6 @@ deploy: $(KIND) $(HELM) #HELP Deploy OLM to kind cluster $KIND_CLUSTER_NAME (def
 	$(KIND) load docker-image $(OLM_IMAGE) --name $(KIND_CLUSTER_NAME); \
 	$(HELM) upgrade --install olm deploy/chart \
 		--set debug=true \
-		--set certManager.enabled=true \
 		--set olm.image.ref=$(OLM_IMAGE) \
 		--set olm.image.pullPolicy=IfNotPresent \
 		--set catalog.image.ref=$(OLM_IMAGE) \
@@ -283,9 +254,6 @@ undeploy: $(KIND) $(HELM) #HELP Uninstall OLM from kind cluster $KIND_CLUSTER_NA
 	$(HELM) uninstall olm
 	kubectl delete -f deploy/chart/crds
 
-	# Uninstall cert-manager
-	$(MAKE) cert-manager-uninstall
-
 #SECTION e2e
 
 # E2E test configuration
@@ -301,24 +269,7 @@ e2e: #HELP Run e2e tests against a cluster running OLM (params: $E2E_TEST_NS (op
 	$(GO_TEST_ENV) $(GINKGO) -timeout $(E2E_TIMEOUT) $(GINKGO_OPTS) $(E2E_GINKGO_OPTS) ./test/e2e -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -catalogNamespace=$(E2E_CATALOG_NS) $(E2E_OPTS)
 
 .PHONY: e2e-local
-e2e-local: e2e-build kind-create e2e-local-deploy e2e
-
-.PHONY: e2e-local-deploy
-e2e-local-deploy: $(KIND) $(HELM) #HELP Deploy OLM for e2e testing (without cert-manager)
-	$(KIND) load docker-image $(OLM_IMAGE) --name $(KIND_CLUSTER_NAME); \
-	$(HELM) upgrade --install olm deploy/chart \
-		--set debug=true \
-		--set certManager.enabled=false \
-		--set olm.image.ref=$(OLM_IMAGE) \
-		--set olm.image.pullPolicy=IfNotPresent \
-		--set catalog.image.ref=$(OLM_IMAGE) \
-		--set catalog.image.pullPolicy=IfNotPresent \
-		--set catalog.commandArgs=--configmapServerImage=$(CONFIGMAP_SERVER_IMAGE) \
-		--set catalog.opmImageArgs=--opmImage=$(OPERATOR_REGISTRY_IMAGE) \
-		--set package.image.ref=$(OLM_IMAGE) \
-		--set package.image.pullPolicy=IfNotPresent \
-		$(HELM_INSTALL_OPTS) \
-		--wait;
+e2e-local: e2e-build kind-create deploy e2e
 
 #SECTION Code Generation
 

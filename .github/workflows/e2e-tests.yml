@@ -86,7 +86,7 @@ jobs:
           for i in $(seq 1 ${E2E_NODES}); do
             KIND_CLUSTER_NAME="kind-olmv0-${i}" \
             KIND_CREATE_OPTS="--kubeconfig=${E2E_KUBECONFIG_ROOT}/kubeconfig-${i}" \
-            HELM_INSTALL_OPTS="--kubeconfig ${E2E_KUBECONFIG_ROOT}/kubeconfig-${i} --set certManager.enabled=false" \
+            HELM_INSTALL_OPTS="--kubeconfig ${E2E_KUBECONFIG_ROOT}/kubeconfig-${i}" \
             make kind-create deploy;
           done
 
@@ -173,7 +173,7 @@ jobs:
           for i in $(seq 1 ${E2E_NODES}); do
             KIND_CLUSTER_NAME="kind-olmv0-${i}" \
             KIND_CREATE_OPTS="--kubeconfig=${E2E_KUBECONFIG_ROOT}/kubeconfig-${i}" \
-            HELM_INSTALL_OPTS="--kubeconfig ${E2E_KUBECONFIG_ROOT}/kubeconfig-${i} --set certManager.enabled=false" \
+            HELM_INSTALL_OPTS="--kubeconfig ${E2E_KUBECONFIG_ROOT}/kubeconfig-${i}" \
             make kind-create deploy;
           done
 

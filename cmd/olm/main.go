@@ -123,18 +123,7 @@ func main() {
 	}
 	logger.Infof("log level %s", logger.Level)
 
-	mgr, err := Manager(ctx, *debug)
-	if err != nil {
-		logger.WithError(err).Fatal("error configuring controller manager")
-	}
-	config := mgr.GetConfig()
-
-	listenAndServe, err := server.GetListenAndServeFunc(
-		server.WithLogger(logger),
-		server.WithTLS(tlsCertPath, tlsKeyPath, clientCAPath),
-		server.WithKubeConfig(config),
-		server.WithDebug(*debug),
-	)
+	listenAndServe, err := server.GetListenAndServeFunc(server.WithLogger(logger), server.WithTLS(tlsCertPath, tlsKeyPath, clientCAPath), server.WithDebug(*debug))
 	if err != nil {
 		logger.Fatalf("Error setting up health/metric/pprof service: %v", err)
 	}
@@ -144,6 +133,12 @@ func main() {
 			logger.Error(err)
 		}
 	}()
+
+	mgr, err := Manager(ctx, *debug)
+	if err != nil {
+		logger.WithError(err).Fatal("error configuring controller manager")
+	}
+	config := mgr.GetConfig()
 
 	// create a config that validates we're creating objects with labels
 	validatingConfig := validatingroundtripper.Wrap(config, mgr.GetScheme())

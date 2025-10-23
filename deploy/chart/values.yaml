@@ -28,8 +28,9 @@ olm:
     pullPolicy: Always
   service:
     internalPort: 8080
-    internalPortHttps: 8443
     externalPort: metrics
+  # tlsSecret: olm-operator-serving-cert
+  # clientCASecret: pprof-serving-cert
   nodeSelector:
     kubernetes.io/os: linux
   resources:
@@ -47,8 +48,9 @@ catalog:
     pullPolicy: Always
   service:
     internalPort: 8080
-    internalPortHttps: 8443
     externalPort: metrics
+  # tlsSecret: catalog-operator-serving-cert
+  # clientCASecret: pprof-serving-cert
   nodeSelector:
     kubernetes.io/os: linux
   resources:
@@ -75,19 +77,6 @@ package:
 monitoring:
   enabled: false
   namespace: monitoring
-
-certManager:
-  enabled: true
-  issuer:
-    name: olm-ca-issuer
-    selfSigned: true
-    ca:
-      secretName: ""
-  certificate:
-    name: olm-cert
-    secretName: olm-cert
-    extraDnsNames: []
-    extraIpAddresses: []
 
 networkPolicy:
   dns:
