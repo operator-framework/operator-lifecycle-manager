@@ -55,7 +55,7 @@ var _ = Describe("CatalogSource Grpc Pod Config", Label("CatalogSourcePodConfig"
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeGrpc,
-					Image:      "repo/image:tag",
+					Image:      "docker.io/repo/image:tag",
 					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
 						SecurityContextConfig: v1alpha1.Restricted,
 					},

@@ -46,7 +46,7 @@ var (
 
 	dummyImage = flag.String(
 		"dummyImage",
-		"bitnami/nginx:latest",
+		"docker.io/bitnami/nginx:latest",
 		"dummy image to treat as an operator in tests",
 	)
 

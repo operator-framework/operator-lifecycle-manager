@@ -1259,7 +1259,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeGrpc,
-					Image:      "repo/image:tag",
+					Image:      "docker.io/repo/image:tag",
 				},
 			},
 			expectedTolerations:       nil,
@@ -1275,7 +1275,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeGrpc,
-					Image:      "repo/image:tag",
+					Image:      "docker.io/repo/image:tag",
 					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
 						NodeSelector: overriddenNodeSelectors,
 					},
@@ -1294,7 +1294,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeGrpc,
-					Image:      "repo/image:tag",
+					Image:      "docker.io/repo/image:tag",
 					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
 						PriorityClassName: &overriddenPriorityClassName,
 					},
@@ -1313,7 +1313,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeGrpc,
-					Image:      "repo/image:tag",
+					Image:      "docker.io/repo/image:tag",
 					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
 						PriorityClassName: nil,
 					},
@@ -1332,7 +1332,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeGrpc,
-					Image:      "repo/image:tag",
+					Image:      "docker.io/repo/image:tag",
 					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
 						Tolerations: overriddenTolerations,
 					},
@@ -1351,7 +1351,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeGrpc,
-					Image:      "repo/image:tag",
+					Image:      "docker.io/repo/image:tag",
 					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
 						Affinity: overriddenAffinity,
 					},
@@ -1370,7 +1370,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeGrpc,
-					Image:      "repo/image:tag",
+					Image:      "docker.io/repo/image:tag",
 					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
 						NodeSelector:      overriddenNodeSelectors,
 						PriorityClassName: &overriddenPriorityClassName,
@@ -1392,7 +1392,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeGrpc,
-					Image:      "repo/image:tag",
+					Image:      "docker.io/repo/image:tag",
 					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
 						PriorityClassName: &overriddenPriorityClassName,
 					},

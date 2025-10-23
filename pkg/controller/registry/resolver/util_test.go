@@ -45,7 +45,7 @@ func csv(name, replaces string, ownedCRDs, requiredCRDs, ownedAPIServices, requi
 							Containers: []corev1.Container{
 								{
 									Name:  name + "-c1",
-									Image: "nginx:1.7.9",
+									Image: "docker.io/nginx:1.7.9",
 									Ports: []corev1.ContainerPort{
 										{
 											ContainerPort: 80,
