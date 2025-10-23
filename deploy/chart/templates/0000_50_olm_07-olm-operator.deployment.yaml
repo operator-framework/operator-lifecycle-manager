@@ -30,13 +30,6 @@ spec:
       - name: profile-collector-cert
         secret:
           secretName: {{ .Values.certManager.certificate.secretName }}
-      {{- else if .Values.serviceCa.enabled }}
-      - name: srv-cert
-        secret:
-          secretName: {{ .Values.serviceCa.olmOperator.secretName }}
-      - name: profile-collector-cert
-        secret:
-          secretName: {{ .Values.serviceCa.olmOperator.secretName }}
       {{- end }}
       - name: tmpfs
         emptyDir: {}
@@ -48,7 +41,7 @@ spec:
             capabilities:
               drop: [ "ALL" ]
           volumeMounts:
-          {{- if or .Values.certManager.enabled .Values.serviceCa.enabled }}
+          {{- if .Values.certManager.enabled }}
           - name: srv-cert
             mountPath: "/srv-cert"
             readOnly: true
@@ -81,7 +74,7 @@ spec:
           - --writePackageServerStatusName
           - {{ .Values.writePackageServerStatusName }}
           {{- end }}
-         {{- if or .Values.certManager.enabled .Values.serviceCa.enabled }}
+         {{- if .Values.certManager.enabled }}
           - --tls-cert
           - /srv-cert/tls.crt
           - --tls-key
@@ -92,18 +85,18 @@ spec:
           image: {{ .Values.olm.image.ref }}
           imagePullPolicy: {{ .Values.olm.image.pullPolicy }}
           ports:
-            - containerPort: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.olm.service.internalPortHttps }}{{ else }}{{ .Values.olm.service.internalPort }}{{ end }}
+            - containerPort: {{ if .Values.certManager.enabled }}{{ .Values.olm.service.internalPortHttps }}{{ else }}{{ .Values.olm.service.internalPort }}{{ end }}
               name: metrics
           livenessProbe:
             httpGet:
               path: /healthz
-              port: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.olm.service.internalPortHttps }}{{ else }}{{ .Values.olm.service.internalPort }}{{ end }}
-              scheme: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}HTTPS{{ else }}HTTP{{ end }}
+              port: {{ if .Values.certManager.enabled }}{{ .Values.olm.service.internalPortHttps }}{{ else }}{{ .Values.olm.service.internalPort }}{{ end }}
+              scheme: {{ if .Values.certManager.enabled }}HTTPS{{ else }}HTTP{{ end }}
           readinessProbe:
             httpGet:
               path: /healthz
-              port: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.olm.service.internalPortHttps }}{{ else }}{{ .Values.olm.service.internalPort }}{{ end }}
-              scheme: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}HTTPS{{ else }}HTTP{{ end }}
+              port: {{ if .Values.certManager.enabled }}{{ .Values.olm.service.internalPortHttps }}{{ else }}{{ .Values.olm.service.internalPort }}{{ end }}
+              scheme: {{ if .Values.certManager.enabled }}HTTPS{{ else }}HTTP{{ end }}
           terminationMessagePolicy: FallbackToLogsOnError
           env:
           - name: OPERATOR_NAMESPACE

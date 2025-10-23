@@ -27,7 +27,6 @@ olm:
     ref: quay.io/operator-framework/olm:master
     pullPolicy: Always
   service:
-    name: olm-operator-metrics
     internalPort: 8080
     internalPortHttps: 8443
     externalPort: metrics
@@ -47,7 +46,6 @@ catalog:
     ref: quay.io/operator-framework/olm:master
     pullPolicy: Always
   service:
-    name: catalog-operator-metrics
     internalPort: 8080
     internalPortHttps: 8443
     externalPort: metrics
@@ -90,18 +88,6 @@ certManager:
     secretName: olm-cert
     extraDnsNames: []
     extraIpAddresses: []
-
-# OpenShift service-ca configuration
-# When enabled, uses OpenShift service-ca-operator for certificate management
-# This is mutually exclusive with certManager - only one should be enabled
-serviceCa:
-  enabled: false
-  # Secret names are left empty in upstream, to be filled by downstream values.yaml
-  # Service names are taken from olm.service.name and catalog.service.name
-  olmOperator:
-    secretName: ""
-  catalogOperator:
-    secretName: ""
 
 networkPolicy:
   dns:
