@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
-	"time"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/filemonitor"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/profile"
@@ -110,10 +109,14 @@ func (sc serverConfig) getListenAndServeFunc() (func() error, error) {
 	// Set up authenticated metrics endpoint if kubeConfig is provided
 	if sc.kubeConfig != nil && tlsEnabled {
 		sc.logger.Info("Setting up authenticated metrics endpoint")
+		// Create HTTP client with proper TLS configuration from kubeConfig
+		// This is necessary for TokenReview/SubjectAccessReview API calls to verify API server certificates
+		httpClient, err := rest.HTTPClientFor(sc.kubeConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create http client for authentication: %w", err)
+		}
 		// Create authentication filter using controller-runtime
-		filter, err := filters.WithAuthenticationAndAuthorization(sc.kubeConfig, &http.Client{
-			Timeout: 30 * time.Second,
-		})
+		filter, err := filters.WithAuthenticationAndAuthorization(sc.kubeConfig, httpClient)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create authentication filter: %w", err)
 		}
