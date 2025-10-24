@@ -32,7 +32,7 @@ import (
 // are now secured by default. Therefore, these tests are disabled until we can
 // properly configure authentication for the OLM components in the e2e test suite.
 // See: https://github.com/operator-framework/operator-lifecycle-manager/commit/589a5d0cc11ee76518173c9a21ce3f1adc15fa78
-var _ = XDescribe("Metrics are generated for OLM managed resources", Label("Metrics"), func() {
+var _ = Describe("Metrics are generated for OLM managed resources", Label("Metrics"), func() {
 	var (
 		c                  operatorclient.ClientInterface
 		crc                versioned.Interface
