@@ -17,7 +17,7 @@ require (
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.12.0
 	github.com/mitchellh/hashstructure v1.1.0
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/onsi/ginkgo/v2 v2.26.0
+	github.com/onsi/ginkgo/v2 v2.27.2
 	github.com/onsi/gomega v1.38.2
 	github.com/openshift/api v0.0.0-20221021112143-4226c2167e40
 	github.com/openshift/client-go v0.0.0-20220525160904-9e1acff93e4a
@@ -155,7 +155,6 @@ require (
 	go.opentelemetry.io/proto/otlp v1.7.0 // indirect
 	go.podman.io/common v0.65.0 // indirect
 	go.podman.io/storage v1.61.0 // indirect
-	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
