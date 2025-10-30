@@ -45,6 +45,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	operatorsv1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
+	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/listerwatcher"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/labeller"
@@ -2633,7 +2634,21 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 		return strategyErr
 	}
 
+	// Check if APIService error is retryable (due to expected pod disruption)
+	// According to the Progressing condition contract, we should not report Progressing=True
+	// only because pods are rebooting during cluster upgrade
 	if apiServiceErr != nil {
+		if olmerrors.IsRetryable(apiServiceErr) {
+			// This is an expected transient failure (e.g., pod disruption during upgrade)
+			// Don't change the CSV phase to Failed or trigger Progressing=True
+			// Just requeue and let it retry
+			a.logger.Infof("APIService temporarily unavailable due to pod disruption, requeueing without changing phase: %v", apiServiceErr)
+			if err := a.csvQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
+				a.logger.Warn(err.Error())
+			}
+			return apiServiceErr
+		}
+		// This is a real APIService install failure
 		csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonAPIServiceInstallFailed, fmt.Sprintf("APIService install failed: %s", apiServiceErr), now, a.recorder)
 		return apiServiceErr
 	}

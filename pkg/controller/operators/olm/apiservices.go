@@ -7,6 +7,7 @@ import (
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -168,6 +169,87 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 	return utilerrors.NewAggregate(errs)
 }
 
+// isAPIServiceBackendDisrupted checks if the APIService is unavailable due to expected pod disruption
+// (e.g., during node reboot or cluster upgrade) rather than an actual failure.
+// According to the Progressing condition contract, operators should not report Progressing=True
+// only because pods are adjusting to new nodes or rebooting during cluster upgrade.
+func (a *Operator) isAPIServiceBackendDisrupted(csv *v1alpha1.ClusterServiceVersion, apiServiceName string) bool {
+	// Get the deployment that backs this APIService
+	// For most APIServices, the deployment name matches the CSV name or is specified in the CSV
+
+	// Try to find the deployment from the CSV's install strategy
+	strategy, err := a.resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
+	if err != nil {
+		a.logger.Debugf("Unable to unmarshal strategy for CSV %s: %v", csv.Name, err)
+		return false
+	}
+
+	strategyDetailsDeployment, ok := strategy.(*v1alpha1.StrategyDetailsDeployment)
+	if !ok {
+		a.logger.Debugf("CSV %s does not use deployment strategy", csv.Name)
+		return false
+	}
+
+	// Check each deployment's pods
+	for _, deploymentSpec := range strategyDetailsDeployment.DeploymentSpecs {
+		deployment, err := a.lister.AppsV1().DeploymentLister().Deployments(csv.Namespace).Get(deploymentSpec.Name)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			a.logger.Debugf("Error getting deployment %s: %v", deploymentSpec.Name, err)
+			continue
+		}
+
+		// Check if deployment is being updated or rolling out
+		if deployment.Status.UnavailableReplicas > 0 ||
+			deployment.Status.UpdatedReplicas < deployment.Status.Replicas {
+			a.logger.Debugf("Deployment %s has unavailable replicas, likely due to pod disruption", deploymentSpec.Name)
+
+			// Check pod status to confirm disruption
+			selector, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
+			if err != nil {
+				a.logger.Debugf("Error parsing deployment selector: %v", err)
+				continue
+			}
+
+			pods, err := a.lister.CoreV1().PodLister().Pods(csv.Namespace).List(selector)
+			if err != nil {
+				a.logger.Debugf("Error listing pods: %v", err)
+				continue
+			}
+
+			// Check if any pod is in Terminating or ContainerCreating state
+			for _, pod := range pods {
+				// Pod is terminating (DeletionTimestamp is set)
+				if pod.DeletionTimestamp != nil {
+					a.logger.Debugf("Pod %s is terminating - expected disruption", pod.Name)
+					return true
+				}
+
+				// Pod is pending (being scheduled/created)
+				if pod.Status.Phase == corev1.PodPending {
+					a.logger.Debugf("Pod %s is pending - expected disruption", pod.Name)
+					return true
+				}
+
+				// Check container statuses for restarting containers
+				for _, containerStatus := range pod.Status.ContainerStatuses {
+					if containerStatus.State.Waiting != nil {
+						reason := containerStatus.State.Waiting.Reason
+						if reason == "ContainerCreating" || reason == "PodInitializing" {
+							a.logger.Debugf("Pod %s container is starting - expected disruption", pod.Name)
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return false
+}
+
 func (a *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) (bool, error) {
 	for _, desc := range csv.Spec.APIServiceDefinitions.Owned {
 		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(desc.GetName())
@@ -182,6 +264,15 @@ func (a *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) 
 
 		if !install.IsAPIServiceAvailable(apiService) {
 			a.logger.Debugf("APIService not available for %s", desc.GetName())
+
+			// Check if this unavailability is due to expected pod disruption
+			// If so, we should not immediately mark as failed or trigger Progressing=True
+			if a.isAPIServiceBackendDisrupted(csv, desc.GetName()) {
+				a.logger.Infof("APIService %s unavailable due to pod disruption (e.g., node reboot), will retry", desc.GetName())
+				// Return an error to trigger retry, but don't mark as definitively unavailable
+				return false, olmerrors.NewRetryableError(fmt.Errorf("APIService %s temporarily unavailable due to pod disruption", desc.GetName()))
+			}
+
 			return false, nil
 		}
 
