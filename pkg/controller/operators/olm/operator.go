@@ -2639,11 +2639,10 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 	// only because pods are rebooting during cluster upgrade
 	if apiServiceErr != nil {
 		if olmerrors.IsRetryable(apiServiceErr) {
-			// This is an expected transient failure (e.g., pod disruption during upgrade)
-			// Don't change the CSV phase to Failed or trigger Progressing=True
-			// Just requeue and let it retry
+			// The backing pods are in the middle of a drain/restart. Requeue after a short delay
+			// so we keep checking without hammering the workqueue.
 			a.logger.Infof("APIService temporarily unavailable due to pod disruption, requeueing without changing phase: %v", apiServiceErr)
-			if err := a.csvQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
+			if err := a.csvQueueSet.RequeueAfter(csv.GetNamespace(), csv.GetName(), retryableAPIServiceRequeueDelay); err != nil {
 				a.logger.Warn(err.Error())
 			}
 			return apiServiceErr

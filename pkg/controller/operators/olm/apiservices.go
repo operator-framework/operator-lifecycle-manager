@@ -3,6 +3,7 @@ package olm
 import (
 	"context"
 	"fmt"
+	"time"
 
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	log "github.com/sirupsen/logrus"
@@ -21,9 +22,35 @@ import (
 )
 
 const (
-	// Name of packageserver API service
+	// Name of packageserver API service.
 	PackageserverName = "v1.packages.operators.coreos.com"
+
+	// expectedDisruptionGracePeriod is how long we still consider pod lifecycle churn
+	// (terminating pods, new containers starting, node drains) to be "expected" before
+	// we decide the outage is probably a real failure.
+	expectedDisruptionGracePeriod = 3 * time.Minute
+
+	// retryableAPIServiceRequeueDelay throttles how often we retry while we wait for
+	// the backing pods to come back. This keeps us from hot-looping during a long drain.
+	retryableAPIServiceRequeueDelay = 15 * time.Second
 )
+
+var expectedPodWaitingReasons = map[string]struct{}{
+	// Pods report these reasons while new containers are coming up.
+	"ContainerCreating": {},
+	"PodInitializing":   {},
+}
+
+var expectedPodStatusReasons = map[string]struct{}{
+	// NodeShutdown is set while the kubelet gracefully evicts workloads during a reboot.
+	"NodeShutdown": {},
+}
+
+var expectedPodScheduledReasons = map[string]struct{}{
+	// These scheduler reasons indicate deletion or node drain rather than a placement failure.
+	"Terminating":  {},
+	"NodeShutdown": {},
+}
 
 // apiServiceResourceErrorActionable returns true if OLM can do something about any one
 // of the apiService errors in errs; otherwise returns false
@@ -171,13 +198,10 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 
 // isAPIServiceBackendDisrupted checks if the APIService is unavailable due to expected pod disruption
 // (e.g., during node reboot or cluster upgrade) rather than an actual failure.
-// According to the Progressing condition contract, operators should not report Progressing=True
-// only because pods are adjusting to new nodes or rebooting during cluster upgrade.
+// According to the Progressing condition contract, operators should stay quiet while we reconcile
+// to a previously healthy state (like pods rolling on new nodes), so we use this check to spot
+// those short-lived blips.
 func (a *Operator) isAPIServiceBackendDisrupted(csv *v1alpha1.ClusterServiceVersion, apiServiceName string) bool {
-	// Get the deployment that backs this APIService
-	// For most APIServices, the deployment name matches the CSV name or is specified in the CSV
-
-	// Try to find the deployment from the CSV's install strategy
 	strategy, err := a.resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
 	if err != nil {
 		a.logger.Debugf("Unable to unmarshal strategy for CSV %s: %v", csv.Name, err)
@@ -190,59 +214,164 @@ func (a *Operator) isAPIServiceBackendDisrupted(csv *v1alpha1.ClusterServiceVers
 		return false
 	}
 
-	// Check each deployment's pods
+	// Map the APIService back to the deployment(s) that serve it so we ignore unrelated rollouts.
+	targetDeploymentNames := make(map[string]struct{})
+	for _, desc := range csv.Spec.APIServiceDefinitions.Owned {
+		if desc.GetName() == apiServiceName && desc.DeploymentName != "" {
+			targetDeploymentNames[desc.DeploymentName] = struct{}{}
+		}
+	}
+
+	if len(targetDeploymentNames) == 0 {
+		a.logger.Debugf("APIService %s does not declare a backing deployment", apiServiceName)
+		return false
+	}
+
 	for _, deploymentSpec := range strategyDetailsDeployment.DeploymentSpecs {
+		if _, ok := targetDeploymentNames[deploymentSpec.Name]; !ok {
+			continue
+		}
+
 		deployment, err := a.lister.AppsV1().DeploymentLister().Deployments(csv.Namespace).Get(deploymentSpec.Name)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
+				a.logger.Debugf("Deployment %s for APIService %s not found", deploymentSpec.Name, apiServiceName)
 				continue
 			}
 			a.logger.Debugf("Error getting deployment %s: %v", deploymentSpec.Name, err)
 			continue
 		}
 
-		// Check if deployment is being updated or rolling out
-		if deployment.Status.UnavailableReplicas > 0 ||
-			deployment.Status.UpdatedReplicas < deployment.Status.Replicas {
-			a.logger.Debugf("Deployment %s has unavailable replicas, likely due to pod disruption", deploymentSpec.Name)
+		pods, err := a.podsForDeployment(csv.Namespace, deployment)
+		if err != nil {
+			a.logger.Debugf("Error listing pods for deployment %s: %v", deploymentSpec.Name, err)
+			continue
+		}
 
-			// Check pod status to confirm disruption
-			selector, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
-			if err != nil {
-				a.logger.Debugf("Error parsing deployment selector: %v", err)
-				continue
+		if deploymentExperiencingExpectedDisruption(deployment, pods, a.clock.Now(), expectedDisruptionGracePeriod) {
+			a.logger.Debugf("Deployment %s backing APIService %s is experiencing expected disruption", deploymentSpec.Name, apiServiceName)
+			return true
+		}
+	}
+
+	return false
+}
+
+func (a *Operator) podsForDeployment(namespace string, deployment *appsv1.Deployment) ([]*corev1.Pod, error) {
+	if deployment == nil || deployment.Spec.Selector == nil {
+		// Without a selector there is no easy way to find related pods, so bail out.
+		return nil, fmt.Errorf("deployment %s/%s missing selector", namespace, deployment.GetName())
+	}
+
+	selector, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.lister.CoreV1().PodLister().Pods(namespace).List(selector)
+}
+
+// deploymentExperiencingExpectedDisruption returns true when the deployment looks unhealthy
+// but everything we can observe points to a short-lived disruption (e.g. pods draining for a reboot).
+func deploymentExperiencingExpectedDisruption(deployment *appsv1.Deployment, pods []*corev1.Pod, now time.Time, gracePeriod time.Duration) bool {
+	if deployment == nil {
+		return false
+	}
+
+	if deployment.Status.UnavailableReplicas == 0 {
+		return false
+	}
+
+	if len(pods) == 0 {
+		return deploymentRecentlyProgressing(deployment, now, gracePeriod)
+	}
+
+	for _, pod := range pods {
+		if isPodExpectedDisruption(pod, now, gracePeriod) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isPodExpectedDisruption(pod *corev1.Pod, now time.Time, gracePeriod time.Duration) bool {
+	if pod == nil {
+		return false
+	}
+
+	if pod.DeletionTimestamp != nil {
+		// Pods carry a deletion timestamp as soon as eviction starts. Give them a little time to finish draining.
+		return now.Sub(pod.DeletionTimestamp.Time) <= gracePeriod
+	}
+
+	if _, ok := expectedPodStatusReasons[pod.Status.Reason]; ok {
+		// NodeShutdown shows up while a node is rebooting. Allow one grace window from when the pod last ran.
+		reference := pod.Status.StartTime
+		if reference == nil {
+			reference = &pod.ObjectMeta.CreationTimestamp
+		}
+		if reference != nil && !reference.IsZero() {
+			return now.Sub(reference.Time) <= gracePeriod
+		}
+		return true
+	}
+
+	for _, cond := range pod.Status.Conditions {
+		if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionFalse && cond.Reason == "Terminating" {
+			if cond.LastTransitionTime.IsZero() {
+				return true
 			}
+			return now.Sub(cond.LastTransitionTime.Time) <= gracePeriod
+		}
 
-			pods, err := a.lister.CoreV1().PodLister().Pods(csv.Namespace).List(selector)
-			if err != nil {
-				a.logger.Debugf("Error listing pods: %v", err)
-				continue
-			}
-
-			// Check if any pod is in Terminating or ContainerCreating state
-			for _, pod := range pods {
-				// Pod is terminating (DeletionTimestamp is set)
-				if pod.DeletionTimestamp != nil {
-					a.logger.Debugf("Pod %s is terminating - expected disruption", pod.Name)
+		if cond.Type == corev1.PodScheduled && cond.Status == corev1.ConditionFalse {
+			if _, ok := expectedPodScheduledReasons[cond.Reason]; ok {
+				if cond.LastTransitionTime.IsZero() {
 					return true
 				}
+				return now.Sub(cond.LastTransitionTime.Time) <= gracePeriod
+			}
+		}
+	}
 
-				// Pod is pending (being scheduled/created)
-				if pod.Status.Phase == corev1.PodPending {
-					a.logger.Debugf("Pod %s is pending - expected disruption", pod.Name)
-					return true
-				}
+	for _, status := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
+		if status.State.Waiting == nil {
+			continue
+		}
+		if _, ok := expectedPodWaitingReasons[status.State.Waiting.Reason]; ok {
+			reference := pod.Status.StartTime
+			if reference == nil || reference.IsZero() {
+				reference = &pod.ObjectMeta.CreationTimestamp
+			}
+			if reference != nil && !reference.IsZero() {
+				return now.Sub(reference.Time) <= gracePeriod
+			}
+			return true
+		}
+	}
 
-				// Check container statuses for restarting containers
-				for _, containerStatus := range pod.Status.ContainerStatuses {
-					if containerStatus.State.Waiting != nil {
-						reason := containerStatus.State.Waiting.Reason
-						if reason == "ContainerCreating" || reason == "PodInitializing" {
-							a.logger.Debugf("Pod %s container is starting - expected disruption", pod.Name)
-							return true
-						}
-					}
-				}
+	return false
+}
+
+// deploymentRecentlyProgressing is a fallback for when we cannot find any pods. If the deployment
+// just reported progress we assume the kubelet is still spinning up new replicas.
+func deploymentRecentlyProgressing(deployment *appsv1.Deployment, now time.Time, gracePeriod time.Duration) bool {
+	if deployment == nil {
+		return false
+	}
+
+	for _, cond := range deployment.Status.Conditions {
+		if cond.Type != appsv1.DeploymentProgressing || cond.Status != corev1.ConditionTrue {
+			continue
+		}
+		switch cond.Reason {
+		case "NewReplicaSetAvailable", "ReplicaSetUpdated", "ScalingReplicaSet":
+			if cond.LastUpdateTime.IsZero() {
+				return true
+			}
+			if now.Sub(cond.LastUpdateTime.Time) <= gracePeriod {
+				return true
 			}
 		}
 	}
