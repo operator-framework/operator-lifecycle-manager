@@ -455,3 +455,11 @@ apiserver.key
 !vendor/**
 test/e2e/.kube
 dist/
+
+# AI temp/local files
+.claude/settings.local.json
+.claude/history/
+.claude/cache/
+.claude/logs/
+.claude/.session*
+.claude/*.log
