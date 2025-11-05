@@ -163,7 +163,12 @@ func grpcConnection(address string) (*grpc.ClientConn, error) {
 		}))
 	}
 
-	return grpc.NewClient(address, dialOptions...)
+	target := address
+	if scheme := os.Getenv("RESOLVER_SCHEME"); scheme != "" {
+		target = scheme + ":///" + address
+	}
+
+	return grpc.NewClient(target, dialOptions...)
 }
 
 func (s *SourceStore) Add(key registry.CatalogKey, address string) (*SourceConn, error) {
