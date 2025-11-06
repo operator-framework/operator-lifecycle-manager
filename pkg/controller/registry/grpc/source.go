@@ -153,6 +153,7 @@ func grpcConnection(address string) (*grpc.ClientConn, error) {
 		return nil, err
 	}
 
+	target := address
 	if proxyURL != nil {
 		dialOptions = append(dialOptions, grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 			dialer, err := proxy.FromURL(proxyURL, &net.Dialer{})
@@ -161,9 +162,20 @@ func grpcConnection(address string) (*grpc.ClientConn, error) {
 			}
 			return dialer.Dial("tcp", addr)
 		}))
+
+		// When using a custom dialer (proxy), use the "passthrough" resolver scheme
+		// to bypass client-side name resolution and delegate it to the dialer.
+		// This is required for scenarios like Hypershift where the catalog operator
+		// runs in a management cluster and connects via proxy to catalog pods in a
+		// guest cluster. The service addresses (e.g., "service.namespace.svc:50051")
+		// only exist in the guest cluster and must be resolved by the proxy, not by
+		// the client.
+		//
+		// See: https://github.com/grpc/grpc-go/blob/master/dialoptions.go#L469
+		target = "passthrough:///" + address
 	}
 
-	return grpc.NewClient(address, dialOptions...)
+	return grpc.NewClient(target, dialOptions...)
 }
 
 func (s *SourceStore) Add(key registry.CatalogKey, address string) (*SourceConn, error) {
