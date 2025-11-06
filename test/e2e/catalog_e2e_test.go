@@ -138,6 +138,58 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 		By("Catalog source successfully loaded after rescale")
 	})
 
+	// Ensures a catalog served from a custom gRPC image reports READY through the service address.
+	It("connects to custom grpc CatalogSources", func() {
+		catalogName := genName("grpc-catsrc-")
+		image := "quay.io/olmtest/catsrc-update-test:related"
+
+		By("creating a gRPC catalog source backed by a custom image")
+		catalogSource := &v1alpha1.CatalogSource{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.CatalogSourceKind,
+				APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      catalogName,
+				Namespace: generatedNamespace.GetName(),
+			},
+			Spec: v1alpha1.CatalogSourceSpec{
+				SourceType:  v1alpha1.SourceTypeGrpc,
+				Image:       image,
+				DisplayName: "Custom gRPC catalog",
+				Publisher:   "OLM e2e",
+				GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+					SecurityContextConfig: v1alpha1.Restricted,
+				},
+				UpdateStrategy: &v1alpha1.UpdateStrategy{
+					RegistryPoll: &v1alpha1.RegistryPoll{
+						Interval: &metav1.Duration{Duration: 15 * time.Minute},
+					},
+				},
+			},
+		}
+
+		created, err := crc.OperatorsV1alpha1().CatalogSources(catalogSource.GetNamespace()).Create(context.Background(), catalogSource, metav1.CreateOptions{})
+		Expect(err).ShouldNot(HaveOccurred())
+
+		cleanup := buildCatalogSourceCleanupFunc(c, crc, created.GetNamespace(), created)
+		defer cleanup()
+
+		By("waiting for the catalog source to report READY")
+		var readyCatalog *v1alpha1.CatalogSource
+		Eventually(func(g Gomega) {
+			cs, err := fetchCatalogSourceOnStatus(crc, created.GetName(), created.GetNamespace(), catalogSourceRegistryPodSynced())
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(cs.Status.RegistryServiceStatus).ToNot(BeNil())
+			g.Expect(cs.Status.GRPCConnectionState).ToNot(BeNil())
+			g.Expect(cs.Status.GRPCConnectionState.LastObservedState).To(Equal("READY"))
+			readyCatalog = cs
+		}).WithTimeout(5*time.Minute).WithPolling(5*time.Second).Should(Succeed(), "catalog source never reported READY")
+
+		Expect(readyCatalog.Status.GRPCConnectionState.Address).
+			To(Equal(fmt.Sprintf("%s.%s.svc:50051", created.GetName(), created.GetNamespace())))
+	})
+
 	It("global update triggers subscription sync", func() {
 		mainPackageName := genName("nginx-")
 
