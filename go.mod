@@ -1,6 +1,6 @@
 module github.com/operator-framework/operator-lifecycle-manager
 
-go 1.24.4
+go 1.24.6
 
 require (
 	github.com/blang/semver/v4 v4.0.0
@@ -21,7 +21,7 @@ require (
 	github.com/onsi/gomega v1.38.2
 	github.com/openshift/api v0.0.0-20221021112143-4226c2167e40
 	github.com/openshift/client-go v0.0.0-20220525160904-9e1acff93e4a
-	github.com/operator-framework/api v0.35.0
+	github.com/operator-framework/api v0.36.0
 	github.com/operator-framework/operator-registry v1.60.0
 	github.com/otiai10/copy v1.14.1
 	github.com/pkg/errors v0.9.1
