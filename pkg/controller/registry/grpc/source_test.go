@@ -3,15 +3,18 @@ package grpc
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 
@@ -155,6 +158,143 @@ func TestConnectionEvents(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, test(tt))
 	}
+}
+
+// Confirms the controller records failure when the registry endpoint cannot be reached.
+func TestConnectionEventsRecordsFailureForUnreachableAddress(t *testing.T) {
+	catalogKey := registry.CatalogKey{Name: "test", Namespace: "test"}
+
+	syncer := NewFakeSourceSyncer(1)
+	sources := NewSourceStore(logrus.New(), 500*time.Millisecond, time.Second, syncer.sync)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	sources.Start(ctx)
+
+	_, err := sources.Add(catalogKey, "127.0.0.1:65534")
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		syncer.Lock()
+		defer syncer.Unlock()
+		for _, state := range syncer.History[catalogKey] {
+			if state == connectivity.TransientFailure {
+				return true
+			}
+		}
+		return false
+	}, 5*time.Second, 100*time.Millisecond, "expected transient failure when catalog address is unreachable")
+}
+
+// Validates proxied connections succeed even when the client cannot resolve the cluster address.
+func TestGrpcConnectionConnectsThroughProxyForClusterAddress(t *testing.T) {
+	t.Setenv("GRPC_PROXY", "")
+	t.Setenv("grpc_proxy", "")
+	t.Setenv("NO_PROXY", "")
+	t.Setenv("no_proxy", "")
+
+	serve, backendAddr, stopServer := server(&fakes.FakeQuery{})
+	go serve()
+	defer stopServer()
+
+	target := "service.namespace.svc:50051"
+
+	directConn, err := grpcConnection(target)
+	require.NoError(t, err)
+	waitForState(t, directConn, 5*time.Second, func(state connectivity.State) bool {
+		return state == connectivity.TransientFailure || state == connectivity.Shutdown
+	})
+	require.NoError(t, directConn.Close())
+
+	dialer := setupTestProxyDialer(backendAddr)
+
+	t.Setenv("GRPC_PROXY", "grpc-test://proxy")
+	t.Setenv("NO_PROXY", "")
+
+	proxyConn, err := grpcConnection(target)
+	require.NoError(t, err)
+	defer proxyConn.Close()
+
+	waitForState(t, proxyConn, 10*time.Second, func(state connectivity.State) bool {
+		return state == connectivity.Ready
+	})
+
+	require.Greater(t, dialer.Calls(), 0, "expected proxy dialer to be used")
+	require.NotEmpty(t, dialer.LastAddr(), "expected proxy dialer to record address")
+	require.True(t, strings.Contains(dialer.LastAddr(), target), "expected dial address to include target, got %q", dialer.LastAddr())
+}
+
+func waitForState(t *testing.T, conn *grpc.ClientConn, timeout time.Duration, match func(connectivity.State) bool) {
+	t.Helper()
+
+	var last connectivity.State
+	require.Eventually(t, func() bool {
+		conn.Connect()
+		last = conn.GetState()
+		if match(last) {
+			return true
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		conn.WaitForStateChange(ctx, last)
+		cancel()
+
+		last = conn.GetState()
+		return match(last)
+	}, timeout, 100*time.Millisecond, fmt.Sprintf("connection never satisfied predicate; last state=%s", last))
+}
+
+var (
+	registerTestProxyDialerOnce sync.Once
+	testProxyDialer             = &recordingProxyDialer{}
+)
+
+func setupTestProxyDialer(backend string) *recordingProxyDialer {
+	registerTestProxyDialerOnce.Do(func() {
+		proxy.RegisterDialerType("grpc-test", func(u *url.URL, _ proxy.Dialer) (proxy.Dialer, error) {
+			return testProxyDialer, nil
+		})
+	})
+	testProxyDialer.Reset(backend)
+	return testProxyDialer
+}
+
+type recordingProxyDialer struct {
+	mu      sync.Mutex
+	backend string
+	addrs   []string
+	calls   int
+}
+
+func (d *recordingProxyDialer) Dial(network, addr string) (net.Conn, error) {
+	d.mu.Lock()
+	d.calls++
+	d.addrs = append(d.addrs, addr)
+	backend := d.backend
+	d.mu.Unlock()
+	return net.Dial(network, backend)
+}
+
+func (d *recordingProxyDialer) Reset(backend string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.backend = backend
+	d.addrs = nil
+	d.calls = 0
+}
+
+func (d *recordingProxyDialer) Calls() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.calls
+}
+
+func (d *recordingProxyDialer) LastAddr() string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if len(d.addrs) == 0 {
+		return ""
+	}
+	return d.addrs[len(d.addrs)-1]
 }
 
 func TestGetEnvAny(t *testing.T) {
