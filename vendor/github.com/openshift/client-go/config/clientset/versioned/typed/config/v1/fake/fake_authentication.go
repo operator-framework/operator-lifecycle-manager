@@ -3,115 +3,33 @@
 package fake
 
 import (
-	"context"
-
-	configv1 "github.com/openshift/api/config/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	v1 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/client-go/config/applyconfigurations/config/v1"
+	typedconfigv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeAuthentications implements AuthenticationInterface
-type FakeAuthentications struct {
+// fakeAuthentications implements AuthenticationInterface
+type fakeAuthentications struct {
+	*gentype.FakeClientWithListAndApply[*v1.Authentication, *v1.AuthenticationList, *configv1.AuthenticationApplyConfiguration]
 	Fake *FakeConfigV1
 }
 
-var authenticationsResource = schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "authentications"}
-
-var authenticationsKind = schema.GroupVersionKind{Group: "config.openshift.io", Version: "v1", Kind: "Authentication"}
-
-// Get takes name of the authentication, and returns the corresponding authentication object, and an error if there is any.
-func (c *FakeAuthentications) Get(ctx context.Context, name string, options v1.GetOptions) (result *configv1.Authentication, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(authenticationsResource, name), &configv1.Authentication{})
-	if obj == nil {
-		return nil, err
+func newFakeAuthentications(fake *FakeConfigV1) typedconfigv1.AuthenticationInterface {
+	return &fakeAuthentications{
+		gentype.NewFakeClientWithListAndApply[*v1.Authentication, *v1.AuthenticationList, *configv1.AuthenticationApplyConfiguration](
+			fake.Fake,
+			"",
+			v1.SchemeGroupVersion.WithResource("authentications"),
+			v1.SchemeGroupVersion.WithKind("Authentication"),
+			func() *v1.Authentication { return &v1.Authentication{} },
+			func() *v1.AuthenticationList { return &v1.AuthenticationList{} },
+			func(dst, src *v1.AuthenticationList) { dst.ListMeta = src.ListMeta },
+			func(list *v1.AuthenticationList) []*v1.Authentication { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1.AuthenticationList, items []*v1.Authentication) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*configv1.Authentication), err
-}
-
-// List takes label and field selectors, and returns the list of Authentications that match those selectors.
-func (c *FakeAuthentications) List(ctx context.Context, opts v1.ListOptions) (result *configv1.AuthenticationList, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(authenticationsResource, authenticationsKind, opts), &configv1.AuthenticationList{})
-	if obj == nil {
-		return nil, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &configv1.AuthenticationList{ListMeta: obj.(*configv1.AuthenticationList).ListMeta}
-	for _, item := range obj.(*configv1.AuthenticationList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested authentications.
-func (c *FakeAuthentications) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(authenticationsResource, opts))
-}
-
-// Create takes the representation of a authentication and creates it.  Returns the server's representation of the authentication, and an error, if there is any.
-func (c *FakeAuthentications) Create(ctx context.Context, authentication *configv1.Authentication, opts v1.CreateOptions) (result *configv1.Authentication, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(authenticationsResource, authentication), &configv1.Authentication{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*configv1.Authentication), err
-}
-
-// Update takes the representation of a authentication and updates it. Returns the server's representation of the authentication, and an error, if there is any.
-func (c *FakeAuthentications) Update(ctx context.Context, authentication *configv1.Authentication, opts v1.UpdateOptions) (result *configv1.Authentication, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(authenticationsResource, authentication), &configv1.Authentication{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*configv1.Authentication), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeAuthentications) UpdateStatus(ctx context.Context, authentication *configv1.Authentication, opts v1.UpdateOptions) (*configv1.Authentication, error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(authenticationsResource, "status", authentication), &configv1.Authentication{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*configv1.Authentication), err
-}
-
-// Delete takes name of the authentication and deletes it. Returns an error if one occurs.
-func (c *FakeAuthentications) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(authenticationsResource, name, opts), &configv1.Authentication{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeAuthentications) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(authenticationsResource, listOpts)
-
-	_, err := c.Fake.Invokes(action, &configv1.AuthenticationList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched authentication.
-func (c *FakeAuthentications) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *configv1.Authentication, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(authenticationsResource, name, pt, data, subresources...), &configv1.Authentication{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*configv1.Authentication), err
 }

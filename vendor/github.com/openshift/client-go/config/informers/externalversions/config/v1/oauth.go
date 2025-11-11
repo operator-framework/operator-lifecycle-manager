@@ -3,13 +3,13 @@
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	configv1 "github.com/openshift/api/config/v1"
+	apiconfigv1 "github.com/openshift/api/config/v1"
 	versioned "github.com/openshift/client-go/config/clientset/versioned"
 	internalinterfaces "github.com/openshift/client-go/config/informers/externalversions/internalinterfaces"
-	v1 "github.com/openshift/client-go/config/listers/config/v1"
+	configv1 "github.com/openshift/client-go/config/listers/config/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // OAuths.
 type OAuthInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.OAuthLister
+	Lister() configv1.OAuthLister
 }
 
 type oAuthInformer struct {
@@ -45,16 +45,28 @@ func NewFilteredOAuthInformer(client versioned.Interface, resyncPeriod time.Dura
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ConfigV1().OAuths().List(context.TODO(), options)
+				return client.ConfigV1().OAuths().List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ConfigV1().OAuths().Watch(context.TODO(), options)
+				return client.ConfigV1().OAuths().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ConfigV1().OAuths().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ConfigV1().OAuths().Watch(ctx, options)
 			},
 		},
-		&configv1.OAuth{},
+		&apiconfigv1.OAuth{},
 		resyncPeriod,
 		indexers,
 	)
@@ -65,9 +77,9 @@ func (f *oAuthInformer) defaultInformer(client versioned.Interface, resyncPeriod
 }
 
 func (f *oAuthInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&configv1.OAuth{}, f.defaultInformer)
+	return f.factory.InformerFor(&apiconfigv1.OAuth{}, f.defaultInformer)
 }
 
-func (f *oAuthInformer) Lister() v1.OAuthLister {
-	return v1.NewOAuthLister(f.Informer().GetIndexer())
+func (f *oAuthInformer) Lister() configv1.OAuthLister {
+	return configv1.NewOAuthLister(f.Informer().GetIndexer())
 }

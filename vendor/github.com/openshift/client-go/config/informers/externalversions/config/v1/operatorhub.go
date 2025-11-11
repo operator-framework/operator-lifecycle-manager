@@ -3,13 +3,13 @@
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	configv1 "github.com/openshift/api/config/v1"
+	apiconfigv1 "github.com/openshift/api/config/v1"
 	versioned "github.com/openshift/client-go/config/clientset/versioned"
 	internalinterfaces "github.com/openshift/client-go/config/informers/externalversions/internalinterfaces"
-	v1 "github.com/openshift/client-go/config/listers/config/v1"
+	configv1 "github.com/openshift/client-go/config/listers/config/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // OperatorHubs.
 type OperatorHubInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.OperatorHubLister
+	Lister() configv1.OperatorHubLister
 }
 
 type operatorHubInformer struct {
@@ -45,16 +45,28 @@ func NewFilteredOperatorHubInformer(client versioned.Interface, resyncPeriod tim
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ConfigV1().OperatorHubs().List(context.TODO(), options)
+				return client.ConfigV1().OperatorHubs().List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ConfigV1().OperatorHubs().Watch(context.TODO(), options)
+				return client.ConfigV1().OperatorHubs().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ConfigV1().OperatorHubs().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ConfigV1().OperatorHubs().Watch(ctx, options)
 			},
 		},
-		&configv1.OperatorHub{},
+		&apiconfigv1.OperatorHub{},
 		resyncPeriod,
 		indexers,
 	)
@@ -65,9 +77,9 @@ func (f *operatorHubInformer) defaultInformer(client versioned.Interface, resync
 }
 
 func (f *operatorHubInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&configv1.OperatorHub{}, f.defaultInformer)
+	return f.factory.InformerFor(&apiconfigv1.OperatorHub{}, f.defaultInformer)
 }
 
-func (f *operatorHubInformer) Lister() v1.OperatorHubLister {
-	return v1.NewOperatorHubLister(f.Informer().GetIndexer())
+func (f *operatorHubInformer) Lister() configv1.OperatorHubLister {
+	return configv1.NewOperatorHubLister(f.Informer().GetIndexer())
 }

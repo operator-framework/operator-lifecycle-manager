@@ -3,10 +3,10 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/config/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	configv1 "github.com/openshift/api/config/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // ConsoleLister helps list Consoles.
@@ -14,39 +14,19 @@ import (
 type ConsoleLister interface {
 	// List lists all Consoles in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.Console, err error)
+	List(selector labels.Selector) (ret []*configv1.Console, err error)
 	// Get retrieves the Console from the index for a given name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.Console, error)
+	Get(name string) (*configv1.Console, error)
 	ConsoleListerExpansion
 }
 
 // consoleLister implements the ConsoleLister interface.
 type consoleLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*configv1.Console]
 }
 
 // NewConsoleLister returns a new ConsoleLister.
 func NewConsoleLister(indexer cache.Indexer) ConsoleLister {
-	return &consoleLister{indexer: indexer}
-}
-
-// List lists all Consoles in the indexer.
-func (s *consoleLister) List(selector labels.Selector) (ret []*v1.Console, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.Console))
-	})
-	return ret, err
-}
-
-// Get retrieves the Console from the index for a given name.
-func (s *consoleLister) Get(name string) (*v1.Console, error) {
-	obj, exists, err := s.indexer.GetByKey(name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1.Resource("console"), name)
-	}
-	return obj.(*v1.Console), nil
+	return &consoleLister{listers.New[*configv1.Console](indexer, configv1.Resource("console"))}
 }

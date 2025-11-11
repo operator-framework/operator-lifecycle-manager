@@ -3,13 +3,13 @@
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	configv1 "github.com/openshift/api/config/v1"
+	apiconfigv1 "github.com/openshift/api/config/v1"
 	versioned "github.com/openshift/client-go/config/clientset/versioned"
 	internalinterfaces "github.com/openshift/client-go/config/informers/externalversions/internalinterfaces"
-	v1 "github.com/openshift/client-go/config/listers/config/v1"
+	configv1 "github.com/openshift/client-go/config/listers/config/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // DNSes.
 type DNSInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.DNSLister
+	Lister() configv1.DNSLister
 }
 
 type dNSInformer struct {
@@ -45,16 +45,28 @@ func NewFilteredDNSInformer(client versioned.Interface, resyncPeriod time.Durati
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ConfigV1().DNSes().List(context.TODO(), options)
+				return client.ConfigV1().DNSes().List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ConfigV1().DNSes().Watch(context.TODO(), options)
+				return client.ConfigV1().DNSes().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ConfigV1().DNSes().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ConfigV1().DNSes().Watch(ctx, options)
 			},
 		},
-		&configv1.DNS{},
+		&apiconfigv1.DNS{},
 		resyncPeriod,
 		indexers,
 	)
@@ -65,9 +77,9 @@ func (f *dNSInformer) defaultInformer(client versioned.Interface, resyncPeriod t
 }
 
 func (f *dNSInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&configv1.DNS{}, f.defaultInformer)
+	return f.factory.InformerFor(&apiconfigv1.DNS{}, f.defaultInformer)
 }
 
-func (f *dNSInformer) Lister() v1.DNSLister {
-	return v1.NewDNSLister(f.Informer().GetIndexer())
+func (f *dNSInformer) Lister() configv1.DNSLister {
+	return configv1.NewDNSLister(f.Informer().GetIndexer())
 }

@@ -3,13 +3,13 @@
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	configv1 "github.com/openshift/api/config/v1"
+	apiconfigv1 "github.com/openshift/api/config/v1"
 	versioned "github.com/openshift/client-go/config/clientset/versioned"
 	internalinterfaces "github.com/openshift/client-go/config/informers/externalversions/internalinterfaces"
-	v1 "github.com/openshift/client-go/config/listers/config/v1"
+	configv1 "github.com/openshift/client-go/config/listers/config/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // FeatureGates.
 type FeatureGateInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.FeatureGateLister
+	Lister() configv1.FeatureGateLister
 }
 
 type featureGateInformer struct {
@@ -45,16 +45,28 @@ func NewFilteredFeatureGateInformer(client versioned.Interface, resyncPeriod tim
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ConfigV1().FeatureGates().List(context.TODO(), options)
+				return client.ConfigV1().FeatureGates().List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ConfigV1().FeatureGates().Watch(context.TODO(), options)
+				return client.ConfigV1().FeatureGates().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ConfigV1().FeatureGates().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ConfigV1().FeatureGates().Watch(ctx, options)
 			},
 		},
-		&configv1.FeatureGate{},
+		&apiconfigv1.FeatureGate{},
 		resyncPeriod,
 		indexers,
 	)
@@ -65,9 +77,9 @@ func (f *featureGateInformer) defaultInformer(client versioned.Interface, resync
 }
 
 func (f *featureGateInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&configv1.FeatureGate{}, f.defaultInformer)
+	return f.factory.InformerFor(&apiconfigv1.FeatureGate{}, f.defaultInformer)
 }
 
-func (f *featureGateInformer) Lister() v1.FeatureGateLister {
-	return v1.NewFeatureGateLister(f.Informer().GetIndexer())
+func (f *featureGateInformer) Lister() configv1.FeatureGateLister {
+	return configv1.NewFeatureGateLister(f.Informer().GetIndexer())
 }

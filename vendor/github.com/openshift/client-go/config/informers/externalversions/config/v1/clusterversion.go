@@ -3,13 +3,13 @@
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	configv1 "github.com/openshift/api/config/v1"
+	apiconfigv1 "github.com/openshift/api/config/v1"
 	versioned "github.com/openshift/client-go/config/clientset/versioned"
 	internalinterfaces "github.com/openshift/client-go/config/informers/externalversions/internalinterfaces"
-	v1 "github.com/openshift/client-go/config/listers/config/v1"
+	configv1 "github.com/openshift/client-go/config/listers/config/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // ClusterVersions.
 type ClusterVersionInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.ClusterVersionLister
+	Lister() configv1.ClusterVersionLister
 }
 
 type clusterVersionInformer struct {
@@ -45,16 +45,28 @@ func NewFilteredClusterVersionInformer(client versioned.Interface, resyncPeriod 
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ConfigV1().ClusterVersions().List(context.TODO(), options)
+				return client.ConfigV1().ClusterVersions().List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ConfigV1().ClusterVersions().Watch(context.TODO(), options)
+				return client.ConfigV1().ClusterVersions().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ConfigV1().ClusterVersions().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ConfigV1().ClusterVersions().Watch(ctx, options)
 			},
 		},
-		&configv1.ClusterVersion{},
+		&apiconfigv1.ClusterVersion{},
 		resyncPeriod,
 		indexers,
 	)
@@ -65,9 +77,9 @@ func (f *clusterVersionInformer) defaultInformer(client versioned.Interface, res
 }
 
 func (f *clusterVersionInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&configv1.ClusterVersion{}, f.defaultInformer)
+	return f.factory.InformerFor(&apiconfigv1.ClusterVersion{}, f.defaultInformer)
 }
 
-func (f *clusterVersionInformer) Lister() v1.ClusterVersionLister {
-	return v1.NewClusterVersionLister(f.Informer().GetIndexer())
+func (f *clusterVersionInformer) Lister() configv1.ClusterVersionLister {
+	return configv1.NewClusterVersionLister(f.Informer().GetIndexer())
 }
