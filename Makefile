@@ -163,7 +163,7 @@ local-build: IMAGE_TAG = local
 local-build: image
 
 .PHONY: run-local
-run-local: local-build kind-create cert-manager-install deploy
+run-local: local-build kind-create deploy
 
 .PHONY: cert-manager-install
 cert-manager-install: #HELP Install cert-manager $(CERT_MANAGER_VERSION)
@@ -259,7 +259,6 @@ deploy: $(KIND) $(HELM) #HELP Deploy OLM to kind cluster $KIND_CLUSTER_NAME (def
 	$(KIND) load docker-image $(OLM_IMAGE) --name $(KIND_CLUSTER_NAME); \
 	$(HELM) upgrade --install olm deploy/chart \
 		--set debug=true \
-		--set certManager.enabled=true \
 		--set olm.image.ref=$(OLM_IMAGE) \
 		--set olm.image.pullPolicy=IfNotPresent \
 		--set catalog.image.ref=$(OLM_IMAGE) \
@@ -282,9 +281,6 @@ undeploy: $(KIND) $(HELM) #HELP Uninstall OLM from kind cluster $KIND_CLUSTER_NA
 	kubectl delete --all-namespaces --all catsrc
 	$(HELM) uninstall olm
 	kubectl delete -f deploy/chart/crds
-
-	# Uninstall cert-manager
-	$(MAKE) cert-manager-uninstall
 
 #SECTION e2e
 

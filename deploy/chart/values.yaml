@@ -79,7 +79,7 @@ monitoring:
   namespace: monitoring
 
 certManager:
-  enabled: true
+  enabled: false
   issuer:
     name: olm-ca-issuer
     selfSigned: true
