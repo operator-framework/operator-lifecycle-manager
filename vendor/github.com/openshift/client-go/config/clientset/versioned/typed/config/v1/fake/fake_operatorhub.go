@@ -3,115 +3,31 @@
 package fake
 
 import (
-	"context"
-
-	configv1 "github.com/openshift/api/config/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	v1 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/client-go/config/applyconfigurations/config/v1"
+	typedconfigv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeOperatorHubs implements OperatorHubInterface
-type FakeOperatorHubs struct {
+// fakeOperatorHubs implements OperatorHubInterface
+type fakeOperatorHubs struct {
+	*gentype.FakeClientWithListAndApply[*v1.OperatorHub, *v1.OperatorHubList, *configv1.OperatorHubApplyConfiguration]
 	Fake *FakeConfigV1
 }
 
-var operatorhubsResource = schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "operatorhubs"}
-
-var operatorhubsKind = schema.GroupVersionKind{Group: "config.openshift.io", Version: "v1", Kind: "OperatorHub"}
-
-// Get takes name of the operatorHub, and returns the corresponding operatorHub object, and an error if there is any.
-func (c *FakeOperatorHubs) Get(ctx context.Context, name string, options v1.GetOptions) (result *configv1.OperatorHub, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(operatorhubsResource, name), &configv1.OperatorHub{})
-	if obj == nil {
-		return nil, err
+func newFakeOperatorHubs(fake *FakeConfigV1) typedconfigv1.OperatorHubInterface {
+	return &fakeOperatorHubs{
+		gentype.NewFakeClientWithListAndApply[*v1.OperatorHub, *v1.OperatorHubList, *configv1.OperatorHubApplyConfiguration](
+			fake.Fake,
+			"",
+			v1.SchemeGroupVersion.WithResource("operatorhubs"),
+			v1.SchemeGroupVersion.WithKind("OperatorHub"),
+			func() *v1.OperatorHub { return &v1.OperatorHub{} },
+			func() *v1.OperatorHubList { return &v1.OperatorHubList{} },
+			func(dst, src *v1.OperatorHubList) { dst.ListMeta = src.ListMeta },
+			func(list *v1.OperatorHubList) []*v1.OperatorHub { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1.OperatorHubList, items []*v1.OperatorHub) { list.Items = gentype.FromPointerSlice(items) },
+		),
+		fake,
 	}
-	return obj.(*configv1.OperatorHub), err
-}
-
-// List takes label and field selectors, and returns the list of OperatorHubs that match those selectors.
-func (c *FakeOperatorHubs) List(ctx context.Context, opts v1.ListOptions) (result *configv1.OperatorHubList, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(operatorhubsResource, operatorhubsKind, opts), &configv1.OperatorHubList{})
-	if obj == nil {
-		return nil, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &configv1.OperatorHubList{ListMeta: obj.(*configv1.OperatorHubList).ListMeta}
-	for _, item := range obj.(*configv1.OperatorHubList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested operatorHubs.
-func (c *FakeOperatorHubs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(operatorhubsResource, opts))
-}
-
-// Create takes the representation of a operatorHub and creates it.  Returns the server's representation of the operatorHub, and an error, if there is any.
-func (c *FakeOperatorHubs) Create(ctx context.Context, operatorHub *configv1.OperatorHub, opts v1.CreateOptions) (result *configv1.OperatorHub, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(operatorhubsResource, operatorHub), &configv1.OperatorHub{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*configv1.OperatorHub), err
-}
-
-// Update takes the representation of a operatorHub and updates it. Returns the server's representation of the operatorHub, and an error, if there is any.
-func (c *FakeOperatorHubs) Update(ctx context.Context, operatorHub *configv1.OperatorHub, opts v1.UpdateOptions) (result *configv1.OperatorHub, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(operatorhubsResource, operatorHub), &configv1.OperatorHub{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*configv1.OperatorHub), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeOperatorHubs) UpdateStatus(ctx context.Context, operatorHub *configv1.OperatorHub, opts v1.UpdateOptions) (*configv1.OperatorHub, error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(operatorhubsResource, "status", operatorHub), &configv1.OperatorHub{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*configv1.OperatorHub), err
-}
-
-// Delete takes name of the operatorHub and deletes it. Returns an error if one occurs.
-func (c *FakeOperatorHubs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(operatorhubsResource, name, opts), &configv1.OperatorHub{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeOperatorHubs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(operatorhubsResource, listOpts)
-
-	_, err := c.Fake.Invokes(action, &configv1.OperatorHubList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched operatorHub.
-func (c *FakeOperatorHubs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *configv1.OperatorHub, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(operatorhubsResource, name, pt, data, subresources...), &configv1.OperatorHub{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*configv1.OperatorHub), err
 }

@@ -3,10 +3,12 @@
 package versioned
 
 import (
-	"fmt"
-	"net/http"
+	fmt "fmt"
+	http "net/http"
 
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	configv1alpha1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1alpha1"
+	configv1alpha2 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1alpha2"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -15,18 +17,31 @@ import (
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	ConfigV1() configv1.ConfigV1Interface
+	ConfigV1alpha1() configv1alpha1.ConfigV1alpha1Interface
+	ConfigV1alpha2() configv1alpha2.ConfigV1alpha2Interface
 }
 
-// Clientset contains the clients for groups. Each group has exactly one
-// version included in a Clientset.
+// Clientset contains the clients for groups.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	configV1 *configv1.ConfigV1Client
+	configV1       *configv1.ConfigV1Client
+	configV1alpha1 *configv1alpha1.ConfigV1alpha1Client
+	configV1alpha2 *configv1alpha2.ConfigV1alpha2Client
 }
 
 // ConfigV1 retrieves the ConfigV1Client
 func (c *Clientset) ConfigV1() configv1.ConfigV1Interface {
 	return c.configV1
+}
+
+// ConfigV1alpha1 retrieves the ConfigV1alpha1Client
+func (c *Clientset) ConfigV1alpha1() configv1alpha1.ConfigV1alpha1Interface {
+	return c.configV1alpha1
+}
+
+// ConfigV1alpha2 retrieves the ConfigV1alpha2Client
+func (c *Clientset) ConfigV1alpha2() configv1alpha2.ConfigV1alpha2Interface {
+	return c.configV1alpha2
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -44,6 +59,10 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 // where httpClient was generated with rest.HTTPClientFor(c).
 func NewForConfig(c *rest.Config) (*Clientset, error) {
 	configShallowCopy := *c
+
+	if configShallowCopy.UserAgent == "" {
+		configShallowCopy.UserAgent = rest.DefaultKubernetesUserAgent()
+	}
 
 	// share the transport between all clients
 	httpClient, err := rest.HTTPClientFor(&configShallowCopy)
@@ -73,6 +92,14 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 	if err != nil {
 		return nil, err
 	}
+	cs.configV1alpha1, err = configv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
+	cs.configV1alpha2, err = configv1alpha2.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 
 	cs.DiscoveryClient, err = discovery.NewDiscoveryClientForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
@@ -95,6 +122,8 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
 	cs.configV1 = configv1.New(c)
+	cs.configV1alpha1 = configv1alpha1.New(c)
+	cs.configV1alpha2 = configv1alpha2.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

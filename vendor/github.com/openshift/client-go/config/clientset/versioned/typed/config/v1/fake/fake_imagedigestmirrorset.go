@@ -3,104 +3,35 @@
 package fake
 
 import (
-	"context"
-
-	configv1 "github.com/openshift/api/config/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	v1 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/client-go/config/applyconfigurations/config/v1"
+	typedconfigv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeImageDigestMirrorSets implements ImageDigestMirrorSetInterface
-type FakeImageDigestMirrorSets struct {
+// fakeImageDigestMirrorSets implements ImageDigestMirrorSetInterface
+type fakeImageDigestMirrorSets struct {
+	*gentype.FakeClientWithListAndApply[*v1.ImageDigestMirrorSet, *v1.ImageDigestMirrorSetList, *configv1.ImageDigestMirrorSetApplyConfiguration]
 	Fake *FakeConfigV1
 }
 
-var imagedigestmirrorsetsResource = schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "imagedigestmirrorsets"}
-
-var imagedigestmirrorsetsKind = schema.GroupVersionKind{Group: "config.openshift.io", Version: "v1", Kind: "ImageDigestMirrorSet"}
-
-// Get takes name of the imageDigestMirrorSet, and returns the corresponding imageDigestMirrorSet object, and an error if there is any.
-func (c *FakeImageDigestMirrorSets) Get(ctx context.Context, name string, options v1.GetOptions) (result *configv1.ImageDigestMirrorSet, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(imagedigestmirrorsetsResource, name), &configv1.ImageDigestMirrorSet{})
-	if obj == nil {
-		return nil, err
+func newFakeImageDigestMirrorSets(fake *FakeConfigV1) typedconfigv1.ImageDigestMirrorSetInterface {
+	return &fakeImageDigestMirrorSets{
+		gentype.NewFakeClientWithListAndApply[*v1.ImageDigestMirrorSet, *v1.ImageDigestMirrorSetList, *configv1.ImageDigestMirrorSetApplyConfiguration](
+			fake.Fake,
+			"",
+			v1.SchemeGroupVersion.WithResource("imagedigestmirrorsets"),
+			v1.SchemeGroupVersion.WithKind("ImageDigestMirrorSet"),
+			func() *v1.ImageDigestMirrorSet { return &v1.ImageDigestMirrorSet{} },
+			func() *v1.ImageDigestMirrorSetList { return &v1.ImageDigestMirrorSetList{} },
+			func(dst, src *v1.ImageDigestMirrorSetList) { dst.ListMeta = src.ListMeta },
+			func(list *v1.ImageDigestMirrorSetList) []*v1.ImageDigestMirrorSet {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v1.ImageDigestMirrorSetList, items []*v1.ImageDigestMirrorSet) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*configv1.ImageDigestMirrorSet), err
-}
-
-// List takes label and field selectors, and returns the list of ImageDigestMirrorSets that match those selectors.
-func (c *FakeImageDigestMirrorSets) List(ctx context.Context, opts v1.ListOptions) (result *configv1.ImageDigestMirrorSetList, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(imagedigestmirrorsetsResource, imagedigestmirrorsetsKind, opts), &configv1.ImageDigestMirrorSetList{})
-	if obj == nil {
-		return nil, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &configv1.ImageDigestMirrorSetList{ListMeta: obj.(*configv1.ImageDigestMirrorSetList).ListMeta}
-	for _, item := range obj.(*configv1.ImageDigestMirrorSetList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested imageDigestMirrorSets.
-func (c *FakeImageDigestMirrorSets) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(imagedigestmirrorsetsResource, opts))
-}
-
-// Create takes the representation of a imageDigestMirrorSet and creates it.  Returns the server's representation of the imageDigestMirrorSet, and an error, if there is any.
-func (c *FakeImageDigestMirrorSets) Create(ctx context.Context, imageDigestMirrorSet *configv1.ImageDigestMirrorSet, opts v1.CreateOptions) (result *configv1.ImageDigestMirrorSet, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(imagedigestmirrorsetsResource, imageDigestMirrorSet), &configv1.ImageDigestMirrorSet{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*configv1.ImageDigestMirrorSet), err
-}
-
-// Update takes the representation of a imageDigestMirrorSet and updates it. Returns the server's representation of the imageDigestMirrorSet, and an error, if there is any.
-func (c *FakeImageDigestMirrorSets) Update(ctx context.Context, imageDigestMirrorSet *configv1.ImageDigestMirrorSet, opts v1.UpdateOptions) (result *configv1.ImageDigestMirrorSet, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(imagedigestmirrorsetsResource, imageDigestMirrorSet), &configv1.ImageDigestMirrorSet{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*configv1.ImageDigestMirrorSet), err
-}
-
-// Delete takes name of the imageDigestMirrorSet and deletes it. Returns an error if one occurs.
-func (c *FakeImageDigestMirrorSets) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(imagedigestmirrorsetsResource, name, opts), &configv1.ImageDigestMirrorSet{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeImageDigestMirrorSets) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(imagedigestmirrorsetsResource, listOpts)
-
-	_, err := c.Fake.Invokes(action, &configv1.ImageDigestMirrorSetList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched imageDigestMirrorSet.
-func (c *FakeImageDigestMirrorSets) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *configv1.ImageDigestMirrorSet, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(imagedigestmirrorsetsResource, name, pt, data, subresources...), &configv1.ImageDigestMirrorSet{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*configv1.ImageDigestMirrorSet), err
 }

@@ -46,15 +46,17 @@ const (
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
-	base := filepath.Join("..", "..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1")
+	// Note: OpenShift CRDs are loaded from testdata instead of vendor.
+	// Breaking change: The github.com/openshift/api package (v0.0.0-20251111193948+)
+	// no longer ships individual CRD YAML files in vendor (they were removed in favor
+	// of a consolidated manifest). We generate minimal CRDs via scripts/generate_openshift_crds.sh
+	// and load them from testdata to keep tests self-contained and work in envtest/kind environments.
 	testEnv = &envtest.Environment{
-		ErrorIfCRDPathMissing: true,
 		CRDs: []*apiextensionsv1.CustomResourceDefinition{
 			crds.ClusterServiceVersion(),
 		},
 		CRDDirectoryPaths: []string{
-			filepath.Join(base, "0000_00_cluster-version-operator_01_clusteroperator.crd.yaml"),
-			filepath.Join(base, "0000_00_cluster-version-operator_01_clusterversion.crd.yaml"),
+			filepath.Join("testdata", "crds"),
 		},
 	}
 
@@ -72,6 +74,9 @@ var _ = BeforeSuite(func() {
 		Metrics: metricsserver.Options{BindAddress: "0"},
 	})
 	Expect(err).ToNot(HaveOccurred())
+
+	// Register OpenShift types with the scheme
+	Expect(configv1.AddToScheme(mgr.GetScheme())).To(Succeed())
 
 	k8sClient = mgr.GetClient()
 

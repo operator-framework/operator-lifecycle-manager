@@ -3,15 +3,15 @@
 package v1
 
 import (
-	"context"
-	"time"
+	context "context"
 
-	v1 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/api/config/v1"
+	applyconfigurationsconfigv1 "github.com/openshift/client-go/config/applyconfigurations/config/v1"
 	scheme "github.com/openshift/client-go/config/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // ImageContentPoliciesGetter has a method to return a ImageContentPolicyInterface.
@@ -22,131 +22,33 @@ type ImageContentPoliciesGetter interface {
 
 // ImageContentPolicyInterface has methods to work with ImageContentPolicy resources.
 type ImageContentPolicyInterface interface {
-	Create(ctx context.Context, imageContentPolicy *v1.ImageContentPolicy, opts metav1.CreateOptions) (*v1.ImageContentPolicy, error)
-	Update(ctx context.Context, imageContentPolicy *v1.ImageContentPolicy, opts metav1.UpdateOptions) (*v1.ImageContentPolicy, error)
+	Create(ctx context.Context, imageContentPolicy *configv1.ImageContentPolicy, opts metav1.CreateOptions) (*configv1.ImageContentPolicy, error)
+	Update(ctx context.Context, imageContentPolicy *configv1.ImageContentPolicy, opts metav1.UpdateOptions) (*configv1.ImageContentPolicy, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.ImageContentPolicy, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.ImageContentPolicyList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*configv1.ImageContentPolicy, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*configv1.ImageContentPolicyList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.ImageContentPolicy, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *configv1.ImageContentPolicy, err error)
+	Apply(ctx context.Context, imageContentPolicy *applyconfigurationsconfigv1.ImageContentPolicyApplyConfiguration, opts metav1.ApplyOptions) (result *configv1.ImageContentPolicy, err error)
 	ImageContentPolicyExpansion
 }
 
 // imageContentPolicies implements ImageContentPolicyInterface
 type imageContentPolicies struct {
-	client rest.Interface
+	*gentype.ClientWithListAndApply[*configv1.ImageContentPolicy, *configv1.ImageContentPolicyList, *applyconfigurationsconfigv1.ImageContentPolicyApplyConfiguration]
 }
 
 // newImageContentPolicies returns a ImageContentPolicies
 func newImageContentPolicies(c *ConfigV1Client) *imageContentPolicies {
 	return &imageContentPolicies{
-		client: c.RESTClient(),
+		gentype.NewClientWithListAndApply[*configv1.ImageContentPolicy, *configv1.ImageContentPolicyList, *applyconfigurationsconfigv1.ImageContentPolicyApplyConfiguration](
+			"imagecontentpolicies",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *configv1.ImageContentPolicy { return &configv1.ImageContentPolicy{} },
+			func() *configv1.ImageContentPolicyList { return &configv1.ImageContentPolicyList{} },
+		),
 	}
-}
-
-// Get takes name of the imageContentPolicy, and returns the corresponding imageContentPolicy object, and an error if there is any.
-func (c *imageContentPolicies) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.ImageContentPolicy, err error) {
-	result = &v1.ImageContentPolicy{}
-	err = c.client.Get().
-		Resource("imagecontentpolicies").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of ImageContentPolicies that match those selectors.
-func (c *imageContentPolicies) List(ctx context.Context, opts metav1.ListOptions) (result *v1.ImageContentPolicyList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v1.ImageContentPolicyList{}
-	err = c.client.Get().
-		Resource("imagecontentpolicies").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested imageContentPolicies.
-func (c *imageContentPolicies) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("imagecontentpolicies").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a imageContentPolicy and creates it.  Returns the server's representation of the imageContentPolicy, and an error, if there is any.
-func (c *imageContentPolicies) Create(ctx context.Context, imageContentPolicy *v1.ImageContentPolicy, opts metav1.CreateOptions) (result *v1.ImageContentPolicy, err error) {
-	result = &v1.ImageContentPolicy{}
-	err = c.client.Post().
-		Resource("imagecontentpolicies").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(imageContentPolicy).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a imageContentPolicy and updates it. Returns the server's representation of the imageContentPolicy, and an error, if there is any.
-func (c *imageContentPolicies) Update(ctx context.Context, imageContentPolicy *v1.ImageContentPolicy, opts metav1.UpdateOptions) (result *v1.ImageContentPolicy, err error) {
-	result = &v1.ImageContentPolicy{}
-	err = c.client.Put().
-		Resource("imagecontentpolicies").
-		Name(imageContentPolicy.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(imageContentPolicy).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the imageContentPolicy and deletes it. Returns an error if one occurs.
-func (c *imageContentPolicies) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("imagecontentpolicies").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *imageContentPolicies) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("imagecontentpolicies").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched imageContentPolicy.
-func (c *imageContentPolicies) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.ImageContentPolicy, err error) {
-	result = &v1.ImageContentPolicy{}
-	err = c.client.Patch(pt).
-		Resource("imagecontentpolicies").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

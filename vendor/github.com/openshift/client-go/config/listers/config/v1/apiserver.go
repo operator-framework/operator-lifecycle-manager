@@ -3,10 +3,10 @@
 package v1
 
 import (
-	v1 "github.com/openshift/api/config/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	configv1 "github.com/openshift/api/config/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // APIServerLister helps list APIServers.
@@ -14,39 +14,19 @@ import (
 type APIServerLister interface {
 	// List lists all APIServers in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.APIServer, err error)
+	List(selector labels.Selector) (ret []*configv1.APIServer, err error)
 	// Get retrieves the APIServer from the index for a given name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.APIServer, error)
+	Get(name string) (*configv1.APIServer, error)
 	APIServerListerExpansion
 }
 
 // aPIServerLister implements the APIServerLister interface.
 type aPIServerLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*configv1.APIServer]
 }
 
 // NewAPIServerLister returns a new APIServerLister.
 func NewAPIServerLister(indexer cache.Indexer) APIServerLister {
-	return &aPIServerLister{indexer: indexer}
-}
-
-// List lists all APIServers in the indexer.
-func (s *aPIServerLister) List(selector labels.Selector) (ret []*v1.APIServer, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.APIServer))
-	})
-	return ret, err
-}
-
-// Get retrieves the APIServer from the index for a given name.
-func (s *aPIServerLister) Get(name string) (*v1.APIServer, error) {
-	obj, exists, err := s.indexer.GetByKey(name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1.Resource("apiserver"), name)
-	}
-	return obj.(*v1.APIServer), nil
+	return &aPIServerLister{listers.New[*configv1.APIServer](indexer, configv1.Resource("apiserver"))}
 }

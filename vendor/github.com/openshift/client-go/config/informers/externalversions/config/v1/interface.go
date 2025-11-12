@@ -14,6 +14,8 @@ type Interface interface {
 	Authentications() AuthenticationInformer
 	// Builds returns a BuildInformer.
 	Builds() BuildInformer
+	// ClusterImagePolicies returns a ClusterImagePolicyInformer.
+	ClusterImagePolicies() ClusterImagePolicyInformer
 	// ClusterOperators returns a ClusterOperatorInformer.
 	ClusterOperators() ClusterOperatorInformer
 	// ClusterVersions returns a ClusterVersionInformer.
@@ -30,12 +32,16 @@ type Interface interface {
 	ImageContentPolicies() ImageContentPolicyInformer
 	// ImageDigestMirrorSets returns a ImageDigestMirrorSetInformer.
 	ImageDigestMirrorSets() ImageDigestMirrorSetInformer
+	// ImagePolicies returns a ImagePolicyInformer.
+	ImagePolicies() ImagePolicyInformer
 	// ImageTagMirrorSets returns a ImageTagMirrorSetInformer.
 	ImageTagMirrorSets() ImageTagMirrorSetInformer
 	// Infrastructures returns a InfrastructureInformer.
 	Infrastructures() InfrastructureInformer
 	// Ingresses returns a IngressInformer.
 	Ingresses() IngressInformer
+	// InsightsDataGathers returns a InsightsDataGatherInformer.
+	InsightsDataGathers() InsightsDataGatherInformer
 	// Networks returns a NetworkInformer.
 	Networks() NetworkInformer
 	// Nodes returns a NodeInformer.
@@ -78,6 +84,11 @@ func (v *version) Builds() BuildInformer {
 	return &buildInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
+// ClusterImagePolicies returns a ClusterImagePolicyInformer.
+func (v *version) ClusterImagePolicies() ClusterImagePolicyInformer {
+	return &clusterImagePolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
 // ClusterOperators returns a ClusterOperatorInformer.
 func (v *version) ClusterOperators() ClusterOperatorInformer {
 	return &clusterOperatorInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
@@ -118,6 +129,11 @@ func (v *version) ImageDigestMirrorSets() ImageDigestMirrorSetInformer {
 	return &imageDigestMirrorSetInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
+// ImagePolicies returns a ImagePolicyInformer.
+func (v *version) ImagePolicies() ImagePolicyInformer {
+	return &imagePolicyInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
 // ImageTagMirrorSets returns a ImageTagMirrorSetInformer.
 func (v *version) ImageTagMirrorSets() ImageTagMirrorSetInformer {
 	return &imageTagMirrorSetInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
@@ -131,6 +147,11 @@ func (v *version) Infrastructures() InfrastructureInformer {
 // Ingresses returns a IngressInformer.
 func (v *version) Ingresses() IngressInformer {
 	return &ingressInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// InsightsDataGathers returns a InsightsDataGatherInformer.
+func (v *version) InsightsDataGathers() InsightsDataGatherInformer {
+	return &insightsDataGatherInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // Networks returns a NetworkInformer.

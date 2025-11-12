@@ -14,11 +14,19 @@ import (
 //
 // Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
 // +openshift:compatibility-gen:level=1
+// +openshift:api-approved.openshift.io=https://github.com/openshift/api/pull/470
+// +openshift:file-pattern=cvoRunLevel=0000_10,operatorName=config-operator,operatorOrdering=01
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:path=apiservers,scope=Cluster
+// +kubebuilder:subresource:status
+// +kubebuilder:metadata:annotations=release.openshift.io/bootstrap-required=true
 type APIServer struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+
+	// metadata is the standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	// spec holds user settable values for configuration
-	// +kubebuilder:validation:Required
 	// +required
 	Spec APIServerSpec `json:"spec"`
 	// status holds observed values from the cluster. They may not be overridden.
@@ -43,15 +51,15 @@ type APIServerSpec struct {
 	// server from JavaScript applications.
 	// The values are regular expressions that correspond to the Golang regular expression language.
 	// +optional
+	// +listType=atomic
 	AdditionalCORSAllowedOrigins []string `json:"additionalCORSAllowedOrigins,omitempty"`
 	// encryption allows the configuration of encryption of resources at the datastore layer.
 	// +optional
 	Encryption APIServerEncryption `json:"encryption"`
 	// tlsSecurityProfile specifies settings for TLS connections for externally exposed servers.
 	//
-	// If unset, a default (which may change between releases) is chosen. Note that only Old,
-	// Intermediate and Custom profiles are currently supported, and the maximum available
-	// MinTLSVersions is VersionTLS12.
+	// When omitted, this means no opinion and the platform is left to choose a reasonable default, which is subject to change over time.
+	// The current default is the Intermediate profile.
 	// +optional
 	TLSSecurityProfile *TLSSecurityProfile `json:"tlsSecurityProfile,omitempty"`
 	// audit specifies the settings for audit configuration to be applied to all OpenShift-provided
@@ -120,7 +128,6 @@ type Audit struct {
 type AuditCustomRule struct {
 	// group is a name of group a request user must be member of in order to this profile to apply.
 	//
-	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	// +required
 	Group string `json:"group"`
@@ -137,9 +144,8 @@ type AuditCustomRule struct {
 	//
 	// If unset, the 'Default' profile is used as the default.
 	//
-	// +kubebuilder:validation:Required
 	// +required
-	Profile AuditProfileType `json:"profile,omitempty"`
+	Profile AuditProfileType `json:"profile"`
 }
 
 type APIServerServingCerts struct {
@@ -147,6 +153,8 @@ type APIServerServingCerts struct {
 	// If no named certificates are provided, or no named certificates match the server name as understood by a client,
 	// the defaultServingCertificate will be used.
 	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MaxItems=32
 	NamedCertificates []APIServerNamedServingCert `json:"namedCertificates,omitempty"`
 }
 
@@ -156,6 +164,8 @@ type APIServerNamedServingCert struct {
 	// serve secure traffic. If no names are provided, the implicit names will be extracted from the certificates.
 	// Exact names trump over wildcard names. Explicit names defined here trump over extracted implicit names.
 	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MaxItems=64
 	Names []string `json:"names,omitempty"`
 	// servingCertificate references a kubernetes.io/tls type secret containing the TLS cert info for serving secure traffic.
 	// The secret must exist in the openshift-config namespace and contain the following required fields:
@@ -164,6 +174,9 @@ type APIServerNamedServingCert struct {
 	ServingCertificate SecretNameReference `json:"servingCertificate"`
 }
 
+// APIServerEncryption is used to encrypt sensitive resources on the cluster.
+// +openshift:validation:FeatureGateAwareXValidation:featureGate=KMSEncryptionProvider,rule="has(self.type) && self.type == 'KMS' ?  has(self.kms) : !has(self.kms)",message="kms config is required when encryption type is KMS, and forbidden otherwise"
+// +union
 type APIServerEncryption struct {
 	// type defines what encryption type should be used to encrypt resources at the datastore layer.
 	// When this field is unset (i.e. when it is set to the empty string), identity is implied.
@@ -182,9 +195,23 @@ type APIServerEncryption struct {
 	// +unionDiscriminator
 	// +optional
 	Type EncryptionType `json:"type,omitempty"`
+
+	// kms defines the configuration for the external KMS instance that manages the encryption keys,
+	// when KMS encryption is enabled sensitive resources will be encrypted using keys managed by an
+	// externally configured KMS instance.
+	//
+	// The Key Management Service (KMS) instance provides symmetric encryption and is responsible for
+	// managing the lifecyle of the encryption keys outside of the control plane.
+	// This allows integration with an external provider to manage the data encryption keys securely.
+	//
+	// +openshift:enable:FeatureGate=KMSEncryptionProvider
+	// +unionMember
+	// +optional
+	KMS *KMSConfig `json:"kms,omitempty"`
 }
 
-// +kubebuilder:validation:Enum="";identity;aescbc
+// +openshift:validation:FeatureGateAwareEnum:featureGate="",enum="";identity;aescbc;aesgcm
+// +openshift:validation:FeatureGateAwareEnum:featureGate=KMSEncryptionProvider,enum="";identity;aescbc;aesgcm;KMS
 type EncryptionType string
 
 const (
@@ -195,6 +222,15 @@ const (
 	// aescbc refers to a type where AES-CBC with PKCS#7 padding and a 32-byte key
 	// is used to perform encryption at the datastore layer.
 	EncryptionTypeAESCBC EncryptionType = "aescbc"
+
+	// aesgcm refers to a type where AES-GCM with random nonce and a 32-byte key
+	// is used to perform encryption at the datastore layer.
+	EncryptionTypeAESGCM EncryptionType = "aesgcm"
+
+	// kms refers to a type of encryption where the encryption keys are managed
+	// outside the control plane in a Key Management Service instance,
+	// encryption is still performed at the datastore layer.
+	EncryptionTypeKMS EncryptionType = "KMS"
 )
 
 type APIServerStatus struct {
@@ -206,6 +242,9 @@ type APIServerStatus struct {
 // +openshift:compatibility-gen:level=1
 type APIServerList struct {
 	metav1.TypeMeta `json:",inline"`
+
+	// metadata is the standard list's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	metav1.ListMeta `json:"metadata"`
 	Items           []APIServer `json:"items"`
 }

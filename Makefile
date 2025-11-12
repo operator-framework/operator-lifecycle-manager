@@ -319,11 +319,15 @@ e2e-local-deploy: $(KIND) $(HELM) #HELP Deploy OLM for e2e testing (without cert
 #SECTION Code Generation
 
 .PHONY: gen-all #HELP Update OLM API, generate code and mocks
-gen-all: manifests codegen mockgen
+gen-all: manifests openshift-test-crds codegen mockgen
 
 .PHONY: manifests
 manifests: vendor #HELP Copy OLM API CRD manifests to deploy/chart/crds
 	./scripts/copy_crds.sh
+
+.PHONY: openshift-test-crds
+openshift-test-crds: #HELP Generate OpenShift CRDs for openshift controller unit tests (ClusterOperator, ClusterVersion)
+	./scripts/generate_openshift_crds.sh
 
 .PHONY: codegen
 codegen: #HELP Generate clients, deepcopy, listers, and informers

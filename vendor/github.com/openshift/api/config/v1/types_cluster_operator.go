@@ -9,18 +9,30 @@ import (
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ClusterOperator is the Custom Resource object which holds the current state
-// of an operator. This object is used by operators to convey their state to
-// the rest of the cluster.
-//
+// ClusterOperator holds the status of a core or optional OpenShift component
+// managed by the Cluster Version Operator (CVO). This object is used by
+// operators to convey their state to the rest of the cluster.
 // Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
 // +openshift:compatibility-gen:level=1
+// +openshift:api-approved.openshift.io=https://github.com/openshift/api/pull/497
+// +openshift:file-pattern=cvoRunLevel=0000_00,operatorName=cluster-version-operator,operatorOrdering=01
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:path=clusteroperators,scope=Cluster,shortName=co
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name=Version,JSONPath=.status.versions[?(@.name=="operator")].version,type=string,description=The version the operator is at.
+// +kubebuilder:printcolumn:name=Available,JSONPath=.status.conditions[?(@.type=="Available")].status,type=string,description=Whether the operator is running and stable.
+// +kubebuilder:printcolumn:name=Progressing,JSONPath=.status.conditions[?(@.type=="Progressing")].status,type=string,description=Whether the operator is processing changes.
+// +kubebuilder:printcolumn:name=Degraded,JSONPath=.status.conditions[?(@.type=="Degraded")].status,type=string,description=Whether the operator is degraded.
+// +kubebuilder:printcolumn:name=Since,JSONPath=.status.conditions[?(@.type=="Available")].lastTransitionTime,type=date,description=The time the operator's Available status last changed.
+// +kubebuilder:metadata:annotations=include.release.openshift.io/self-managed-high-availability=true
 type ClusterOperator struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+
+	// metadata is the standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	metav1.ObjectMeta `json:"metadata"`
 
 	// spec holds configuration that could apply to any operator.
-	// +kubebuilder:validation:Required
 	// +required
 	Spec ClusterOperatorSpec `json:"spec"`
 
@@ -40,6 +52,8 @@ type ClusterOperatorStatus struct {
 	// conditions describes the state of the operator's managed and monitored components.
 	// +patchMergeKey=type
 	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
 	// +optional
 	Conditions []ClusterOperatorStatusCondition `json:"conditions,omitempty"  patchStrategy:"merge" patchMergeKey:"type"`
 
@@ -66,14 +80,12 @@ type ClusterOperatorStatus struct {
 
 type OperandVersion struct {
 	// name is the name of the particular operand this version is for.  It usually matches container images, not operators.
-	// +kubebuilder:validation:Required
 	// +required
 	Name string `json:"name"`
 
 	// version indicates which version of a particular operand is currently being managed.  It must always match the Available
 	// operand.  If 1.0.0 is Available, then this must indicate 1.0.0 even if the operator is trying to rollout
 	// 1.1.0
-	// +kubebuilder:validation:Required
 	// +required
 	Version string `json:"version"`
 }
@@ -81,18 +93,15 @@ type OperandVersion struct {
 // ObjectReference contains enough information to let you inspect or modify the referred object.
 type ObjectReference struct {
 	// group of the referent.
-	// +kubebuilder:validation:Required
 	// +required
 	Group string `json:"group"`
 	// resource of the referent.
-	// +kubebuilder:validation:Required
 	// +required
 	Resource string `json:"resource"`
 	// namespace of the referent.
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
 	// name of the referent.
-	// +kubebuilder:validation:Required
 	// +required
 	Name string `json:"name"`
 }
@@ -114,17 +123,14 @@ const (
 // +k8s:deepcopy-gen=true
 type ClusterOperatorStatusCondition struct {
 	// type specifies the aspect reported by this condition.
-	// +kubebuilder:validation:Required
 	// +required
 	Type ClusterStatusConditionType `json:"type"`
 
 	// status of the condition, one of True, False, Unknown.
-	// +kubebuilder:validation:Required
 	// +required
 	Status ConditionStatus `json:"status"`
 
 	// lastTransitionTime is the time of the last update to the current status property.
-	// +kubebuilder:validation:Required
 	// +required
 	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
 
@@ -147,15 +153,21 @@ const (
 	// is functional and available in the cluster. Available=False means at least
 	// part of the component is non-functional, and that the condition requires
 	// immediate administrator intervention.
+	// A component must not report Available=False during the course of a normal upgrade.
 	OperatorAvailable ClusterStatusConditionType = "Available"
 
 	// Progressing indicates that the component (operator and all configured operands)
-	// is actively rolling out new code, propagating config changes, or otherwise
+	// is actively rolling out new code, propagating config changes (e.g, a version change), or otherwise
 	// moving from one steady state to another. Operators should not report
-	// progressing when they are reconciling (without action) a previously known
-	// state. If the observed cluster state has changed and the component is
-	// reacting to it (scaling up for instance), Progressing should become true
+	// Progressing when they are reconciling (without action) a previously known
+	// state. Operators should not report Progressing only because DaemonSets owned by them
+	// are adjusting to a new node from cluster scaleup or a node rebooting from cluster upgrade.
+	// If the observed cluster state has changed and the component is
+	// reacting to it (updated proxy configuration for instance), Progressing should become true
 	// since it is moving from one steady state to another.
+	// A component in a cluster with less than 250 nodes must complete a version
+	// change within a limited period of time: 90 minutes for Machine Config Operator and 20 minutes for others.
+	// Machine Config Operator is given more time as it needs to restart control plane nodes.
 	OperatorProgressing ClusterStatusConditionType = "Progressing"
 
 	// Degraded indicates that the component (operator and all configured operands)
@@ -168,7 +180,7 @@ const (
 	// Degraded because it may have a lower quality of service. A component may be
 	// Progressing but not Degraded because the transition from one state to
 	// another does not persist over a long enough period to report Degraded. A
-	// component should not report Degraded during the course of a normal upgrade.
+	// component must not report Degraded during the course of a normal upgrade.
 	// A component may report Degraded in response to a persistent infrastructure
 	// failure that requires eventual administrator intervention.  For example, if
 	// a control plane host is unhealthy and must be replaced. A component should
@@ -204,6 +216,9 @@ const (
 // +openshift:compatibility-gen:level=1
 type ClusterOperatorList struct {
 	metav1.TypeMeta `json:",inline"`
+
+	// metadata is the standard list's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	metav1.ListMeta `json:"metadata"`
 
 	Items []ClusterOperator `json:"items"`

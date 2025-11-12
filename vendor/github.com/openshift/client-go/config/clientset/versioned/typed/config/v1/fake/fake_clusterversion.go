@@ -3,115 +3,33 @@
 package fake
 
 import (
-	"context"
-
-	configv1 "github.com/openshift/api/config/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	v1 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/client-go/config/applyconfigurations/config/v1"
+	typedconfigv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeClusterVersions implements ClusterVersionInterface
-type FakeClusterVersions struct {
+// fakeClusterVersions implements ClusterVersionInterface
+type fakeClusterVersions struct {
+	*gentype.FakeClientWithListAndApply[*v1.ClusterVersion, *v1.ClusterVersionList, *configv1.ClusterVersionApplyConfiguration]
 	Fake *FakeConfigV1
 }
 
-var clusterversionsResource = schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "clusterversions"}
-
-var clusterversionsKind = schema.GroupVersionKind{Group: "config.openshift.io", Version: "v1", Kind: "ClusterVersion"}
-
-// Get takes name of the clusterVersion, and returns the corresponding clusterVersion object, and an error if there is any.
-func (c *FakeClusterVersions) Get(ctx context.Context, name string, options v1.GetOptions) (result *configv1.ClusterVersion, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(clusterversionsResource, name), &configv1.ClusterVersion{})
-	if obj == nil {
-		return nil, err
+func newFakeClusterVersions(fake *FakeConfigV1) typedconfigv1.ClusterVersionInterface {
+	return &fakeClusterVersions{
+		gentype.NewFakeClientWithListAndApply[*v1.ClusterVersion, *v1.ClusterVersionList, *configv1.ClusterVersionApplyConfiguration](
+			fake.Fake,
+			"",
+			v1.SchemeGroupVersion.WithResource("clusterversions"),
+			v1.SchemeGroupVersion.WithKind("ClusterVersion"),
+			func() *v1.ClusterVersion { return &v1.ClusterVersion{} },
+			func() *v1.ClusterVersionList { return &v1.ClusterVersionList{} },
+			func(dst, src *v1.ClusterVersionList) { dst.ListMeta = src.ListMeta },
+			func(list *v1.ClusterVersionList) []*v1.ClusterVersion { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1.ClusterVersionList, items []*v1.ClusterVersion) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*configv1.ClusterVersion), err
-}
-
-// List takes label and field selectors, and returns the list of ClusterVersions that match those selectors.
-func (c *FakeClusterVersions) List(ctx context.Context, opts v1.ListOptions) (result *configv1.ClusterVersionList, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(clusterversionsResource, clusterversionsKind, opts), &configv1.ClusterVersionList{})
-	if obj == nil {
-		return nil, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &configv1.ClusterVersionList{ListMeta: obj.(*configv1.ClusterVersionList).ListMeta}
-	for _, item := range obj.(*configv1.ClusterVersionList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested clusterVersions.
-func (c *FakeClusterVersions) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(clusterversionsResource, opts))
-}
-
-// Create takes the representation of a clusterVersion and creates it.  Returns the server's representation of the clusterVersion, and an error, if there is any.
-func (c *FakeClusterVersions) Create(ctx context.Context, clusterVersion *configv1.ClusterVersion, opts v1.CreateOptions) (result *configv1.ClusterVersion, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(clusterversionsResource, clusterVersion), &configv1.ClusterVersion{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*configv1.ClusterVersion), err
-}
-
-// Update takes the representation of a clusterVersion and updates it. Returns the server's representation of the clusterVersion, and an error, if there is any.
-func (c *FakeClusterVersions) Update(ctx context.Context, clusterVersion *configv1.ClusterVersion, opts v1.UpdateOptions) (result *configv1.ClusterVersion, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(clusterversionsResource, clusterVersion), &configv1.ClusterVersion{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*configv1.ClusterVersion), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeClusterVersions) UpdateStatus(ctx context.Context, clusterVersion *configv1.ClusterVersion, opts v1.UpdateOptions) (*configv1.ClusterVersion, error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(clusterversionsResource, "status", clusterVersion), &configv1.ClusterVersion{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*configv1.ClusterVersion), err
-}
-
-// Delete takes name of the clusterVersion and deletes it. Returns an error if one occurs.
-func (c *FakeClusterVersions) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(clusterversionsResource, name, opts), &configv1.ClusterVersion{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeClusterVersions) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(clusterversionsResource, listOpts)
-
-	_, err := c.Fake.Invokes(action, &configv1.ClusterVersionList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched clusterVersion.
-func (c *FakeClusterVersions) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *configv1.ClusterVersion, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(clusterversionsResource, name, pt, data, subresources...), &configv1.ClusterVersion{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*configv1.ClusterVersion), err
 }

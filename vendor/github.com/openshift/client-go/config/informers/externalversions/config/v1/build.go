@@ -3,13 +3,13 @@
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	configv1 "github.com/openshift/api/config/v1"
+	apiconfigv1 "github.com/openshift/api/config/v1"
 	versioned "github.com/openshift/client-go/config/clientset/versioned"
 	internalinterfaces "github.com/openshift/client-go/config/informers/externalversions/internalinterfaces"
-	v1 "github.com/openshift/client-go/config/listers/config/v1"
+	configv1 "github.com/openshift/client-go/config/listers/config/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // Builds.
 type BuildInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.BuildLister
+	Lister() configv1.BuildLister
 }
 
 type buildInformer struct {
@@ -45,16 +45,28 @@ func NewFilteredBuildInformer(client versioned.Interface, resyncPeriod time.Dura
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ConfigV1().Builds().List(context.TODO(), options)
+				return client.ConfigV1().Builds().List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ConfigV1().Builds().Watch(context.TODO(), options)
+				return client.ConfigV1().Builds().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ConfigV1().Builds().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ConfigV1().Builds().Watch(ctx, options)
 			},
 		},
-		&configv1.Build{},
+		&apiconfigv1.Build{},
 		resyncPeriod,
 		indexers,
 	)
@@ -65,9 +77,9 @@ func (f *buildInformer) defaultInformer(client versioned.Interface, resyncPeriod
 }
 
 func (f *buildInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&configv1.Build{}, f.defaultInformer)
+	return f.factory.InformerFor(&apiconfigv1.Build{}, f.defaultInformer)
 }
 
-func (f *buildInformer) Lister() v1.BuildLister {
-	return v1.NewBuildLister(f.Informer().GetIndexer())
+func (f *buildInformer) Lister() configv1.BuildLister {
+	return configv1.NewBuildLister(f.Informer().GetIndexer())
 }

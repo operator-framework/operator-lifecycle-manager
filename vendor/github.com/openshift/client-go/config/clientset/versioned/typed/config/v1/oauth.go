@@ -3,15 +3,15 @@
 package v1
 
 import (
-	"context"
-	"time"
+	context "context"
 
-	v1 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/api/config/v1"
+	applyconfigurationsconfigv1 "github.com/openshift/client-go/config/applyconfigurations/config/v1"
 	scheme "github.com/openshift/client-go/config/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // OAuthsGetter has a method to return a OAuthInterface.
@@ -22,147 +22,37 @@ type OAuthsGetter interface {
 
 // OAuthInterface has methods to work with OAuth resources.
 type OAuthInterface interface {
-	Create(ctx context.Context, oAuth *v1.OAuth, opts metav1.CreateOptions) (*v1.OAuth, error)
-	Update(ctx context.Context, oAuth *v1.OAuth, opts metav1.UpdateOptions) (*v1.OAuth, error)
-	UpdateStatus(ctx context.Context, oAuth *v1.OAuth, opts metav1.UpdateOptions) (*v1.OAuth, error)
+	Create(ctx context.Context, oAuth *configv1.OAuth, opts metav1.CreateOptions) (*configv1.OAuth, error)
+	Update(ctx context.Context, oAuth *configv1.OAuth, opts metav1.UpdateOptions) (*configv1.OAuth, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+	UpdateStatus(ctx context.Context, oAuth *configv1.OAuth, opts metav1.UpdateOptions) (*configv1.OAuth, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.OAuth, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.OAuthList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*configv1.OAuth, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*configv1.OAuthList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.OAuth, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *configv1.OAuth, err error)
+	Apply(ctx context.Context, oAuth *applyconfigurationsconfigv1.OAuthApplyConfiguration, opts metav1.ApplyOptions) (result *configv1.OAuth, err error)
+	// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+	ApplyStatus(ctx context.Context, oAuth *applyconfigurationsconfigv1.OAuthApplyConfiguration, opts metav1.ApplyOptions) (result *configv1.OAuth, err error)
 	OAuthExpansion
 }
 
 // oAuths implements OAuthInterface
 type oAuths struct {
-	client rest.Interface
+	*gentype.ClientWithListAndApply[*configv1.OAuth, *configv1.OAuthList, *applyconfigurationsconfigv1.OAuthApplyConfiguration]
 }
 
 // newOAuths returns a OAuths
 func newOAuths(c *ConfigV1Client) *oAuths {
 	return &oAuths{
-		client: c.RESTClient(),
+		gentype.NewClientWithListAndApply[*configv1.OAuth, *configv1.OAuthList, *applyconfigurationsconfigv1.OAuthApplyConfiguration](
+			"oauths",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			"",
+			func() *configv1.OAuth { return &configv1.OAuth{} },
+			func() *configv1.OAuthList { return &configv1.OAuthList{} },
+		),
 	}
-}
-
-// Get takes name of the oAuth, and returns the corresponding oAuth object, and an error if there is any.
-func (c *oAuths) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.OAuth, err error) {
-	result = &v1.OAuth{}
-	err = c.client.Get().
-		Resource("oauths").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of OAuths that match those selectors.
-func (c *oAuths) List(ctx context.Context, opts metav1.ListOptions) (result *v1.OAuthList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v1.OAuthList{}
-	err = c.client.Get().
-		Resource("oauths").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested oAuths.
-func (c *oAuths) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Resource("oauths").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a oAuth and creates it.  Returns the server's representation of the oAuth, and an error, if there is any.
-func (c *oAuths) Create(ctx context.Context, oAuth *v1.OAuth, opts metav1.CreateOptions) (result *v1.OAuth, err error) {
-	result = &v1.OAuth{}
-	err = c.client.Post().
-		Resource("oauths").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(oAuth).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a oAuth and updates it. Returns the server's representation of the oAuth, and an error, if there is any.
-func (c *oAuths) Update(ctx context.Context, oAuth *v1.OAuth, opts metav1.UpdateOptions) (result *v1.OAuth, err error) {
-	result = &v1.OAuth{}
-	err = c.client.Put().
-		Resource("oauths").
-		Name(oAuth.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(oAuth).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *oAuths) UpdateStatus(ctx context.Context, oAuth *v1.OAuth, opts metav1.UpdateOptions) (result *v1.OAuth, err error) {
-	result = &v1.OAuth{}
-	err = c.client.Put().
-		Resource("oauths").
-		Name(oAuth.Name).
-		SubResource("status").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(oAuth).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the oAuth and deletes it. Returns an error if one occurs.
-func (c *oAuths) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
-	return c.client.Delete().
-		Resource("oauths").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *oAuths) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Resource("oauths").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched oAuth.
-func (c *oAuths) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.OAuth, err error) {
-	result = &v1.OAuth{}
-	err = c.client.Patch(pt).
-		Resource("oauths").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }
