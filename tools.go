@@ -8,21 +8,24 @@
 package tools
 
 // The OLM API CRDs used as input to the code generators
-import _ "github.com/operator-framework/api/crds" // operators.coreos.com CRD manifests
-
-// mock-generation
-// These tools are referenced in //go:generate directives in the code
 import (
-	_ "github.com/golang/mock/mockgen"
+	_ "github.com/operator-framework/api/crds" // operators.coreos.com CRD manifests
+
+	// mock-generation
+	// These tools are referenced in //go:generate directives in the code
+
 	_ "github.com/maxbrunsfeld/counterfeiter/v6"
-)
 
-// k8s code generators
-// Kept in sync with the main module k8s libs
-// Ensure underlying commands are executable
-// Surface the k8s.io/code-generator/kube_codegen.sh script needed by scripts/update_codegen.sh
-import (
+	_ "go.uber.org/mock/mockgen"
+
+	// k8s code generators
+	// Kept in sync with the main module k8s libs
+	// Ensure underlying commands are executable
+	// Surface the k8s.io/code-generator/kube_codegen.sh script needed by scripts/update_codegen.sh
+
 	_ "k8s.io/code-generator"
+
 	_ "k8s.io/kube-openapi/cmd/openapi-gen"
+
 	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"
 )

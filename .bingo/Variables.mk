@@ -29,11 +29,11 @@ $(GOLANGCI_LINT): $(BINGO_DIR)/golangci-lint.mod
 	@echo "(re)installing $(GOBIN)/golangci-lint-v1.64.8"
 	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=golangci-lint.mod -o=$(GOBIN)/golangci-lint-v1.64.8 "github.com/golangci/golangci-lint/cmd/golangci-lint"
 
-HELM := $(GOBIN)/helm-v3.18.3
+HELM := $(GOBIN)/helm-v3.19.2
 $(HELM): $(BINGO_DIR)/helm.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/helm-v3.18.3"
-	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=helm.mod -o=$(GOBIN)/helm-v3.18.3 "helm.sh/helm/v3/cmd/helm"
+	@echo "(re)installing $(GOBIN)/helm-v3.19.2"
+	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=helm.mod -o=$(GOBIN)/helm-v3.19.2 "helm.sh/helm/v3/cmd/helm"
 
 KIND := $(GOBIN)/kind-v0.30.0
 $(KIND): $(BINGO_DIR)/kind.mod
@@ -47,9 +47,9 @@ $(SETUP_ENVTEST): $(BINGO_DIR)/setup-envtest.mod
 	@echo "(re)installing $(GOBIN)/setup-envtest-v0.0.0-20250620151452-b9a9ca01fd37"
 	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=setup-envtest.mod -o=$(GOBIN)/setup-envtest-v0.0.0-20250620151452-b9a9ca01fd37 "sigs.k8s.io/controller-runtime/tools/setup-envtest"
 
-YQ := $(GOBIN)/yq-v3.0.0-20201202084205-8846255d1c37
+YQ := $(GOBIN)/yq-v4.48.1
 $(YQ): $(BINGO_DIR)/yq.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/yq-v3.0.0-20201202084205-8846255d1c37"
-	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=yq.mod -o=$(GOBIN)/yq-v3.0.0-20201202084205-8846255d1c37 "github.com/mikefarah/yq/v3"
+	@echo "(re)installing $(GOBIN)/yq-v4.48.1"
+	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=yq.mod -o=$(GOBIN)/yq-v4.48.1 "github.com/mikefarah/yq/v4"
 
