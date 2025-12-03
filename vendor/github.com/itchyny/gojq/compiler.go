@@ -34,7 +34,6 @@ type Code struct {
 // a result iterator.
 //
 // It is safe to call this method in goroutines, to reuse a compiled [*Code].
-// But for arguments, do not give values sharing same data between goroutines.
 func (c *Code) Run(v any, values ...any) Iter {
 	return c.RunWithContext(context.Background(), v, values...)
 }
@@ -46,10 +45,7 @@ func (c *Code) RunWithContext(ctx context.Context, v any, values ...any) Iter {
 	} else if len(values) < len(c.variables) {
 		return NewIter(&expectedVariableError{c.variables[len(values)]})
 	}
-	for i, v := range values {
-		values[i] = normalizeNumbers(v)
-	}
-	return newEnv(ctx).execute(c, normalizeNumbers(v), values...)
+	return newEnv(ctx).execute(c, v, values...)
 }
 
 type scopeinfo struct {
@@ -160,7 +156,6 @@ func (c *compiler) compileImport(i *Import) error {
 		} else {
 			return fmt.Errorf("module not found: %q", path)
 		}
-		vals = normalizeNumbers(vals)
 		c.append(&code{op: oppush, v: vals})
 		c.append(&code{op: opstore, v: c.pushVariable(alias)})
 		c.append(&code{op: oppush, v: vals})
@@ -379,28 +374,16 @@ func (c *compiler) compileQuery(e *Query) error {
 			return err
 		}
 	}
-	if e.Func != "" {
-		switch e.Func {
-		case ".":
-			return c.compileTerm(&Term{Type: TermTypeIdentity})
-		case "..":
-			return c.compileTerm(&Term{Type: TermTypeRecurse})
-		case "null":
-			return c.compileTerm(&Term{Type: TermTypeNull})
-		case "true":
-			return c.compileTerm(&Term{Type: TermTypeTrue})
-		case "false":
-			return c.compileTerm(&Term{Type: TermTypeFalse})
-		default:
-			return c.compileFunc(&Func{Name: e.Func})
-		}
-	} else if e.Term != nil {
+	if e.Term != nil {
 		return c.compileTerm(e.Term)
 	}
 	switch e.Op {
 	case Operator(0):
 		return errors.New(`missing query (try ".")`)
 	case OpPipe:
+		if len(e.Patterns) > 0 {
+			return c.compileBind(e.Left, e.Right, e.Patterns)
+		}
 		if err := c.compileQuery(e.Left); err != nil {
 			return err
 		}
@@ -529,7 +512,7 @@ func (c *compiler) compileQueryUpdate(l, r *Query, op Operator) error {
 							Name: op.getFunc(),
 							Args: []*Query{
 								{Term: &Term{Type: TermTypeIdentity}},
-								{Func: name},
+								{Term: &Term{Type: TermTypeFunc, Func: &Func{Name: name}}},
 							},
 						},
 					}},
@@ -539,19 +522,19 @@ func (c *compiler) compileQueryUpdate(l, r *Query, op Operator) error {
 	}
 }
 
-func (c *compiler) compileBind(e *Term, b *Bind) error {
+func (c *compiler) compileBind(l, r *Query, patterns []*Pattern) error {
 	defer c.newScopeDepth()()
 	c.append(&code{op: opdup})
 	c.append(&code{op: opexpbegin})
-	if err := c.compileTerm(e); err != nil {
+	if err := c.compileQuery(l); err != nil {
 		return err
 	}
 	var pc int
 	var vs [][2]int
-	for i, p := range b.Patterns {
+	for i, p := range patterns {
 		var pcc int
 		var err error
-		if i < len(b.Patterns)-1 {
+		if i < len(patterns)-1 {
 			defer c.lazy(func() *code {
 				return &code{op: opforkalt, v: pcc}
 			})()
@@ -565,22 +548,22 @@ func (c *compiler) compileBind(e *Term, b *Bind) error {
 		if vs, err = c.compilePattern(vs[:0], p); err != nil {
 			return err
 		}
-		if i < len(b.Patterns)-1 {
+		if i < len(patterns)-1 {
 			defer c.lazy(func() *code {
 				return &code{op: opjump, v: pc}
 			})()
 			pcc = len(c.codes)
 		}
 	}
-	if len(b.Patterns) > 1 {
+	if len(patterns) > 1 {
 		pc = len(c.codes)
 	}
-	if len(b.Patterns) == 1 && c.codes[len(c.codes)-2].op == opexpbegin {
+	if len(patterns) == 1 && c.codes[len(c.codes)-2].op == opexpbegin {
 		c.codes[len(c.codes)-2].op = opnop
 	} else {
 		c.append(&code{op: opexpend})
 	}
-	return c.compileQuery(b.Body)
+	return c.compileQuery(r)
 }
 
 func (c *compiler) compilePattern(vs [][2]int, p *Pattern) ([][2]int, error) {
@@ -953,7 +936,7 @@ func (c *compiler) compileFunc(e *Func) error {
 				c.compileAssign()
 			case "_modify":
 				c.compileModify()
-			case "last":
+			case "_last":
 				c.compileLast()
 			}
 		}
@@ -1145,7 +1128,7 @@ func (c *compiler) compileModify() {
 // Appends the compiled code for the `last/1` function to
 // maximize performance avoiding unnecessary boxing.
 func (c *compiler) compileLast() {
-	defer c.appendBuiltin("last", 1)()
+	defer c.appendBuiltin("_last", 1)()
 	scope := c.newScope()
 	v, g, x := [2]int{scope.id, 0}, [2]int{scope.id, 1}, [2]int{scope.id, 2}
 	c.appends(
@@ -1218,7 +1201,7 @@ func (c *compiler) funcInput(any, []any) any {
 	if !ok {
 		return errors.New("break")
 	}
-	return normalizeNumbers(v)
+	return v
 }
 
 func (c *compiler) funcModulemeta(v any, _ []any) any {
@@ -1317,7 +1300,7 @@ func (c *compiler) compileObject(e *Object) error {
 	if pc+l*3+1 != len(c.codes) {
 		return nil
 	}
-	for i := 0; i < l; i++ {
+	for i := range l {
 		if c.codes[pc+i*3].op != oppush ||
 			c.codes[pc+i*3+1].op != opload ||
 			c.codes[pc+i*3+2].op != opconst {
@@ -1325,7 +1308,7 @@ func (c *compiler) compileObject(e *Object) error {
 		}
 	}
 	w := make(map[string]any, l)
-	for i := 0; i < l; i++ {
+	for i := range l {
 		w[c.codes[pc+i*3].v.(string)] = c.codes[pc+i*3+2].v
 	}
 	c.codes[pc-1] = &code{op: opconst, v: w}
@@ -1417,7 +1400,7 @@ func (c *compiler) compileArray(e *Array) error {
 		return nil
 	}
 	l := (len(c.codes) - pc - 3) / 3
-	for i := 0; i < l; i++ {
+	for i := range l {
 		if c.codes[pc+i].op != opfork ||
 			c.codes[pc+i*2+l].op != opconst ||
 			(i < l-1 && c.codes[pc+i*2+l+1].op != opjump) {
@@ -1425,7 +1408,7 @@ func (c *compiler) compileArray(e *Array) error {
 		}
 	}
 	v := make([]any, l)
-	for i := 0; i < l; i++ {
+	for i := range l {
 		v[i] = c.codes[pc+i*2+l].v
 	}
 	c.codes[pc-2] = &code{op: opconst, v: v}
@@ -1536,8 +1519,6 @@ func (c *compiler) compileTermSuffix(e *Term, s *Suffix) error {
 			}
 		}
 		return c.compileTry(&Try{Body: &Query{Term: e}})
-	} else if s.Bind != nil {
-		return c.compileBind(e, s.Bind)
 	} else {
 		return fmt.Errorf("invalid suffix: %s", s)
 	}
@@ -1656,33 +1637,33 @@ func (c *compiler) optimizeTailRec() {
 	var pcs []int
 	scopes := map[int]bool{}
 L:
-	for i, l := 0, len(c.codes); i < l; i++ {
-		switch c.codes[i].op {
+	for i, code := range c.codes {
+		switch code.op {
 		case opscope:
 			pcs = append(pcs, i)
-			if v := c.codes[i].v.([3]int); v[2] == 0 {
+			if v := code.v.([3]int); v[2] == 0 {
 				scopes[i] = v[1] == 0
 			}
 		case opcall:
 			var canjump bool
-			if j, ok := c.codes[i].v.(int); !ok ||
+			if j, ok := code.v.(int); !ok ||
 				len(pcs) == 0 || pcs[len(pcs)-1] != j {
 				break
 			} else if canjump, ok = scopes[j]; !ok {
 				break
 			}
-			for j := i + 1; j < l; {
+			for j := i + 1; j < len(c.codes); {
 				switch c.codes[j].op {
 				case opjump:
 					j = c.codes[j].v.(int)
 				case opret:
 					if canjump {
-						c.codes[i].op = opjump
-						c.codes[i].v = pcs[len(pcs)-1] + 1
+						code.op = opjump
+						code.v = pcs[len(pcs)-1] + 1
 					} else {
-						c.codes[i].op = opcallrec
+						code.op = opcallrec
 					}
-					continue L
+					fallthrough
 				default:
 					continue L
 				}

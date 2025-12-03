@@ -1,7 +1,6 @@
 package timefmt
 
 import (
-	"math"
 	"strconv"
 	"time"
 )
@@ -14,7 +13,7 @@ func Format(t time.Time, format string) string {
 // AppendFormat appends formatted time string to the buffer.
 func AppendFormat(buf []byte, t time.Time, format string) []byte {
 	year, month, day := t.Date()
-	hour, min, sec := t.Clock()
+	hour, minute, second := t.Clock()
 	var width, colons int
 	var padding byte
 	var pending string
@@ -69,20 +68,12 @@ func AppendFormat(buf []byte, t time.Time, format string) []byte {
 				goto L
 			case '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				width = int(b & 0x0F)
-				const maxWidth = 1024
 				for i++; i < len(format); i++ {
-					b = format[i]
-					if b <= '9' && '0' <= b {
-						width = width*10 + int(b&0x0F)
-						if width >= math.MaxInt/10 {
-							width = maxWidth
-						}
+					if b = format[i]; b <= '9' && '0' <= b {
+						width = min(width*10+int(b&0x0F), 1024)
 					} else {
 						break
 					}
-				}
-				if width > maxWidth {
-					width = maxWidth
 				}
 				if padding == ^paddingMask {
 					padding = ' ' | ^paddingMask
@@ -92,37 +83,19 @@ func AppendFormat(buf []byte, t time.Time, format string) []byte {
 				}
 				goto L
 			case 'Y':
-				if width == 0 {
-					width = 4
-				}
-				buf = appendInt(buf, year, width, padding)
+				buf = appendInt(buf, year, or(width, 4), padding)
 			case 'y':
-				if width < 2 {
-					width = 2
-				}
-				buf = appendInt(buf, year%100, width, padding)
+				buf = appendInt(buf, year%100, max(width, 2), padding)
 			case 'C':
-				if width < 2 {
-					width = 2
-				}
-				buf = appendInt(buf, year/100, width, padding)
+				buf = appendInt(buf, year/100, max(width, 2), padding)
 			case 'g':
-				if width < 2 {
-					width = 2
-				}
 				year, _ := t.ISOWeek()
-				buf = appendInt(buf, year%100, width, padding)
+				buf = appendInt(buf, year%100, max(width, 2), padding)
 			case 'G':
-				if width == 0 {
-					width = 4
-				}
 				year, _ := t.ISOWeek()
-				buf = appendInt(buf, year, width, padding)
+				buf = appendInt(buf, year, or(width, 4), padding)
 			case 'm':
-				if width < 2 {
-					width = 2
-				}
-				buf = appendInt(buf, int(month), width, padding)
+				buf = appendInt(buf, int(month), max(width, 2), padding)
 			case 'B':
 				buf = appendString(buf, longMonthNames[month-1], width, padding, upper, swap)
 			case 'b', 'h':
@@ -134,74 +107,43 @@ func AppendFormat(buf []byte, t time.Time, format string) []byte {
 			case 'w':
 				buf = appendInt(buf, int(t.Weekday()), width, padding)
 			case 'u':
-				w := int(t.Weekday())
-				if w == 0 {
-					w = 7
-				}
-				buf = appendInt(buf, w, width, padding)
+				buf = appendInt(buf, or(int(t.Weekday()), 7), width, padding)
 			case 'V':
-				if width < 2 {
-					width = 2
-				}
 				_, week := t.ISOWeek()
-				buf = appendInt(buf, week, width, padding)
+				buf = appendInt(buf, week, max(width, 2), padding)
 			case 'U':
-				if width < 2 {
-					width = 2
-				}
 				week := (t.YearDay() + 6 - int(t.Weekday())) / 7
-				buf = appendInt(buf, week, width, padding)
+				buf = appendInt(buf, week, max(width, 2), padding)
 			case 'W':
-				if width < 2 {
-					width = 2
-				}
 				week := t.YearDay()
 				if int(t.Weekday()) > 0 {
 					week -= int(t.Weekday()) - 7
 				}
 				week /= 7
-				buf = appendInt(buf, week, width, padding)
+				buf = appendInt(buf, week, max(width, 2), padding)
 			case 'e':
 				if padding < ^paddingMask {
 					padding = ' '
 				}
 				fallthrough
 			case 'd':
-				if width < 2 {
-					width = 2
-				}
-				buf = appendInt(buf, day, width, padding)
+				buf = appendInt(buf, day, max(width, 2), padding)
 			case 'j':
-				if width < 3 {
-					width = 3
-				}
-				buf = appendInt(buf, t.YearDay(), width, padding)
+				buf = appendInt(buf, t.YearDay(), max(width, 3), padding)
 			case 'k':
 				if padding < ^paddingMask {
 					padding = ' '
 				}
 				fallthrough
 			case 'H':
-				if width < 2 {
-					width = 2
-				}
-				buf = appendInt(buf, hour, width, padding)
+				buf = appendInt(buf, hour, max(width, 2), padding)
 			case 'l':
 				if padding < ^paddingMask {
 					padding = ' '
 				}
 				fallthrough
 			case 'I':
-				if width < 2 {
-					width = 2
-				}
-				h := hour
-				if h > 12 {
-					h -= 12
-				} else if h == 0 {
-					h = 12
-				}
-				buf = appendInt(buf, h, width, padding)
+				buf = appendInt(buf, or(hour%12, 12), max(width, 2), padding)
 			case 'P':
 				swap = !(upper || swap)
 				fallthrough
@@ -212,25 +154,16 @@ func AppendFormat(buf []byte, t time.Time, format string) []byte {
 					buf = appendString(buf, "PM", width, padding, upper, swap)
 				}
 			case 'M':
-				if width < 2 {
-					width = 2
-				}
-				buf = appendInt(buf, min, width, padding)
+				buf = appendInt(buf, minute, max(width, 2), padding)
 			case 'S':
-				if width < 2 {
-					width = 2
-				}
-				buf = appendInt(buf, sec, width, padding)
+				buf = appendInt(buf, second, max(width, 2), padding)
 			case 's':
 				if padding < ^paddingMask {
 					padding = ' '
 				}
 				buf = appendInt(buf, int(t.Unix()), width, padding)
 			case 'f':
-				if width == 0 {
-					width = 6
-				}
-				buf = appendInt(buf, t.Nanosecond()/1000, width, padding)
+				buf = appendInt(buf, t.Nanosecond()/1000, or(width, 6), padding)
 			case 'Z', 'z':
 				name, offset := t.Zone()
 				if b == 'Z' && name != "" {
@@ -266,19 +199,11 @@ func AppendFormat(buf []byte, t time.Time, format string) []byte {
 					}
 				}
 				colons = 0
-				if i != j {
-					l := len(buf)
-					k = j + 1 - (l - j)
-					if k < i {
-						l = j + 1 + i - k
-						k = i
-					} else {
-						l = j + 1
-					}
-					copy(buf[k:], buf[j:])
-					buf = buf[:l]
+				if k = min(len(buf)-j-1, j-i); k > 0 {
+					copy(buf[j-k:], buf[j:])
+					buf = buf[:len(buf)-k]
 					if padding&paddingMask == '0' {
-						buf[i], buf[k] = buf[k], buf[i]
+						buf[i], buf[j-k] = buf[j-k], buf[i]
 					}
 				}
 			case ':':
@@ -373,19 +298,11 @@ func appendInt(buf []byte, num, width int, padding byte) []byte {
 			}
 			j := len(buf)
 			buf = strconv.AppendInt(buf, int64(num), 10)
-			l := len(buf)
-			if j+1 == l || i == j {
-				return buf
+			if k := min(len(buf)-j-1, j-i); k > 0 {
+				copy(buf[j-k:], buf[j:])
+				buf = buf[:len(buf)-k]
 			}
-			k := j + 1 - (l - j)
-			if k < i {
-				l = j + 1 + i - k
-				k = i
-			} else {
-				l = j + 1
-			}
-			copy(buf[k:], buf[j:])
-			return buf[:l]
+			return buf
 		}
 	}
 	if num < 100 {
@@ -451,6 +368,13 @@ func appendLast(buf []byte, format string, width int, padding byte) []byte {
 		}
 	}
 	return buf
+}
+
+func or(x, y int) int {
+	if x != 0 {
+		return x
+	}
+	return y
 }
 
 const paddingMask byte = 0x7F

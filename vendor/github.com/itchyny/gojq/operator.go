@@ -1,6 +1,8 @@
 package gojq
 
 import (
+	"encoding/json"
+	"maps"
 	"math"
 	"math/big"
 	"strings"
@@ -154,19 +156,15 @@ func (op Operator) GoString() (str string) {
 
 func (op Operator) getFunc() string {
 	switch op {
-	case OpPipe:
-		panic("unreachable")
-	case OpComma:
-		panic("unreachable")
-	case OpAdd:
+	case OpAdd, OpUpdateAdd:
 		return "_add"
-	case OpSub:
+	case OpSub, OpUpdateSub:
 		return "_subtract"
-	case OpMul:
+	case OpMul, OpUpdateMul:
 		return "_multiply"
-	case OpDiv:
+	case OpDiv, OpUpdateDiv:
 		return "_divide"
-	case OpMod:
+	case OpMod, OpUpdateMod:
 		return "_modulo"
 	case OpEq:
 		return "_equal"
@@ -180,26 +178,10 @@ func (op Operator) getFunc() string {
 		return "_greatereq"
 	case OpLe:
 		return "_lesseq"
-	case OpAnd:
-		panic("unreachable")
-	case OpOr:
-		panic("unreachable")
-	case OpAlt:
-		panic("unreachable")
 	case OpAssign:
 		return "_assign"
 	case OpModify:
 		return "_modify"
-	case OpUpdateAdd:
-		return "_add"
-	case OpUpdateSub:
-		return "_subtract"
-	case OpUpdateMul:
-		return "_multiply"
-	case OpUpdateDiv:
-		return "_divide"
-	case OpUpdateMod:
-		return "_modulo"
 	case OpUpdateAlt:
 		return "_alternative"
 	default:
@@ -207,15 +189,21 @@ func (op Operator) getFunc() string {
 	}
 }
 
-func binopTypeSwitch(
+func binopTypeSwitch[T any](
 	l, r any,
-	callbackInts func(_, _ int) any,
-	callbackFloats func(_, _ float64) any,
-	callbackBigInts func(_, _ *big.Int) any,
-	callbackStrings func(_, _ string) any,
-	callbackArrays func(_, _ []any) any,
-	callbackMaps func(_, _ map[string]any) any,
-	fallback func(_, _ any) any) any {
+	callbackInts func(_, _ int) T,
+	callbackFloats func(_, _ float64) T,
+	callbackBigInts func(_, _ *big.Int) T,
+	callbackStrings func(_, _ string) T,
+	callbackArrays func(_, _ []any) T,
+	callbackMaps func(_, _ map[string]any) T,
+	fallback func(_, _ any) T) T {
+	if n, ok := l.(json.Number); ok {
+		l = parseNumber(n)
+	}
+	if n, ok := r.(json.Number); ok {
+		r = parseNumber(n)
+	}
 	switch l := l.(type) {
 	case int:
 		switch r := r.(type) {
@@ -284,6 +272,8 @@ func funcOpPlus(v any) any {
 		return v
 	case *big.Int:
 		return v
+	case json.Number:
+		return v
 	default:
 		return &unaryTypeError{"plus", v}
 	}
@@ -297,6 +287,11 @@ func funcOpNegate(v any) any {
 		return -v
 	case *big.Int:
 		return new(big.Int).Neg(v)
+	case json.Number:
+		if strings.HasPrefix(v.String(), "-") {
+			return v[1:]
+		}
+		return "-" + v
 	default:
 		return &unaryTypeError{"negate", v}
 	}
@@ -334,12 +329,8 @@ func funcOpAdd(_, l, r any) any {
 				return l
 			}
 			m := make(map[string]any, len(l)+len(r))
-			for k, v := range l {
-				m[k] = v
-			}
-			for k, v := range r {
-				m[k] = v
-			}
+			maps.Copy(m, l)
+			maps.Copy(m, r)
 			return m
 		},
 		func(l, r any) any {
@@ -416,9 +407,7 @@ func funcOpMul(_, l, r any) any {
 
 func deepMergeObjects(l, r map[string]any) any {
 	m := make(map[string]any, len(l)+len(r))
-	for k, v := range l {
-		m[k] = v
-	}
+	maps.Copy(m, l)
 	for k, v := range r {
 		if mk, ok := m[k]; ok {
 			if mk, ok := mk.(map[string]any); ok {
@@ -433,11 +422,14 @@ func deepMergeObjects(l, r map[string]any) any {
 }
 
 func repeatString(s string, n float64) any {
-	if n < 0.0 || len(s) > 0 && n > float64(0x10000000/len(s)) || math.IsNaN(n) {
+	if n < 0.0 || math.IsNaN(n) {
 		return nil
 	}
 	if s == "" {
 		return ""
+	}
+	if n >= float64(math.MaxInt32/len(s)) {
+		return &repeatStringTooLargeError{s, n}
 	}
 	return strings.Repeat(s, int(n))
 }

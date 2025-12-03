@@ -1,4 +1,7 @@
 # Changelog
+## [v0.1.7](https://github.com/itchyny/timefmt-go/compare/v0.1.6..v0.1.7) (2025-10-01)
+* refactor code using built-in `min` and `max` functions
+
 ## [v0.1.6](https://github.com/itchyny/timefmt-go/compare/v0.1.5..v0.1.6) (2024-06-01)
 * support parsing week directives (`%A`, `%a`, `%w`, `%u`, `%V`, `%U`, `%W`)
 * validate range of values on parsing directives
