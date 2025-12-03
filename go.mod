@@ -13,7 +13,7 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/google/go-cmp v0.7.0
 	github.com/itchyny/gojq v0.12.18
-	github.com/maxbrunsfeld/counterfeiter/v6 v6.12.0
+	github.com/maxbrunsfeld/counterfeiter/v6 v6.12.1
 	github.com/mitchellh/hashstructure v1.1.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/onsi/ginkgo/v2 v2.27.2
@@ -161,12 +161,12 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
-	golang.org/x/mod v0.29.0 // indirect
+	golang.org/x/mod v0.30.0 // indirect
 	golang.org/x/oauth2 v0.32.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
-	golang.org/x/tools v0.38.0 // indirect
+	golang.org/x/tools v0.39.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/genproto v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251022142026-3a174f9686a8 // indirect
