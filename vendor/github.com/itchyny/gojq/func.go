@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"math/big"
 	"net/url"
@@ -60,6 +61,7 @@ func init() {
 		"to_entries":     argFunc0(funcToEntries),
 		"from_entries":   argFunc0(funcFromEntries),
 		"add":            argFunc0(funcAdd),
+		"toboolean":      argFunc0(funcToBoolean),
 		"tonumber":       argFunc0(funcToNumber),
 		"tostring":       argFunc0(funcToString),
 		"type":           argFunc0(funcType),
@@ -72,6 +74,7 @@ func init() {
 		"endswith":       argFunc1(funcEndsWith),
 		"ltrimstr":       argFunc1(funcLtrimstr),
 		"rtrimstr":       argFunc1(funcRtrimstr),
+		"trimstr":        argFunc1(funcTrimstr),
 		"ltrim":          argFunc0(funcLtrim),
 		"rtrim":          argFunc0(funcRtrim),
 		"trim":           argFunc0(funcTrim),
@@ -293,6 +296,11 @@ func funcAbs(v any) any {
 			return v
 		}
 		return new(big.Int).Abs(v)
+	case json.Number:
+		if !strings.HasPrefix(v.String(), "-") {
+			return v
+		}
+		return v[1:]
 	default:
 		return &func0TypeError{"abs", v}
 	}
@@ -314,6 +322,11 @@ func funcLength(v any) any {
 			return v
 		}
 		return new(big.Int).Abs(v)
+	case json.Number:
+		if !strings.HasPrefix(v.String(), "-") {
+			return v
+		}
+		return v[1:]
 	case string:
 		return len([]rune(v))
 	case []any:
@@ -487,16 +500,10 @@ func funcAdd(v any) any {
 		case map[string]any:
 			switch w := v.(type) {
 			case nil:
-				m := make(map[string]any, len(x))
-				for k, e := range x {
-					m[k] = e
-				}
-				v = m
+				v = maps.Clone(x)
 				continue
 			case map[string]any:
-				for k, e := range x {
-					w[k] = e
-				}
+				maps.Copy(w, x)
 				continue
 			}
 		}
@@ -514,9 +521,27 @@ func funcAdd(v any) any {
 	return v
 }
 
+func funcToBoolean(v any) any {
+	switch v := v.(type) {
+	case bool:
+		return v
+	case string:
+		switch v {
+		case "true":
+			return true
+		case "false":
+			return false
+		default:
+			return &func0WrapError{"toboolean", v, errors.New("invalid boolean")}
+		}
+	default:
+		return &func0TypeError{"toboolean", v}
+	}
+}
+
 func funcToNumber(v any) any {
 	switch v := v.(type) {
-	case int, float64, *big.Int:
+	case int, float64, *big.Int, json.Number:
 		return v
 	case string:
 		if !newLexer(v).validNumber() {
@@ -529,7 +554,7 @@ func funcToNumber(v any) any {
 }
 
 func toNumber(v string) any {
-	return normalizeNumber(json.Number(v))
+	return parseNumber(json.Number(v))
 }
 
 func funcToString(v any) any {
@@ -602,7 +627,7 @@ func indices(vs, xs []any) any {
 	if len(xs) == 0 {
 		return rs
 	}
-	for i := 0; i <= len(vs)-len(xs); i++ {
+	for i := range len(vs) - len(xs) + 1 {
 		if Compare(vs[i:i+len(xs)], xs) == 0 {
 			rs = append(rs, i)
 		}
@@ -615,7 +640,7 @@ func funcIndex(v, x any) any {
 		if len(xs) == 0 {
 			return nil
 		}
-		for i := 0; i <= len(vs)-len(xs); i++ {
+		for i := range len(vs) - len(xs) + 1 {
 			if Compare(vs[i:i+len(xs)], xs) == 0 {
 				return i
 			}
@@ -705,6 +730,18 @@ func funcRtrimstr(v, x any) any {
 		return &func1TypeError{"rtrimstr", v, x}
 	}
 	return strings.TrimSuffix(s, t)
+}
+
+func funcTrimstr(v, x any) any {
+	s, ok := v.(string)
+	if !ok {
+		return &func1TypeError{"trimstr", v, x}
+	}
+	t, ok := x.(string)
+	if !ok {
+		return &func1TypeError{"trimstr", v, x}
+	}
+	return strings.TrimSuffix(strings.TrimPrefix(s, t), t)
 }
 
 func funcLtrim(v any) any {
@@ -848,7 +885,7 @@ func funcFromJSON(v any) any {
 	if _, err := dec.Token(); err != io.EOF {
 		return &func0TypeError{"fromjson", v}
 	}
-	return normalizeNumbers(w)
+	return w
 }
 
 func funcFormat(v, x any) any {
@@ -997,7 +1034,7 @@ func funcIndex2(_, v, x any) any {
 		default:
 			return &expectedObjectError{v}
 		}
-	case int, float64, *big.Int:
+	case int, float64, *big.Int, json.Number:
 		i, _ := toInt(x)
 		switch v := v.(type) {
 		case nil:
@@ -1087,7 +1124,7 @@ func slice(vs []any, e, s any) any {
 		}
 	}
 	if e != nil {
-		if i, ok := toInt(e); ok {
+		if i, ok := toIntCeil(e); ok {
 			end = clampIndex(i, start, len(vs))
 		} else {
 			return &arrayIndexNotNumberError{e}
@@ -1109,7 +1146,7 @@ func sliceString(v string, e, s any) any {
 		}
 	}
 	if e != nil {
-		if i, ok := toInt(e); ok {
+		if i, ok := toIntCeil(e); ok {
 			end = clampIndex(i, start, l)
 		} else {
 			return &stringIndexNotNumberError{e}
@@ -1140,16 +1177,16 @@ func sliceString(v string, e, s any) any {
 	return v[start:end]
 }
 
-func clampIndex(i, min, max int) int {
+func clampIndex(i, minimum, maximum int) int {
 	if i < 0 {
-		i += max
+		i += maximum
 	}
-	if i < min {
-		return min
-	} else if i < max {
+	if i < minimum {
+		return minimum
+	} else if i < maximum {
 		return i
 	} else {
-		return max
+		return maximum
 	}
 }
 
@@ -1200,7 +1237,7 @@ func (iter *rangeIter) Next() (any, bool) {
 func funcRange(_ any, xs []any) any {
 	for _, x := range xs {
 		switch x.(type) {
-		case int, float64, *big.Int:
+		case int, float64, *big.Int, json.Number:
 		default:
 			return &func0TypeError{"range", x}
 		}
@@ -1380,7 +1417,7 @@ func funcJoin(v, x any) any {
 			} else {
 				ss[i] = "false"
 			}
-		case int, float64, *big.Int:
+		case int, float64, *big.Int, json.Number:
 			ss[i] = jsonMarshal(v)
 		default:
 			return &joinTypeError{v}
@@ -1585,7 +1622,7 @@ func update(v any, path []any, n any, a allocator) (any, error) {
 		default:
 			return nil, &expectedObjectError{v}
 		}
-	case int, float64, *big.Int:
+	case int, float64, *big.Int, json.Number:
 		i, _ := toInt(p)
 		switch v := v.(type) {
 		case nil:
@@ -1632,9 +1669,7 @@ func updateObject(v map[string]any, k string, path []any, n any, a allocator) (a
 		return v, nil
 	}
 	w := a.makeObject(len(v) + 1)
-	for k, v := range v {
-		w[k] = v
-	}
+	maps.Copy(w, v)
 	w[k] = u
 	return w, nil
 }
@@ -1653,7 +1688,7 @@ func updateArrayIndex(v []any, i int, path []any, n any, a allocator) (any, erro
 		if n == struct{}{} {
 			return v, nil
 		}
-		if i >= 0x8000000 {
+		if i >= 0x20000000 {
 			return nil, &arrayIndexTooLargeError{i}
 		}
 	}
@@ -2043,7 +2078,6 @@ func compileRegexp(re, flags string) (*regexp.Regexp, error) {
 	}) >= 0 {
 		return nil, fmt.Errorf("unsupported regular expression flag: %q", flags)
 	}
-	re = strings.ReplaceAll(re, "(?<", "(?P<")
 	if strings.ContainsRune(flags, 'i') {
 		re = "(?i)" + re
 	}
@@ -2116,9 +2150,18 @@ func toInt(x any) (int, bool) {
 			return math.MaxInt, true
 		}
 		return math.MinInt, true
+	case json.Number:
+		return toInt(parseNumber(x))
 	default:
 		return 0, false
 	}
+}
+
+func toIntCeil(x any) (int, bool) {
+	if f, ok := x.(float64); ok {
+		x = math.Ceil(f)
+	}
+	return toInt(x)
 }
 
 func floatToInt(x float64) int {
@@ -2139,6 +2182,9 @@ func toFloat(x any) (float64, bool) {
 		return x, true
 	case *big.Int:
 		return bigToFloat(x), true
+	case json.Number:
+		v, err := x.Float64()
+		return v, err == nil
 	default:
 		return 0.0, false
 	}
@@ -2152,4 +2198,22 @@ func bigToFloat(x *big.Int) float64 {
 		return f
 	}
 	return math.Inf(x.Sign())
+}
+
+func parseNumber(v json.Number) any {
+	if i, err := v.Int64(); err == nil && math.MinInt <= i && i <= math.MaxInt {
+		return int(i)
+	}
+	if strings.ContainsAny(v.String(), ".eE") {
+		if f, err := v.Float64(); err == nil {
+			return f
+		}
+	}
+	if bi, ok := new(big.Int).SetString(v.String(), 10); ok {
+		return bi
+	}
+	if strings.HasPrefix(v.String(), "-") {
+		return math.Inf(-1)
+	}
+	return math.Inf(1)
 }
