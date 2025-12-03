@@ -10,7 +10,7 @@ jobs:
   check-vendor:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - uses: actions/setup-go@v6
       with:
         go-version-file: "go.mod"
@@ -19,7 +19,7 @@ jobs:
   static-analysis:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - uses: actions/setup-go@v6
       with:
         go-version-file: "go.mod"
@@ -28,7 +28,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
