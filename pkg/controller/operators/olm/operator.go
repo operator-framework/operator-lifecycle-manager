@@ -2388,6 +2388,44 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// Check if any generated resources are missing
 		if err := a.checkAPIServiceResources(out, certs.PEMSHA256); err != nil {
 			logger.WithError(err).Debug("API Resources are unavailable")
+
+			// CA hash mismatch errors indicate cert rotation is needed - these should NOT be
+			// intercepted by disruption detection. Let them proceed to the cert rotation logic below.
+			isCertRotationNeeded := strings.Contains(err.Error(), "CA cert hash does not match expected")
+
+			if !isCertRotationNeeded {
+				// Check if this error is due to expected pod disruption during cluster upgrade
+				// In single-replica topology environments, single-replica deployments may have brief unavailability
+				// Per OpenShift contract: "A component must not report Available=False during normal upgrade"
+				for _, desc := range out.GetOwnedAPIServiceDescriptions() {
+					if a.isAPIServiceBackendDisrupted(out, desc.GetName()) {
+						logger.WithError(err).Info("APIService resources unavailable due to pod disruption, requeueing without changing phase")
+						syncError = olmerrors.NewRetryableError(err)
+						return
+					}
+				}
+
+				// Additional check: "not found" errors may occur during lister cache sync after node reboot
+				// In single-replica topology upgrades, the informer cache may not have synced yet, causing "not found" errors
+				// for resources that actually exist.
+				// Since we're in the Succeeded phase, resources were previously available.
+				// If ServiceAccount returns "not found", it's likely a cache sync issue, not a real error.
+				if strings.Contains(err.Error(), "serviceaccount") && strings.Contains(err.Error(), "not found") {
+					logger.WithError(err).Info("ServiceAccount not found in Succeeded CSV (possible cache sync issue after node reboot), requeueing without changing phase")
+					syncError = olmerrors.NewRetryableError(err)
+					return
+				}
+
+				// For other "not found" errors, check if any deployment is rolling out
+				if strings.Contains(err.Error(), "not found") {
+					if a.hasAnyDeploymentInRollout(out) {
+						logger.WithError(err).Info("Resource not found during deployment rollout (possible cache sync issue), requeueing without changing phase")
+						syncError = olmerrors.NewRetryableError(err)
+						return
+					}
+				}
+			}
+
 			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonAPIServiceResourceIssue, err.Error(), now, a.recorder)
 			return
 		}

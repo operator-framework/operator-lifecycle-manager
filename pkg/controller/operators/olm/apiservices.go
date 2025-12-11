@@ -213,9 +213,27 @@ func (a *Operator) isAPIServiceBackendDisrupted(csv *v1alpha1.ClusterServiceVers
 		}
 
 		// Check if deployment is being updated or rolling out
-		if deployment.Status.UnavailableReplicas > 0 ||
-			deployment.Status.UpdatedReplicas < deployment.Status.Replicas {
-			a.logger.Debugf("Deployment %s has unavailable replicas, likely due to pod disruption", deploymentSpec.Name)
+		// This includes several scenarios:
+		// 1. UnavailableReplicas > 0: Some replicas are not ready
+		// 2. UpdatedReplicas < Replicas: Rollout in progress
+		// 3. Generation != ObservedGeneration: Spec changed but not yet observed
+		// 4. AvailableReplicas < desired: Not all replicas are available yet
+		desiredReplicas := int32(1)
+		if deployment.Spec.Replicas != nil {
+			desiredReplicas = *deployment.Spec.Replicas
+		}
+		isRollingOut := deployment.Status.UnavailableReplicas > 0 ||
+			deployment.Status.UpdatedReplicas < deployment.Status.Replicas ||
+			deployment.Generation != deployment.Status.ObservedGeneration ||
+			deployment.Status.AvailableReplicas < desiredReplicas
+
+		if isRollingOut {
+			a.logger.Debugf("Deployment %s is rolling out or has unavailable replicas (unavailable=%d, updated=%d/%d, available=%d/%d, generation=%d/%d), likely due to pod disruption",
+				deploymentSpec.Name,
+				deployment.Status.UnavailableReplicas,
+				deployment.Status.UpdatedReplicas, deployment.Status.Replicas,
+				deployment.Status.AvailableReplicas, desiredReplicas,
+				deployment.Status.ObservedGeneration, deployment.Generation)
 
 			// Check pod status to confirm disruption
 			selector, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
@@ -229,6 +247,20 @@ func (a *Operator) isAPIServiceBackendDisrupted(csv *v1alpha1.ClusterServiceVers
 				a.logger.Debugf("Error listing pods: %v", err)
 				continue
 			}
+
+			// For single-replica deployments during rollout, if no pods exist yet,
+			// this is likely the brief window where the old pod is gone and new pod
+			// hasn't been created yet. This is expected disruption during upgrade.
+			// According to the OpenShift contract: "A component must not report Available=False
+			// during the course of a normal upgrade."
+			if len(pods) == 0 && desiredReplicas == 1 && isRollingOut {
+				a.logger.Infof("Single-replica deployment %s is rolling out with no pods yet - expected disruption during upgrade, will not mark CSV as Failed", deploymentSpec.Name)
+				return true
+			}
+
+			// Track if we found any real failures or expected disruptions
+			foundExpectedDisruption := false
+			foundRealFailure := false
 
 			// Check if any pod is in expected disruption state
 			for _, pod := range pods {
@@ -244,7 +276,8 @@ func (a *Operator) isAPIServiceBackendDisrupted(csv *v1alpha1.ClusterServiceVers
 				// Pod is terminating (DeletionTimestamp is set)
 				if pod.DeletionTimestamp != nil {
 					a.logger.Debugf("Pod %s is terminating - expected disruption", pod.Name)
-					return true
+					foundExpectedDisruption = true
+					continue
 				}
 
 				// For pending pods, we need to distinguish between expected disruption
@@ -257,11 +290,20 @@ func (a *Operator) isAPIServiceBackendDisrupted(csv *v1alpha1.ClusterServiceVers
 					// Check pod conditions for scheduling issues
 					for _, condition := range pod.Status.Conditions {
 						if condition.Type == corev1.PodScheduled && condition.Status == corev1.ConditionFalse {
-							// If pod has been unschedulable for a while, it's likely a real issue
-							// not a temporary disruption from cluster upgrade
 							if condition.Reason == "Unschedulable" {
-								isRealFailure = true
-								a.logger.Debugf("Pod %s is unschedulable - not a temporary disruption", pod.Name)
+								// CRITICAL: In single-replica deployments during rollout, Unschedulable is EXPECTED
+								// due to PodAntiAffinity preventing new pod from scheduling while old pod is terminating.
+								// This is especially common in single-node clusters or control plane scenarios.
+								// Per OpenShift contract: "A component must not report Available=False during normal upgrade."
+								if desiredReplicas == 1 && isRollingOut {
+									a.logger.Infof("Pod %s is unschedulable during single-replica rollout - likely PodAntiAffinity conflict, treating as expected disruption", pod.Name)
+									isExpectedDisruption = true
+								} else {
+									// Multi-replica or non-rollout Unschedulable is a real issue
+									isRealFailure = true
+									foundRealFailure = true
+									a.logger.Debugf("Pod %s is unschedulable - not a temporary disruption", pod.Name)
+								}
 								break
 							}
 						}
@@ -278,6 +320,7 @@ func (a *Operator) isAPIServiceBackendDisrupted(csv *v1alpha1.ClusterServiceVers
 							case "ImagePullBackOff", "ErrImagePull", "CrashLoopBackOff", "CreateContainerConfigError", "InvalidImageName":
 								// These are real failures, not temporary disruptions
 								isRealFailure = true
+								foundRealFailure = true
 								a.logger.Debugf("Pod %s has container error %s - real failure, not disruption", pod.Name, reason)
 							}
 						}
@@ -292,6 +335,7 @@ func (a *Operator) isAPIServiceBackendDisrupted(csv *v1alpha1.ClusterServiceVers
 								isExpectedDisruption = true
 							case "ImagePullBackOff", "ErrImagePull", "CrashLoopBackOff", "CreateContainerConfigError", "InvalidImageName":
 								isRealFailure = true
+								foundRealFailure = true
 								a.logger.Debugf("Pod %s has init container error %s - real failure, not disruption", pod.Name, reason)
 							}
 						}
@@ -302,17 +346,19 @@ func (a *Operator) isAPIServiceBackendDisrupted(csv *v1alpha1.ClusterServiceVers
 						continue
 					}
 
-					// If it's in expected disruption state, return true
+					// If it's in expected disruption state, mark it
 					if isExpectedDisruption {
 						a.logger.Debugf("Pod %s is in expected disruption state", pod.Name)
-						return true
+						foundExpectedDisruption = true
+						continue
 					}
 
 					// If pending without clear container status, check if it's just being scheduled
 					// This could be normal pod creation during node drain
 					if len(pod.Status.ContainerStatuses) == 0 && len(pod.Status.InitContainerStatuses) == 0 {
 						a.logger.Debugf("Pod %s is pending without container statuses - likely being scheduled", pod.Name)
-						return true
+						foundExpectedDisruption = true
+						continue
 					}
 				}
 
@@ -323,14 +369,85 @@ func (a *Operator) isAPIServiceBackendDisrupted(csv *v1alpha1.ClusterServiceVers
 						switch reason {
 						case "ContainerCreating", "PodInitializing":
 							a.logger.Debugf("Pod %s container is starting - expected disruption", pod.Name)
-							return true
+							foundExpectedDisruption = true
 						case "ImagePullBackOff", "ErrImagePull", "CrashLoopBackOff":
 							// Real failures - don't treat as disruption
 							a.logger.Debugf("Pod %s has container error %s - not treating as disruption", pod.Name, reason)
+							foundRealFailure = true
 						}
 					}
 				}
 			}
+
+			// After checking all pods, make a decision
+			// If we found expected disruption and no real failures, treat as disruption
+			if foundExpectedDisruption && !foundRealFailure {
+				a.logger.Infof("Deployment %s has pods in expected disruption state - will not mark CSV as Failed per Available contract", deploymentSpec.Name)
+				return true
+			}
+
+			// For single-replica deployments during rollout, if we found no real failures,
+			// treat as expected disruption to comply with the OpenShift contract:
+			// "A component must not report Available=False during the course of a normal upgrade."
+			// Single-replica deployments inherently have unavailability during rollout,
+			// but this is acceptable and should not trigger Available=False.
+			if !foundRealFailure && desiredReplicas == 1 && isRollingOut {
+				a.logger.Infof("Single-replica deployment %s is rolling out - treating as expected disruption per Available contract", deploymentSpec.Name)
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// hasAnyDeploymentInRollout checks if any deployment in the CSV is currently rolling out
+// or has unavailable replicas. This is used to detect potential lister cache sync issues
+// during single-replica topology upgrades where the informer cache may not have synced yet after node reboot.
+func (a *Operator) hasAnyDeploymentInRollout(csv *v1alpha1.ClusterServiceVersion) bool {
+	strategy, err := a.resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
+	if err != nil {
+		a.logger.Debugf("Unable to unmarshal strategy for CSV %s: %v", csv.Name, err)
+		return false
+	}
+
+	strategyDetailsDeployment, ok := strategy.(*v1alpha1.StrategyDetailsDeployment)
+	if !ok {
+		a.logger.Debugf("CSV %s does not use deployment strategy", csv.Name)
+		return false
+	}
+
+	for _, deploymentSpec := range strategyDetailsDeployment.DeploymentSpecs {
+		deployment, err := a.lister.AppsV1().DeploymentLister().Deployments(csv.Namespace).Get(deploymentSpec.Name)
+		if err != nil {
+			// If deployment is not found, it could be:
+			// 1. A real error (deployment never existed or was deleted)
+			// 2. Cache sync issue after node reboot
+			// We can't distinguish between these cases here, so we don't assume rollout.
+			// The caller should handle this case appropriately.
+			a.logger.Debugf("Error getting deployment %s: %v", deploymentSpec.Name, err)
+			continue
+		}
+
+		// Check if deployment is rolling out or has unavailable replicas
+		// This covers various scenarios during cluster upgrades
+		isRollingOut := deployment.Status.UnavailableReplicas > 0 ||
+			deployment.Status.UpdatedReplicas < deployment.Status.Replicas ||
+			deployment.Generation != deployment.Status.ObservedGeneration
+
+		// Also check if available replicas are less than desired (for single-replica case)
+		if deployment.Spec.Replicas != nil {
+			isRollingOut = isRollingOut || deployment.Status.AvailableReplicas < *deployment.Spec.Replicas
+		}
+
+		if isRollingOut {
+			a.logger.Debugf("Deployment %s is rolling out (unavailable=%d, updated=%d/%d, available=%d, generation=%d/%d)",
+				deploymentSpec.Name,
+				deployment.Status.UnavailableReplicas,
+				deployment.Status.UpdatedReplicas, deployment.Status.Replicas,
+				deployment.Status.AvailableReplicas,
+				deployment.Status.ObservedGeneration, deployment.Generation)
+			return true
 		}
 	}
 
@@ -352,12 +469,19 @@ func (a *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) 
 		if !install.IsAPIServiceAvailable(apiService) {
 			a.logger.Debugf("APIService not available for %s", desc.GetName())
 
-			// Check if this unavailability is due to expected pod disruption
-			// If so, we should not immediately mark as failed or trigger Progressing=True
-			if a.isAPIServiceBackendDisrupted(csv, desc.GetName()) {
-				a.logger.Infof("APIService %s unavailable due to pod disruption (e.g., node reboot), will retry", desc.GetName())
-				// Return an error to trigger retry, but don't mark as definitively unavailable
-				return false, olmerrors.NewRetryableError(fmt.Errorf("APIService %s temporarily unavailable due to pod disruption", desc.GetName()))
+			// Only check for pod disruption when CSV is in Succeeded phase.
+			// During Installing phase, deployment rollout is expected and should not
+			// trigger the disruption detection logic.
+			// The disruption detection is specifically for cluster upgrades/reboots
+			// when a previously healthy CSV becomes temporarily unavailable.
+			if csv.Status.Phase == v1alpha1.CSVPhaseSucceeded {
+				// Check if this unavailability is due to expected pod disruption
+				// If so, we should not immediately mark as failed or trigger Progressing=True
+				if a.isAPIServiceBackendDisrupted(csv, desc.GetName()) {
+					a.logger.Infof("APIService %s unavailable due to pod disruption (e.g., node reboot), will retry", desc.GetName())
+					// Return an error to trigger retry, but don't mark as definitively unavailable
+					return false, olmerrors.NewRetryableError(fmt.Errorf("APIService %s temporarily unavailable due to pod disruption", desc.GetName()))
+				}
 			}
 
 			return false, nil
