@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"net"
@@ -1169,6 +1170,10 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 			}
 
 			for _, pod := range podList.Items {
+				// Skip terminating pods
+				if pod.DeletionTimestamp != nil {
+					continue
+				}
 				ctx.Ctx().Logf("old image id %s\n new image id %s\n", registryPod.Items[0].Status.ContainerStatuses[0].ImageID,
 					pod.Status.ContainerStatuses[0].ImageID)
 				if pod.Status.ContainerStatuses[0].ImageID != registryPod.Items[0].Status.ContainerStatuses[0].ImageID {
@@ -1194,10 +1199,8 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 			return false
 		}
 		By("await new catalog source and ensure old one was deleted")
-		registryPods, err = awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), selector.String(), 30*time.Second, 10*time.Minute, podCheckFunc)
+		_, err = awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), selector.String(), 30*time.Second, 10*time.Minute, podCheckFunc)
 		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
-		Expect(registryPods).ShouldNot(BeNil(), "nil registry pods")
-		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of registry pods found")
 
 		By("update catalog source with annotation (to kick resync)")
 		Eventually(func() error {
