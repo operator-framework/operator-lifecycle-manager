@@ -27,6 +27,10 @@ spec:
           jsonPath: .spec.version
           name: Version
           type: string
+        - description: The release of this version of the CSV
+          jsonPath: .spec.release
+          name: Release
+          type: string
         - description: The name of a CSV that this one replaces
           jsonPath: .spec.replaces
           name: Replaces
@@ -8988,6 +8992,30 @@ spec:
                         type: string
                       name:
                         type: string
+                release:
+                  description: |-
+                    release specifies the packaging version of the operator, defaulting to empty
+                    release is optional
+
+                    A ClusterServiceVersion's release field is used to distinguish between different builds of the same operator version
+                    This is useful for operators that need to make changes to the CSV which don't affect their functionality,
+                    for example:
+                    - to fix a typo in their description
+                    - to add/amend annotations or labels
+                    - to amend examples or documentation
+                    - to produce different builds for different environments
+
+                    It is up to operator authors to determine the semantics of release versions they use
+                    for their operator.  All release versions must conform to the semver prerelease format
+                    (dot-separated identifiers containing only alphanumerics and hyphens) and are limited
+                    to a maximum length of 20 characters.
+                  type: string
+                  maxLength: 20
+                  x-kubernetes-validations:
+                    - rule: self.matches('^[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*$')
+                      message: release version must be composed of dot-separated identifiers containing only alphanumerics and hyphens
+                    - rule: '!self.split(''.'').exists(x, x.matches(''^0[0-9]+$''))'
+                      message: numeric identifiers in release version must not have leading zeros
                 replaces:
                   description: The name of a CSV this one replaces. Should match the `metadata.Name` field of the old CSV.
                   type: string

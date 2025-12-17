@@ -20,7 +20,7 @@ require (
 	github.com/onsi/gomega v1.38.3
 	github.com/openshift/api v0.0.0-20251111193948-50e2ece149d7
 	github.com/openshift/client-go v0.0.0-20251015124057-db0dee36e235
-	github.com/operator-framework/api v0.36.0
+	github.com/operator-framework/api v0.37.0
 	github.com/operator-framework/operator-registry v1.61.0
 	github.com/otiai10/copy v1.14.1
 	github.com/pkg/errors v0.9.1

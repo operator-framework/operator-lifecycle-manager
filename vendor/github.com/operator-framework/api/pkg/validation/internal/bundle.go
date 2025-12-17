@@ -42,7 +42,24 @@ func validateBundle(bundle *manifests.Bundle) (result errors.ManifestResult) {
 	if sizeErrors != nil {
 		result.Add(sizeErrors...)
 	}
+	nameErrors := validateBundleName(bundle)
+	if nameErrors != nil {
+		result.Add(nameErrors...)
+	}
 	return result
+}
+
+func validateBundleName(bundle *manifests.Bundle) []errors.Error {
+	var errs []errors.Error
+	// bundle naming with a specified release version must follow the pattern
+	// <package-name>-v<csv-version>-<release-version>
+	if len(bundle.CSV.Spec.Release.Release) > 0 {
+		expectedName := fmt.Sprintf("%s-v%s-%s", bundle.Package, bundle.CSV.Spec.Version.String(), bundle.CSV.Spec.Release.String())
+		if bundle.Name != expectedName {
+			errs = append(errs, errors.ErrInvalidBundle(fmt.Sprintf("bundle name with release versioning %q does not match expected name %q", bundle.Name, expectedName), bundle.Name))
+		}
+	}
+	return errs
 }
 
 func validateServiceAccounts(bundle *manifests.Bundle) []errors.Error {

@@ -39,6 +39,7 @@ func (b *bundleLoader) LoadBundle() error {
 
 	errs = append(errs, b.calculateCompressedBundleSize())
 	b.addChannelsFromAnnotationsFile()
+	b.addPackageFromAnnotationsFile()
 
 	if !b.foundCSV {
 		errs = append(errs, fmt.Errorf("unable to find a csv in bundle directory %s", b.dir))
@@ -66,6 +67,14 @@ func (b *bundleLoader) addChannelsFromAnnotationsFile() {
 	if len(b.annotationsFile.Annotations.DefaultChannelName) > 0 && len(b.bundle.DefaultChannel) == 0 {
 		b.bundle.DefaultChannel = b.annotationsFile.Annotations.DefaultChannelName
 	}
+}
+
+func (b *bundleLoader) addPackageFromAnnotationsFile() {
+	if b.bundle == nil {
+		// None of this is relevant if the bundle was not found
+		return
+	}
+	b.bundle.Package = b.annotationsFile.Annotations.PackageName
 }
 
 // Compress the bundle to check its size

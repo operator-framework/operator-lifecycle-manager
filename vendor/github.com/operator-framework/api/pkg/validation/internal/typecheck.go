@@ -28,7 +28,7 @@ func checkEmptyFields(result *errors.ManifestResult, v reflect.Value, parentStru
 
 		// Omitted field tags will contain ",omitempty", and ignored tags will
 		// match "-" exactly, respectively.
-		isOptionalField := strings.Contains(tag, ",omitempty") || tag == "-"
+		isOptionalField := strings.Contains(tag, ",omitempty") || strings.Contains(tag, ",omitzero") || tag == "-"
 		emptyVal := fieldValue.IsZero()
 
 		newParentStructName := fieldType.Name
