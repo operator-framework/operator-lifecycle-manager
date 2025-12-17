@@ -27,7 +27,7 @@ jobs:
       - name: Save image
         run: docker save quay.io/operator-framework/olm:local -o olm-image.tar
       - name: Upload Docker image as artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: olm-image.tar
           path: olm-image.tar
@@ -103,7 +103,7 @@ jobs:
       # archive test results
       - name: Archive Test Artifacts
         if: ${{ always() }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: e2e-test-output-${{ (github.event.pull_request.head.sha || github.sha) }}-${{ github.run_id }}-${{ matrix.parallel-id }}
           path: ${{ env.ARTIFACT_DIR }}/*
@@ -186,7 +186,7 @@ jobs:
       # archive test results
       - name: Archive Test Artifacts
         if: ${{ always() }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: e2e-test-output-${{ (github.event.pull_request.head.sha || github.sha) }}-${{ github.run_id }}-flakes
           path: ${{ env.ARTIFACT_DIR }}/*
