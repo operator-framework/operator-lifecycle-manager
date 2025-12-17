@@ -629,6 +629,12 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 							Ref: ref("github.com/operator-framework/api/pkg/lib/version.OperatorVersion"),
 						},
 					},
+					"release": {
+						SchemaProps: spec.SchemaProps{
+							Description: "release specifies the packaging version of the operator, defaulting to empty release is optional\n\nA ClusterServiceVersion's release field is used to distinguish between different builds of the same operator version This is useful for operators that need to make changes to the CSV which don't affect their functionality, for example: - to fix a typo in their description - to add/amend annotations or labels - to amend examples or documentation - to produce different builds for different environments\n\nIt is up to operator authors to determine the semantics of release versions they use for their operator.  All release versions must conform to the semver prerelease format (dot-separated identifiers containing only alphanumerics and hyphens) and are limited to a maximum length of 20 characters.",
+							Ref:         ref("github.com/operator-framework/api/pkg/lib/release.OperatorRelease"),
+						},
+					},
 					"maturity": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
@@ -858,7 +864,7 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/api/pkg/lib/version.OperatorVersion", "github.com/operator-framework/api/pkg/operators/v1alpha1.APIServiceDefinitions", "github.com/operator-framework/api/pkg/operators/v1alpha1.AppLink", "github.com/operator-framework/api/pkg/operators/v1alpha1.CleanupSpec", "github.com/operator-framework/api/pkg/operators/v1alpha1.CustomResourceDefinitions", "github.com/operator-framework/api/pkg/operators/v1alpha1.Icon", "github.com/operator-framework/api/pkg/operators/v1alpha1.InstallMode", "github.com/operator-framework/api/pkg/operators/v1alpha1.Maintainer", "github.com/operator-framework/api/pkg/operators/v1alpha1.NamedInstallStrategy", "github.com/operator-framework/api/pkg/operators/v1alpha1.RelatedImage", "github.com/operator-framework/api/pkg/operators/v1alpha1.WebhookDescription", "k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
+			"github.com/operator-framework/api/pkg/lib/release.OperatorRelease", "github.com/operator-framework/api/pkg/lib/version.OperatorVersion", "github.com/operator-framework/api/pkg/operators/v1alpha1.APIServiceDefinitions", "github.com/operator-framework/api/pkg/operators/v1alpha1.AppLink", "github.com/operator-framework/api/pkg/operators/v1alpha1.CleanupSpec", "github.com/operator-framework/api/pkg/operators/v1alpha1.CustomResourceDefinitions", "github.com/operator-framework/api/pkg/operators/v1alpha1.Icon", "github.com/operator-framework/api/pkg/operators/v1alpha1.InstallMode", "github.com/operator-framework/api/pkg/operators/v1alpha1.Maintainer", "github.com/operator-framework/api/pkg/operators/v1alpha1.NamedInstallStrategy", "github.com/operator-framework/api/pkg/operators/v1alpha1.RelatedImage", "github.com/operator-framework/api/pkg/operators/v1alpha1.WebhookDescription", "k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
 	}
 }
 
