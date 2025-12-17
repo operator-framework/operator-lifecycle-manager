@@ -1170,7 +1170,7 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 			}
 
 			for _, pod := range podList.Items {
-				// Skip terminating pods
+				// Ignore terminating pods
 				if pod.DeletionTimestamp != nil {
 					continue
 				}
@@ -1199,8 +1199,11 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 			return false
 		}
 		By("await new catalog source and ensure old one was deleted")
-		_, err = awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), selector.String(), 30*time.Second, 10*time.Minute, podCheckFunc)
+		// the required check for ensuring there's a non-terminating pod with the new image is covered in the podCheckFunc
+		registryPods, err = awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), selector.String(), 30*time.Second, 10*time.Minute, podCheckFunc)
 		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
+		Expect(registryPods).ShouldNot(BeNil(), "nil registry pods")
+		Expect(registryPods.Items).ToNot(BeEmpty(), "no registry pods found")
 
 		By("update catalog source with annotation (to kick resync)")
 		Eventually(func() error {
