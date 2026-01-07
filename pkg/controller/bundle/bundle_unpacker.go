@@ -337,6 +337,7 @@ type ConfigMapUnpacker struct {
 	podLister     listerscorev1.PodLister
 	roleLister    listersrbacv1.RoleLister
 	rbLister      listersrbacv1.RoleBindingLister
+	saLister      listerscorev1.ServiceAccountLister
 	loader        *configmap.BundleLoader
 	now           func() metav1.Time
 	unpackTimeout time.Duration
@@ -421,6 +422,12 @@ func WithRoleLister(roleLister listersrbacv1.RoleLister) ConfigMapUnpackerOption
 func WithRoleBindingLister(rbLister listersrbacv1.RoleBindingLister) ConfigMapUnpackerOption {
 	return func(unpacker *ConfigMapUnpacker) {
 		unpacker.rbLister = rbLister
+	}
+}
+
+func WithServiceAccountLister(saLister listerscorev1.ServiceAccountLister) ConfigMapUnpackerOption {
+	return func(unpacker *ConfigMapUnpacker) {
+		unpacker.saLister = saLister
 	}
 }
 
@@ -532,6 +539,11 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup,
 	}
 
 	_, err = c.ensureRole(cmRef)
+	if err != nil {
+		return
+	}
+
+	_, err = c.ensureServiceAccount(cmRef)
 	if err != nil {
 		return
 	}
@@ -791,13 +803,39 @@ func (c *ConfigMapUnpacker) ensureRole(cmRef *corev1.ObjectReference) (role *rba
 	return
 }
 
+func (c *ConfigMapUnpacker) ensureServiceAccount(cmRef *corev1.ObjectReference) (serviceAccount *corev1.ServiceAccount, err error) {
+
+	fresh := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cmRef.Name,
+			Namespace: cmRef.Namespace,
+		},
+	}
+
+	fresh.SetNamespace(cmRef.Namespace)
+	fresh.SetName(cmRef.Name)
+	fresh.SetOwnerReferences([]metav1.OwnerReference{ownerRef(cmRef)})
+	fresh.SetLabels(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue})
+
+	serviceAccount, err = c.saLister.ServiceAccounts(fresh.GetNamespace()).Get(fresh.GetName())
+
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			serviceAccount, err = c.client.CoreV1().ServiceAccounts(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
+		}
+		return
+	}
+
+	return
+}
+
 func (c *ConfigMapUnpacker) ensureRoleBinding(cmRef *corev1.ObjectReference) (roleBinding *rbacv1.RoleBinding, err error) {
 	fresh := &rbacv1.RoleBinding{
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
 				APIGroup:  "",
-				Name:      "default",
+				Name:      cmRef.Name,
 				Namespace: cmRef.Namespace,
 			},
 		},
