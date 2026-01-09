@@ -118,6 +118,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 					// Keeping the pods around after failures helps in inspecting the logs of a failed bundle unpack job.
 					// See: https://kubernetes.io/docs/concepts/workloads/controllers/job/#pod-backoff-failure-policy
 					RestartPolicy:    corev1.RestartPolicyNever,
+					ServiceAccountName: cmRef.Name,
 					ImagePullSecrets: secrets,
 					SecurityContext: &corev1.PodSecurityContext{
 						SeccompProfile: &corev1.SeccompProfile{
