@@ -736,6 +736,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		bundle.WithPodLister(buPodInformer.Lister()),
 		bundle.WithRoleLister(roleInformer.Lister()),
 		bundle.WithRoleBindingLister(roleBindingInformer.Lister()),
+		bundle.WithServiceAccountLister(serviceAccountInformer.Lister()),
 		bundle.WithOPMImage(opmImage),
 		bundle.WithUtilImage(utilImage),
 		bundle.WithNow(op.now),

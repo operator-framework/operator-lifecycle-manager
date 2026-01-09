@@ -275,6 +275,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy:    corev1.RestartPolicyNever,
+									ServiceAccountName: pathHash,
 									ImagePullSecrets: []corev1.LocalObjectReference{{Name: "my-secret"}},
 									SecurityContext: &corev1.PodSecurityContext{
 										RunAsNonRoot: ptr.To(bool(true)),
@@ -450,7 +451,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 							{
 								Kind:      "ServiceAccount",
 								APIGroup:  "",
-								Name:      "default",
+								Name:      pathHash,
 								Namespace: "ns-a",
 							},
 						},
@@ -495,6 +496,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
+									ServiceAccountName: digestHash,
 									SecurityContext: &corev1.PodSecurityContext{
 										RunAsNonRoot: ptr.To(bool(true)),
 										RunAsUser:    ptr.To(int64(runAsUser)),
@@ -754,6 +756,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
+									ServiceAccountName: digestHash,
 									SecurityContext: &corev1.PodSecurityContext{
 										RunAsNonRoot: ptr.To(bool(true)),
 										RunAsUser:    ptr.To(int64(runAsUser)),
@@ -941,7 +944,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 							{
 								Kind:      "ServiceAccount",
 								APIGroup:  "",
-								Name:      "default",
+								Name:      digestHash,
 								Namespace: "ns-a",
 							},
 						},
@@ -1008,6 +1011,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
+									ServiceAccountName: pathHash,
 									SecurityContext: &corev1.PodSecurityContext{
 										RunAsNonRoot: ptr.To(bool(true)),
 										RunAsUser:    ptr.To(int64(runAsUser)),
@@ -1232,6 +1236,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
+									ServiceAccountName: pathHash,
 									SecurityContext: &corev1.PodSecurityContext{
 										RunAsNonRoot: ptr.To(bool(true)),
 										RunAsUser:    ptr.To(int64(runAsUser)),
@@ -1469,6 +1474,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
+									ServiceAccountName: pathHash,
 									SecurityContext: &corev1.PodSecurityContext{
 										RunAsNonRoot: ptr.To(bool(true)),
 										RunAsUser:    ptr.To(int64(runAsUser)),
@@ -1618,6 +1624,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 			podLister := factory.Core().V1().Pods().Lister()
 			roleLister := factory.Rbac().V1().Roles().Lister()
 			rbLister := factory.Rbac().V1().RoleBindings().Lister()
+			saLister := factory.Core().V1().ServiceAccounts().Lister()
 
 			stop := make(chan struct{})
 			defer close(stop)
@@ -1639,6 +1646,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 				WithPodLister(podLister),
 				WithRoleLister(roleLister),
 				WithRoleBindingLister(rbLister),
+				WithServiceAccountLister(saLister),
 				WithOPMImage(opmImage),
 				WithUtilImage(utilImage),
 				WithNow(now),
