@@ -117,9 +117,9 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 					// By setting restartPolicy = "Never" the pods don't get cleaned up since they're not running after a failure.
 					// Keeping the pods around after failures helps in inspecting the logs of a failed bundle unpack job.
 					// See: https://kubernetes.io/docs/concepts/workloads/controllers/job/#pod-backoff-failure-policy
-					RestartPolicy:    corev1.RestartPolicyNever,
+					RestartPolicy:      corev1.RestartPolicyNever,
 					ServiceAccountName: cmRef.Name,
-					ImagePullSecrets: secrets,
+					ImagePullSecrets:   secrets,
 					SecurityContext: &corev1.PodSecurityContext{
 						SeccompProfile: &corev1.SeccompProfile{
 							Type: corev1.SeccompProfileTypeRuntimeDefault,
@@ -805,7 +805,6 @@ func (c *ConfigMapUnpacker) ensureRole(cmRef *corev1.ObjectReference) (role *rba
 }
 
 func (c *ConfigMapUnpacker) ensureServiceAccount(cmRef *corev1.ObjectReference) (serviceAccount *corev1.ServiceAccount, err error) {
-
 	fresh := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cmRef.Name,

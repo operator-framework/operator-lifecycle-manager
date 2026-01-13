@@ -274,9 +274,9 @@ func TestConfigMapUnpacker(t *testing.T) {
 									},
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy:    corev1.RestartPolicyNever,
+									RestartPolicy:      corev1.RestartPolicyNever,
 									ServiceAccountName: pathHash,
-									ImagePullSecrets: []corev1.LocalObjectReference{{Name: "my-secret"}},
+									ImagePullSecrets:   []corev1.LocalObjectReference{{Name: "my-secret"}},
 									SecurityContext: &corev1.PodSecurityContext{
 										RunAsNonRoot: ptr.To(bool(true)),
 										RunAsUser:    ptr.To(int64(runAsUser)),
@@ -495,7 +495,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									},
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy: corev1.RestartPolicyNever,
+									RestartPolicy:      corev1.RestartPolicyNever,
 									ServiceAccountName: digestHash,
 									SecurityContext: &corev1.PodSecurityContext{
 										RunAsNonRoot: ptr.To(bool(true)),
@@ -755,7 +755,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									},
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy: corev1.RestartPolicyNever,
+									RestartPolicy:      corev1.RestartPolicyNever,
 									ServiceAccountName: digestHash,
 									SecurityContext: &corev1.PodSecurityContext{
 										RunAsNonRoot: ptr.To(bool(true)),
@@ -1010,7 +1010,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									},
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy: corev1.RestartPolicyNever,
+									RestartPolicy:      corev1.RestartPolicyNever,
 									ServiceAccountName: pathHash,
 									SecurityContext: &corev1.PodSecurityContext{
 										RunAsNonRoot: ptr.To(bool(true)),
@@ -1235,7 +1235,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									},
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy: corev1.RestartPolicyNever,
+									RestartPolicy:      corev1.RestartPolicyNever,
 									ServiceAccountName: pathHash,
 									SecurityContext: &corev1.PodSecurityContext{
 										RunAsNonRoot: ptr.To(bool(true)),
@@ -1473,7 +1473,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									},
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy: corev1.RestartPolicyNever,
+									RestartPolicy:      corev1.RestartPolicyNever,
 									ServiceAccountName: pathHash,
 									SecurityContext: &corev1.PodSecurityContext{
 										RunAsNonRoot: ptr.To(bool(true)),
