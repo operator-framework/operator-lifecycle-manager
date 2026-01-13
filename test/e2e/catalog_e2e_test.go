@@ -1783,6 +1783,282 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 			})
 		})
 	})
+
+	It("operator workload continues running after catalog source is deleted", func() {
+		By("Create CRD and CSV for operator")
+		packageName := genName("nginx-")
+		stableChannel := "stable"
+		packageStable := packageName + "-stable"
+
+		crd := newCRD(genName("ins-"))
+		csv := newCSV(packageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensionsv1.CustomResourceDefinition{crd}, nil, nil)
+
+		defer func() {
+			Eventually(func() error {
+				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), crd.GetName(), metav1.DeleteOptions{})
+			}).Should(Or(Succeed(), WithTransform(k8serror.IsNotFound, BeTrue())))
+			Eventually(func() error {
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &csv))
+			}).Should(Succeed())
+		}()
+
+		manifests := []registry.PackageManifest{
+			{
+				PackageName: packageName,
+				Channels: []registry.PackageChannel{
+					{Name: stableChannel, CurrentCSVName: packageStable},
+				},
+				DefaultChannelName: stableChannel,
+			},
+		}
+
+		By("Create catalog source")
+		catalogSourceName := genName("test-catalog-")
+		catalogSource, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogSourceName, generatedNamespace.GetName(), manifests, []apiextensionsv1.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+		defer cleanupCatalogSource()
+
+		By("Wait for catalog source to be ready")
+		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("Create subscription")
+		subscriptionName := genName("test-subscription-")
+		cleanupSubscription := createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subscriptionName, catalogSourceName, packageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+		defer cleanupSubscription()
+
+		By("Wait for subscription to be at latest version")
+		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(subscription).ShouldNot(BeNil())
+		Expect(subscription.Status.InstalledCSV).To(Equal(packageStable))
+
+		By("Wait for CSV to succeed")
+		installedCSV, err := fetchCSV(crc, generatedNamespace.GetName(), subscription.Status.CurrentCSV, csvSucceededChecker)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(installedCSV).ShouldNot(BeNil())
+		Expect(installedCSV.Status.Phase).To(Equal(v1alpha1.CSVPhaseSucceeded))
+
+		By("Get deployment name from CSV")
+		var deploymentName string
+		Expect(installedCSV.Spec.InstallStrategy.StrategyName).To(Equal(v1alpha1.InstallStrategyNameDeployment))
+		strategyDetailsDeployment := installedCSV.Spec.InstallStrategy.StrategySpec
+		Expect(strategyDetailsDeployment.DeploymentSpecs).ToNot(BeEmpty())
+		deploymentName = strategyDetailsDeployment.DeploymentSpecs[0].Name
+
+		By("Wait for operator deployment to be ready")
+		var operatorDeployment *appsv1.Deployment
+		Eventually(func() error {
+			operatorDeployment, err = c.GetDeployment(generatedNamespace.GetName(), deploymentName)
+			if err != nil {
+				return err
+			}
+			if operatorDeployment.Spec.Replicas == nil || *operatorDeployment.Spec.Replicas == 0 {
+				return fmt.Errorf("deployment replicas is not set")
+			}
+			if operatorDeployment.Status.AvailableReplicas != *operatorDeployment.Spec.Replicas {
+				return fmt.Errorf("deployment %s not ready: %d/%d replicas available",
+					deploymentName,
+					operatorDeployment.Status.AvailableReplicas,
+					*operatorDeployment.Spec.Replicas)
+			}
+			if operatorDeployment.Status.ReadyReplicas != *operatorDeployment.Spec.Replicas {
+				return fmt.Errorf("deployment %s not ready: %d/%d replicas ready",
+					deploymentName,
+					operatorDeployment.Status.ReadyReplicas,
+					*operatorDeployment.Spec.Replicas)
+			}
+			return nil
+		}, pollDuration, pollInterval).Should(Succeed())
+
+		By("Record deployment state before catalog deletion")
+		deploymentUID := operatorDeployment.UID
+		expectedReplicas := *operatorDeployment.Spec.Replicas
+
+		By("Delete catalog source")
+		err = crc.OperatorsV1alpha1().CatalogSources(catalogSource.GetNamespace()).Delete(context.Background(), catalogSource.GetName(), metav1.DeleteOptions{})
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("Wait for catalog source to be removed")
+		Eventually(func() error {
+			_, err := crc.OperatorsV1alpha1().CatalogSources(catalogSource.GetNamespace()).Get(context.Background(), catalogSource.GetName(), metav1.GetOptions{})
+			if err == nil {
+				return fmt.Errorf("catalog source still exists")
+			}
+			if !k8serror.IsNotFound(err) {
+				return err
+			}
+			return nil
+		}, pollDuration, pollInterval).Should(Succeed())
+
+		By("Wait for catalog source pod to be deleted")
+		Eventually(func() error {
+			listOpts := metav1.ListOptions{
+				LabelSelector: "olm.catalogSource=" + catalogSourceName,
+			}
+			pods, err := c.KubernetesInterface().CoreV1().Pods(catalogSource.GetNamespace()).List(context.Background(), listOpts)
+			if err != nil {
+				return err
+			}
+			if len(pods.Items) > 0 {
+				return fmt.Errorf("catalog source pod still exists: %d pods found", len(pods.Items))
+			}
+			return nil
+		}, pollDuration, pollInterval).Should(Succeed())
+
+		By("Verify CSV remains in succeeded state after catalog deletion")
+		Consistently(func() error {
+			fetchedCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Get(
+				context.Background(),
+				installedCSV.GetName(),
+				metav1.GetOptions{},
+			)
+			if err != nil {
+				return fmt.Errorf("failed to get CSV: %w", err)
+			}
+			if fetchedCSV.Status.Phase != v1alpha1.CSVPhaseSucceeded {
+				return fmt.Errorf("CSV phase is %s, expected Succeeded", fetchedCSV.Status.Phase)
+			}
+			return nil
+		}, 3*time.Minute, pollInterval).Should(Succeed())
+
+		By("Verify deployment remains healthy and unchanged")
+		Consistently(func() error {
+			deployment, err := c.GetDeployment(generatedNamespace.GetName(), deploymentName)
+			if err != nil {
+				return fmt.Errorf("failed to get deployment: %w", err)
+			}
+			if deployment.UID != deploymentUID {
+				return fmt.Errorf("deployment was recreated")
+			}
+			if deployment.Spec.Replicas == nil {
+				return fmt.Errorf("deployment replicas is nil")
+			}
+			if deployment.Status.AvailableReplicas != expectedReplicas {
+				return fmt.Errorf("available replicas: got %d, want %d", deployment.Status.AvailableReplicas, expectedReplicas)
+			}
+			if deployment.Status.ReadyReplicas != expectedReplicas {
+				return fmt.Errorf("ready replicas: got %d, want %d", deployment.Status.ReadyReplicas, expectedReplicas)
+			}
+			return nil
+		}, 3*time.Minute, pollInterval).Should(Succeed())
+
+		By("Test OLM config management - add environment variable via subscription")
+		Eventually(func() error {
+			sub, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(
+				context.Background(),
+				subscriptionName,
+				metav1.GetOptions{},
+			)
+			if err != nil {
+				return err
+			}
+
+			if sub.Spec.Config == nil {
+				sub.Spec.Config = &v1alpha1.SubscriptionConfig{}
+			}
+			sub.Spec.Config.Env = []corev1.EnvVar{
+				{Name: "TEST_ENV_VAR", Value: "test-value"},
+			}
+
+			_, err = crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Update(
+				context.Background(),
+				sub,
+				metav1.UpdateOptions{},
+			)
+			return err
+		}, pollDuration, pollInterval).Should(Succeed())
+
+		By("Wait for deployment to have the environment variable")
+		Eventually(func() error {
+			deployment, err := c.GetDeployment(generatedNamespace.GetName(), deploymentName)
+			if err != nil {
+				return err
+			}
+			if len(deployment.Spec.Template.Spec.Containers) == 0 {
+				return fmt.Errorf("no containers in deployment")
+			}
+			container := deployment.Spec.Template.Spec.Containers[0]
+			for _, env := range container.Env {
+				if env.Name == "TEST_ENV_VAR" && env.Value == "test-value" {
+					return nil
+				}
+			}
+			return fmt.Errorf("TEST_ENV_VAR not found in deployment")
+		}, pollDuration, pollInterval).Should(Succeed())
+
+		By("Delete an operator pod to test auto-healing")
+		podList, err := c.KubernetesInterface().CoreV1().Pods(generatedNamespace.GetName()).List(
+			context.Background(),
+			metav1.ListOptions{
+				LabelSelector: labels.SelectorFromSet(operatorDeployment.Spec.Selector.MatchLabels).String(),
+			},
+		)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(podList.Items).ToNot(BeEmpty())
+
+		podToDelete := podList.Items[0].Name
+		err = c.KubernetesInterface().CoreV1().Pods(generatedNamespace.GetName()).Delete(
+			context.Background(),
+			podToDelete,
+			metav1.DeleteOptions{},
+		)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("Wait for pod to be recreated by deployment controller")
+		Eventually(func() error {
+			pods, err := c.KubernetesInterface().CoreV1().Pods(generatedNamespace.GetName()).List(
+				context.Background(),
+				metav1.ListOptions{
+					LabelSelector: labels.SelectorFromSet(operatorDeployment.Spec.Selector.MatchLabels).String(),
+				},
+			)
+			if err != nil {
+				return err
+			}
+			runningPods := 0
+			for _, pod := range pods.Items {
+				if pod.Status.Phase == corev1.PodRunning {
+					runningPods++
+				}
+			}
+			if runningPods != int(expectedReplicas) {
+				return fmt.Errorf("expected %d running pods, got %d", expectedReplicas, runningPods)
+			}
+			return nil
+		}, pollDuration, pollInterval).Should(Succeed())
+
+		By("Verify deployment is healthy after auto-healing")
+		Eventually(func() error {
+			deployment, err := c.GetDeployment(generatedNamespace.GetName(), deploymentName)
+			if err != nil {
+				return err
+			}
+			if deployment.Status.AvailableReplicas != expectedReplicas {
+				return fmt.Errorf("available replicas: got %d, want %d", deployment.Status.AvailableReplicas, expectedReplicas)
+			}
+			if deployment.Status.ReadyReplicas != expectedReplicas {
+				return fmt.Errorf("ready replicas: got %d, want %d", deployment.Status.ReadyReplicas, expectedReplicas)
+			}
+			return nil
+		}, pollDuration, pollInterval).Should(Succeed())
+
+		By("Verify subscription still tracks installed CSV")
+		fetchedSubscription, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(
+			context.Background(),
+			subscriptionName,
+			metav1.GetOptions{},
+		)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(fetchedSubscription.Status.InstalledCSV).To(Equal(packageStable))
+
+		By("Verify CRD still exists and is functional")
+		_, err = c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(
+			context.Background(),
+			crd.GetName(),
+			metav1.GetOptions{},
+		)
+		Expect(err).ShouldNot(HaveOccurred())
+	})
 })
 
 func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {
