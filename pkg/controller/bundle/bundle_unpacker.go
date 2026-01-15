@@ -812,8 +812,6 @@ func (c *ConfigMapUnpacker) ensureServiceAccount(cmRef *corev1.ObjectReference) 
 		},
 	}
 
-	fresh.SetNamespace(cmRef.Namespace)
-	fresh.SetName(cmRef.Name)
 	fresh.SetOwnerReferences([]metav1.OwnerReference{ownerRef(cmRef)})
 	fresh.SetLabels(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue})
 
