@@ -37,6 +37,7 @@ type operatorConfig struct {
 	apiLabeler                   labeler.Labeler
 	restConfig                   *rest.Config
 	configClient                 configv1client.Interface
+	openshiftConfigAPIExists     bool
 }
 
 func (o *operatorConfig) OperatorClient() operatorclient.ClientInterface {
@@ -200,5 +201,11 @@ func WithRestConfig(restConfig *rest.Config) OperatorOption {
 func WithConfigClient(configClient configv1client.Interface) OperatorOption {
 	return func(config *operatorConfig) {
 		config.configClient = configClient
+	}
+}
+
+func WithOpenshiftConfigAPIExists(exists bool) OperatorOption {
+	return func(config *operatorConfig) {
+		config.openshiftConfigAPIExists = exists
 	}
 }

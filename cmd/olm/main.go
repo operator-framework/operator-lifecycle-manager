@@ -23,6 +23,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/openshift"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/feature"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/apiserver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/openshiftconfig"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorstatus"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
@@ -129,22 +131,6 @@ func main() {
 	}
 	config := mgr.GetConfig()
 
-	listenAndServe, err := server.GetListenAndServeFunc(
-		server.WithLogger(logger),
-		server.WithTLS(tlsCertPath, tlsKeyPath, clientCAPath),
-		server.WithKubeConfig(config),
-		server.WithDebug(*debug),
-	)
-	if err != nil {
-		logger.Fatalf("Error setting up health/metric/pprof service: %v", err)
-	}
-
-	go func() {
-		if err := listenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error(err)
-		}
-	}()
-
 	// create a config that validates we're creating objects with labels
 	validatingConfig := validatingroundtripper.Wrap(config, mgr.GetScheme())
 
@@ -169,6 +155,50 @@ func main() {
 		logger.WithError(err).Fatal("error configuring metadata client")
 	}
 
+	// Setup APIServer TLS configuration for HTTPS servers
+	discovery := opClient.KubernetesInterface().Discovery()
+	openshiftConfigAPIExists, err := openshiftconfig.IsAPIAvailable(discovery)
+	if err != nil {
+		logger.WithError(err).Fatal("error checking for OpenShift config API support")
+	}
+
+	apiServerTLSQuerier := apiserver.NoopQuerier()
+	var apiServerFactory interface{ Start(<-chan struct{}) }
+	if openshiftConfigAPIExists {
+		logger.Info("OpenShift APIServer API available - setting up watch for APIServer TLS configuration")
+
+		apiServerInformer, apiServerSyncer, querier, factory, err := apiserver.NewSyncer(logger, versionedConfigClient)
+		if err != nil {
+			logger.WithError(err).Fatal("error initializing APIServer TLS syncer")
+		}
+
+		logger.Info("APIServer TLS configuration will be applied to HTTPS servers")
+		apiServerTLSQuerier = querier
+
+		// Register event handlers for APIServer resource changes
+		apiserver.RegisterEventHandlers(apiServerInformer, apiServerSyncer)
+
+		apiServerFactory = factory
+	}
+
+	// Setup metrics/health server with TLS configuration
+	listenAndServe, err := server.GetListenAndServeFunc(
+		server.WithLogger(logger),
+		server.WithTLS(tlsCertPath, tlsKeyPath, clientCAPath),
+		server.WithKubeConfig(config),
+		server.WithAPIServerTLSQuerier(apiServerTLSQuerier),
+		server.WithDebug(*debug),
+	)
+	if err != nil {
+		logger.Fatalf("Error setting up health/metric/pprof service: %v", err)
+	}
+
+	go func() {
+		if err := listenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error(err)
+		}
+	}()
+
 	// Create a new instance of the operator.
 	op, err := olm.NewOperator(
 		ctx,
@@ -181,6 +211,7 @@ func main() {
 		olm.WithRestConfig(validatingConfig),
 		olm.WithConfigClient(versionedConfigClient),
 		olm.WithProtectedCopiedCSVNamespaces(*protectedCopiedCSVNamespaces),
+		olm.WithOpenshiftConfigAPIExists(openshiftConfigAPIExists),
 	)
 	if err != nil {
 		logger.WithError(err).Fatal("error configuring operator")
@@ -189,6 +220,11 @@ func main() {
 
 	op.Run(ctx)
 	<-op.Ready()
+
+	// Start APIServer TLS informer factory if on OpenShift
+	if apiServerFactory != nil {
+		apiServerFactory.Start(ctx.Done())
+	}
 
 	// Emit CSV metric
 	if err = op.EnsureCSVMetric(); err != nil {
