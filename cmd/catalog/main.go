@@ -10,6 +10,7 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
+	configclientset "github.com/openshift/client-go/config/clientset/versioned"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/sirupsen/logrus"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
@@ -19,6 +20,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalogtemplate"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/apiserver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/openshiftconfig"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorstatus"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/server"
@@ -63,10 +66,53 @@ func (o *options) run(ctx context.Context, logger *logrus.Logger) error {
 		return fmt.Errorf("error configuring client: %s", err.Error())
 	}
 
+	configClient, err := configv1client.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("error configuring client: %s", err.Error())
+	}
+	opClient := operatorclient.NewClientFromConfig(o.kubeconfig, logger)
+	crClient, err := client.NewClient(o.kubeconfig)
+	if err != nil {
+		return fmt.Errorf("error configuring client: %s", err.Error())
+	}
+
+	// Setup APIServer TLS configuration for HTTPS servers
+	discovery := opClient.KubernetesInterface().Discovery()
+	openshiftConfigAPIExists, err := openshiftconfig.IsAPIAvailable(discovery)
+	if err != nil {
+		return fmt.Errorf("error checking for OpenShift config API support: %w", err)
+	}
+
+	apiServerTLSQuerier := apiserver.NoopQuerier()
+	var apiServerFactory interface{ Start(<-chan struct{}) }
+	if openshiftConfigAPIExists {
+		logger.Info("OpenShift APIServer API available - setting up watch for APIServer TLS configuration")
+
+		versionedConfigClient, err := configclientset.NewForConfig(config)
+		if err != nil {
+			return fmt.Errorf("error configuring openshift config client: %w", err)
+		}
+
+		apiServerInformer, apiServerSyncer, querier, factory, err := apiserver.NewSyncer(logger, versionedConfigClient)
+		if err != nil {
+			return fmt.Errorf("error initializing APIServer TLS syncer: %w", err)
+		}
+
+		logger.Info("APIServer TLS configuration will be applied to HTTPS servers")
+		apiServerTLSQuerier = querier
+
+		// Register event handlers for APIServer resource changes
+		apiserver.RegisterEventHandlers(apiServerInformer, apiServerSyncer)
+
+		apiServerFactory = factory
+	}
+
+	// Setup metrics/health server with TLS configuration
 	listenAndServe, err := server.GetListenAndServeFunc(
 		server.WithLogger(logger),
 		server.WithTLS(&o.tlsCertPath, &o.tlsKeyPath, &o.clientCAPath),
 		server.WithKubeConfig(config),
+		server.WithAPIServerTLSQuerier(apiServerTLSQuerier),
 		server.WithDebug(o.debug),
 	)
 	if err != nil {
@@ -78,16 +124,6 @@ func (o *options) run(ctx context.Context, logger *logrus.Logger) error {
 			logger.Error(err)
 		}
 	}()
-
-	configClient, err := configv1client.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("error configuring client: %s", err.Error())
-	}
-	opClient := operatorclient.NewClientFromConfig(o.kubeconfig, logger)
-	crClient, err := client.NewClient(o.kubeconfig)
-	if err != nil {
-		return fmt.Errorf("error configuring client: %s", err.Error())
-	}
 
 	workloadUserID := int64(-1)
 	if o.setWorkloadUserID {
@@ -138,6 +174,11 @@ func (o *options) run(ctx context.Context, logger *logrus.Logger) error {
 
 	opCatalogTemplate.Run(ctx)
 	<-opCatalogTemplate.Ready()
+
+	// Start APIServer TLS informer factory if on OpenShift
+	if apiServerFactory != nil {
+		apiServerFactory.Start(ctx.Done())
+	}
 
 	if o.writeStatusName != "" {
 		operatorstatus.MonitorClusterStatus(o.writeStatusName, op.AtLevel(), op.Done(), opClient, configClient, crClient, logger)
