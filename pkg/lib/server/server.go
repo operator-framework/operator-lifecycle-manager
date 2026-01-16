@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/apiserver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/filemonitor"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/profile"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -58,13 +59,20 @@ func WithKubeConfig(config *rest.Config) Option {
 	}
 }
 
+func WithAPIServerTLSQuerier(querier apiserver.Querier) Option {
+	return func(sc *serverConfig) {
+		sc.apiServerTLSQuerier = querier
+	}
+}
+
 type serverConfig struct {
-	logger       *logrus.Logger
-	tlsCertPath  *string
-	tlsKeyPath   *string
-	clientCAPath *string
-	kubeConfig   *rest.Config
-	debug        bool
+	logger              *logrus.Logger
+	tlsCertPath         *string
+	tlsKeyPath          *string
+	clientCAPath        *string
+	kubeConfig          *rest.Config
+	apiServerTLSQuerier apiserver.Querier
+	debug               bool
 }
 
 func (sc *serverConfig) apply(options []Option) {
@@ -75,12 +83,13 @@ func (sc *serverConfig) apply(options []Option) {
 
 func defaultServerConfig() serverConfig {
 	return serverConfig{
-		tlsCertPath:  nil,
-		tlsKeyPath:   nil,
-		clientCAPath: nil,
-		kubeConfig:   nil,
-		logger:       nil,
-		debug:        false,
+		tlsCertPath:         nil,
+		tlsKeyPath:          nil,
+		clientCAPath:        nil,
+		kubeConfig:          nil,
+		logger:              nil,
+		apiServerTLSQuerier: nil,
+		debug:               false,
 	}
 }
 func (sc *serverConfig) tlsEnabled() (bool, error) {
@@ -213,6 +222,14 @@ func (sc serverConfig) getListenAndServeFunc() (func() error, error) {
 				tlsCfg.ClientCAs = certPoolStore.GetCertPool()
 				tlsCfg.ClientAuth = tls.VerifyClientCertIfGiven
 			}
+
+			// Overlay cluster-wide TLS security profile settings if available
+			if sc.apiServerTLSQuerier != nil {
+				if err := sc.apiServerTLSQuerier.QueryTLSConfig(tlsCfg); err != nil {
+					sc.logger.WithError(err).Warn("Failed to query APIServer TLS config, using defaults")
+				}
+			}
+
 			return tlsCfg, nil
 		},
 		NextProtos: []string{"http/1.1"}, // Disable HTTP/2 for security

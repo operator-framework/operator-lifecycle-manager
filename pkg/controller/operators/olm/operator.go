@@ -57,6 +57,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
 	index "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/index"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/labeler"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/openshiftconfig"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -852,19 +853,20 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
-	// setup proxy env var injection policies
+	// Check if OpenShift config API is available (used by proxy and apiserver controllers)
 	discovery := config.operatorClient.KubernetesInterface().Discovery()
-	proxyAPIExists, err := proxy.IsAPIAvailable(discovery)
+	openshiftConfigAPIExists, err := openshiftconfig.IsAPIAvailable(discovery)
 	if err != nil {
-		op.logger.Errorf("error happened while probing for Proxy API support - %v", err)
+		op.logger.Errorf("error happened while probing for OpenShift config API support - %v", err)
 		return nil, err
 	}
 
+	// setup proxy env var injection policies
 	proxyQuerierInUse := proxy.NoopQuerier()
-	if proxyAPIExists {
+	if openshiftConfigAPIExists {
 		op.logger.Info("OpenShift Proxy API  available - setting up watch for Proxy type")
 
-		proxyInformer, proxySyncer, proxyQuerier, err := proxy.NewSyncer(op.logger, config.configClient, discovery)
+		proxyInformer, proxySyncer, proxyQuerier, err := proxy.NewSyncer(op.logger, config.configClient)
 		if err != nil {
 			err = fmt.Errorf("failed to initialize syncer for Proxy type - %v", err)
 			return nil, err
