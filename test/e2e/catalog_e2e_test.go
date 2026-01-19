@@ -1925,7 +1925,6 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 			return nil
 		}, pollDuration, pollInterval).Should(Succeed())
 		roleUID := roleList.Items[0].UID
-		// roleName := roleList.Items[0].Name // Commented out - only needed for RBAC deletion test
 
 		var roleBindingList *rbacv1.RoleBindingList
 		Eventually(func() error {
@@ -1942,7 +1941,6 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 			return nil
 		}, pollDuration, pollInterval).Should(Succeed())
 		roleBindingUID := roleBindingList.Items[0].UID
-		// roleBindingName := roleBindingList.Items[0].Name // Commented out - only needed for RBAC deletion test
 
 		By("Delete catalog source")
 		err = crc.OperatorsV1alpha1().CatalogSources(catalogSource.GetNamespace()).Delete(context.Background(), catalogSource.GetName(), metav1.DeleteOptions{})
@@ -2093,32 +2091,6 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 		)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		// TODO: Test RBAC resource recreation once OLM supports it without a catalog
-		// Currently, ServiceAccount/Role/RoleBinding are created by InstallPlan (requires catalog)
-		// and checked as requirements before CSV Install() is called.
-		// If missing, CSV gets stuck in Pending phase and cannot recreate them.
-		//
-		// err = c.KubernetesInterface().CoreV1().ServiceAccounts(generatedNamespace.GetName()).Delete(
-		// 	context.Background(),
-		// 	serviceAccountName,
-		// 	metav1.DeleteOptions{},
-		// )
-		// Expect(err).ShouldNot(HaveOccurred())
-		//
-		// err = c.KubernetesInterface().RbacV1().Roles(generatedNamespace.GetName()).Delete(
-		// 	context.Background(),
-		// 	roleName,
-		// 	metav1.DeleteOptions{},
-		// )
-		// Expect(err).ShouldNot(HaveOccurred())
-		//
-		// err = c.KubernetesInterface().RbacV1().RoleBindings(generatedNamespace.GetName()).Delete(
-		// 	context.Background(),
-		// 	roleBindingName,
-		// 	metav1.DeleteOptions{},
-		// )
-		// Expect(err).ShouldNot(HaveOccurred())
-
 		By("Wait for deployment to be deleted")
 		Eventually(func() error {
 			_, err := c.GetDeployment(generatedNamespace.GetName(), deploymentName)
@@ -2131,53 +2103,8 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 			return nil
 		}, pollDuration, pollInterval).Should(Succeed())
 
-		// TODO: Uncomment when OLM supports RBAC recreation without catalog
-		// Eventually(func() error {
-		// 	_, err := c.KubernetesInterface().CoreV1().ServiceAccounts(generatedNamespace.GetName()).Get(
-		// 		context.Background(),
-		// 		serviceAccountName,
-		// 		metav1.GetOptions{},
-		// 	)
-		// 	if err == nil {
-		// 		return fmt.Errorf("serviceaccount still exists")
-		// 	}
-		// 	if !k8serror.IsNotFound(err) {
-		// 		return err
-		// 	}
-		// 	return nil
-		// }, pollDuration, pollInterval).Should(Succeed())
-		//
-		// Eventually(func() error {
-		// 	_, err := c.KubernetesInterface().RbacV1().Roles(generatedNamespace.GetName()).Get(
-		// 		context.Background(),
-		// 		roleName,
-		// 		metav1.GetOptions{},
-		// 	)
-		// 	if err == nil {
-		// 		return fmt.Errorf("role still exists")
-		// 	}
-		// 	if !k8serror.IsNotFound(err) {
-		// 		return err
-		// 	}
-		// 	return nil
-		// }, pollDuration, pollInterval).Should(Succeed())
-		//
-		// Eventually(func() error {
-		// 	_, err := c.KubernetesInterface().RbacV1().RoleBindings(generatedNamespace.GetName()).Get(
-		// 		context.Background(),
-		// 		roleBindingName,
-		// 		metav1.GetOptions{},
-		// 	)
-		// 	if err == nil {
-		// 		return fmt.Errorf("rolebinding still exists")
-		// 	}
-		// 	if !k8serror.IsNotFound(err) {
-		// 		return err
-		// 	}
-		// 	return nil
-		// }, pollDuration, pollInterval).Should(Succeed())
-
 		By("Wait for OLM to recreate the deployment")
+		var recreatedDeployment *appsv1.Deployment
 		Eventually(func() error {
 			deployment, err := c.GetDeployment(generatedNamespace.GetName(), deploymentName)
 			if err != nil {
@@ -2195,87 +2122,12 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 			if deployment.Status.ReadyReplicas != expectedReplicas {
 				return fmt.Errorf("ready replicas: got %d, want %d", deployment.Status.ReadyReplicas, expectedReplicas)
 			}
+			recreatedDeployment = deployment
 			return nil
 		}, pollDuration, pollInterval).Should(Succeed())
 
-		// TODO: Uncomment when OLM supports RBAC recreation without catalog
-		// Eventually(func() error {
-		// 	sa, err := c.KubernetesInterface().CoreV1().ServiceAccounts(generatedNamespace.GetName()).Get(
-		// 		context.Background(),
-		// 		serviceAccountName,
-		// 		metav1.GetOptions{},
-		// 	)
-		// 	if err != nil {
-		// 		return fmt.Errorf("serviceaccount not recreated yet: %w", err)
-		// 	}
-		// 	if sa.UID == serviceAccountUID {
-		// 		return fmt.Errorf("serviceaccount UID unchanged, not recreated")
-		// 	}
-		// 	return nil
-		// }, pollDuration, pollInterval).Should(Succeed())
-		//
-		// Eventually(func() error {
-		// 	roles, err := c.KubernetesInterface().RbacV1().Roles(generatedNamespace.GetName()).List(
-		// 		context.Background(),
-		// 		metav1.ListOptions{LabelSelector: ownerSelector.String()},
-		// 	)
-		// 	if err != nil {
-		// 		return fmt.Errorf("failed to list roles: %w", err)
-		// 	}
-		// 	if len(roles.Items) == 0 {
-		// 		return fmt.Errorf("role not recreated yet")
-		// 	}
-		// 	if roles.Items[0].UID == roleUID {
-		// 		return fmt.Errorf("role UID unchanged, not recreated")
-		// 	}
-		// 	return nil
-		// }, pollDuration, pollInterval).Should(Succeed())
-		//
-		// Eventually(func() error {
-		// 	roleBindings, err := c.KubernetesInterface().RbacV1().RoleBindings(generatedNamespace.GetName()).List(
-		// 		context.Background(),
-		// 		metav1.ListOptions{LabelSelector: ownerSelector.String()},
-		// 	)
-		// 	if err != nil {
-		// 		return fmt.Errorf("failed to list rolebindings: %w", err)
-		// 	}
-		// 	if len(roleBindings.Items) == 0 {
-		// 		return fmt.Errorf("rolebinding not recreated yet")
-		// 	}
-		// 	if roleBindings.Items[0].UID == roleBindingUID {
-		// 		return fmt.Errorf("rolebinding UID unchanged, not recreated")
-		// 	}
-		// 	return nil
-		// }, pollDuration, pollInterval).Should(Succeed())
-
-		By("Verify all resources were recreated by OLM with correct configuration")
-		recreatedDeployment, err := c.GetDeployment(generatedNamespace.GetName(), deploymentName)
-		Expect(err).ShouldNot(HaveOccurred())
+		By("Verify deployment was recreated with new UID")
 		Expect(recreatedDeployment.UID).ToNot(Equal(deploymentUID), "deployment should have been recreated with new UID")
-
-		recreatedServiceAccount, err := c.KubernetesInterface().CoreV1().ServiceAccounts(generatedNamespace.GetName()).Get(
-			context.Background(),
-			serviceAccountName,
-			metav1.GetOptions{},
-		)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(recreatedServiceAccount.UID).ToNot(Equal(serviceAccountUID), "serviceaccount should have been recreated with new UID")
-
-		recreatedRoleList, err := c.KubernetesInterface().RbacV1().Roles(generatedNamespace.GetName()).List(
-			context.Background(),
-			metav1.ListOptions{LabelSelector: ownerSelector.String()},
-		)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(len(recreatedRoleList.Items)).To(BeNumerically(">", 0), "at least one role should exist")
-		Expect(recreatedRoleList.Items[0].UID).ToNot(Equal(roleUID), "role should have been recreated with new UID")
-
-		recreatedRoleBindingList, err := c.KubernetesInterface().RbacV1().RoleBindings(generatedNamespace.GetName()).List(
-			context.Background(),
-			metav1.ListOptions{LabelSelector: ownerSelector.String()},
-		)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(len(recreatedRoleBindingList.Items)).To(BeNumerically(">", 0), "at least one rolebinding should exist")
-		Expect(recreatedRoleBindingList.Items[0].UID).ToNot(Equal(roleBindingUID), "rolebinding should have been recreated with new UID")
 
 		// Verify the environment variable from subscription config is still present
 		Expect(len(recreatedDeployment.Spec.Template.Spec.Containers)).To(BeNumerically(">", 0))
@@ -2288,6 +2140,147 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 			}
 		}
 		Expect(envVarFound).To(BeTrue(), "TEST_ENV_VAR should be present in recreated deployment")
+
+		By("Delete ServiceAccount to test OLM reconciliation")
+		err = c.KubernetesInterface().CoreV1().ServiceAccounts(generatedNamespace.GetName()).Delete(
+			context.Background(),
+			serviceAccountName,
+			metav1.DeleteOptions{},
+		)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("Wait for ServiceAccount to be deleted")
+		Eventually(func() error {
+			_, err := c.KubernetesInterface().CoreV1().ServiceAccounts(generatedNamespace.GetName()).Get(
+				context.Background(),
+				serviceAccountName,
+				metav1.GetOptions{},
+			)
+			if err == nil {
+				return fmt.Errorf("serviceaccount still exists")
+			}
+			if !k8serror.IsNotFound(err) {
+				return err
+			}
+			return nil
+		}, pollDuration, pollInterval).Should(Succeed())
+
+		By("Wait for OLM to recreate the ServiceAccount")
+		var recreatedServiceAccount *corev1.ServiceAccount
+		Eventually(func() error {
+			sa, err := c.KubernetesInterface().CoreV1().ServiceAccounts(generatedNamespace.GetName()).Get(
+				context.Background(),
+				serviceAccountName,
+				metav1.GetOptions{},
+			)
+			if err != nil {
+				return fmt.Errorf("serviceaccount not recreated yet: %w", err)
+			}
+			if sa.UID == serviceAccountUID {
+				return fmt.Errorf("serviceaccount UID unchanged, not recreated")
+			}
+			recreatedServiceAccount = sa
+			return nil
+		}, pollDuration, pollInterval).Should(Succeed())
+
+		By("Verify ServiceAccount was recreated with new UID")
+		Expect(recreatedServiceAccount.UID).ToNot(Equal(serviceAccountUID), "serviceaccount should have been recreated with new UID")
+
+		By("Delete Role to test OLM reconciliation")
+		err = c.KubernetesInterface().RbacV1().Roles(generatedNamespace.GetName()).Delete(
+			context.Background(),
+			roleList.Items[0].Name,
+			metav1.DeleteOptions{},
+		)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("Wait for Role to be deleted")
+		Eventually(func() error {
+			_, err := c.KubernetesInterface().RbacV1().Roles(generatedNamespace.GetName()).Get(
+				context.Background(),
+				roleList.Items[0].Name,
+				metav1.GetOptions{},
+			)
+			if err == nil {
+				return fmt.Errorf("role still exists")
+			}
+			if !k8serror.IsNotFound(err) {
+				return err
+			}
+			return nil
+		}, pollDuration, pollInterval).Should(Succeed())
+
+		By("Wait for OLM to recreate the Role")
+		var recreatedRoleList *rbacv1.RoleList
+		Eventually(func() error {
+			roles, err := c.KubernetesInterface().RbacV1().Roles(generatedNamespace.GetName()).List(
+				context.Background(),
+				metav1.ListOptions{LabelSelector: ownerSelector.String()},
+			)
+			if err != nil {
+				return fmt.Errorf("failed to list roles: %w", err)
+			}
+			if len(roles.Items) == 0 {
+				return fmt.Errorf("role not recreated yet")
+			}
+			if roles.Items[0].UID == roleUID {
+				return fmt.Errorf("role UID unchanged, not recreated")
+			}
+			recreatedRoleList = roles
+			return nil
+		}, pollDuration, pollInterval).Should(Succeed())
+
+		By("Verify Role was recreated with new UID")
+		Expect(len(recreatedRoleList.Items)).To(BeNumerically(">", 0), "at least one role should exist")
+		Expect(recreatedRoleList.Items[0].UID).ToNot(Equal(roleUID), "role should have been recreated with new UID")
+
+		By("Delete RoleBinding to test OLM reconciliation")
+		err = c.KubernetesInterface().RbacV1().RoleBindings(generatedNamespace.GetName()).Delete(
+			context.Background(),
+			roleBindingList.Items[0].Name,
+			metav1.DeleteOptions{},
+		)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("Wait for RoleBinding to be deleted")
+		Eventually(func() error {
+			_, err := c.KubernetesInterface().RbacV1().RoleBindings(generatedNamespace.GetName()).Get(
+				context.Background(),
+				roleBindingList.Items[0].Name,
+				metav1.GetOptions{},
+			)
+			if err == nil {
+				return fmt.Errorf("rolebinding still exists")
+			}
+			if !k8serror.IsNotFound(err) {
+				return err
+			}
+			return nil
+		}, pollDuration, pollInterval).Should(Succeed())
+
+		By("Wait for OLM to recreate the RoleBinding")
+		var recreatedRoleBindingList *rbacv1.RoleBindingList
+		Eventually(func() error {
+			roleBindings, err := c.KubernetesInterface().RbacV1().RoleBindings(generatedNamespace.GetName()).List(
+				context.Background(),
+				metav1.ListOptions{LabelSelector: ownerSelector.String()},
+			)
+			if err != nil {
+				return fmt.Errorf("failed to list rolebindings: %w", err)
+			}
+			if len(roleBindings.Items) == 0 {
+				return fmt.Errorf("rolebinding not recreated yet")
+			}
+			if roleBindings.Items[0].UID == roleBindingUID {
+				return fmt.Errorf("rolebinding UID unchanged, not recreated")
+			}
+			recreatedRoleBindingList = roleBindings
+			return nil
+		}, pollDuration, pollInterval).Should(Succeed())
+
+		By("Verify RoleBinding was recreated with new UID")
+		Expect(len(recreatedRoleBindingList.Items)).To(BeNumerically(">", 0), "at least one rolebinding should exist")
+		Expect(recreatedRoleBindingList.Items[0].UID).ToNot(Equal(roleBindingUID), "rolebinding should have been recreated with new UID")
 
 		By("Verify subscription still tracks installed CSV")
 		fetchedSubscription, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(

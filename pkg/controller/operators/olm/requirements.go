@@ -17,9 +17,133 @@ import (
 	"github.com/sirupsen/logrus"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 )
+
+func (a *Operator) ensureRBACResources(csv *v1alpha1.ClusterServiceVersion) error {
+	logger := a.logger.WithFields(logrus.Fields{
+		"csv":       csv.GetName(),
+		"namespace": csv.GetNamespace(),
+	})
+
+	permissions, err := resolver.RBACForClusterServiceVersion(csv)
+	if err != nil {
+		return fmt.Errorf("failed to generate RBAC for CSV: %w", err)
+	}
+
+	for saName, perms := range permissions {
+		if perms.ServiceAccount != nil {
+			perms.ServiceAccount.SetNamespace(csv.GetNamespace())
+			_, err := a.opClient.KubernetesInterface().CoreV1().ServiceAccounts(csv.GetNamespace()).Get(
+				context.TODO(),
+				saName,
+				metav1.GetOptions{},
+			)
+			if apierrors.IsNotFound(err) {
+				logger.WithField("serviceaccount", saName).Debug("creating missing ServiceAccount")
+				_, err = a.opClient.KubernetesInterface().CoreV1().ServiceAccounts(csv.GetNamespace()).Create(
+					context.TODO(),
+					perms.ServiceAccount,
+					metav1.CreateOptions{},
+				)
+				if err != nil && !apierrors.IsAlreadyExists(err) {
+					return fmt.Errorf("failed to create ServiceAccount %s: %w", saName, err)
+				}
+			} else if err != nil {
+				return fmt.Errorf("failed to check ServiceAccount %s: %w", saName, err)
+			}
+		}
+
+		for _, role := range perms.Roles {
+			_, err := a.opClient.KubernetesInterface().RbacV1().Roles(csv.GetNamespace()).Get(
+				context.TODO(),
+				role.GetName(),
+				metav1.GetOptions{},
+			)
+			if apierrors.IsNotFound(err) {
+				logger.WithField("role", role.GetName()).Debug("creating missing Role")
+				_, err = a.opClient.KubernetesInterface().RbacV1().Roles(csv.GetNamespace()).Create(
+					context.TODO(),
+					role,
+					metav1.CreateOptions{},
+				)
+				if err != nil && !apierrors.IsAlreadyExists(err) {
+					return fmt.Errorf("failed to create Role %s: %w", role.GetName(), err)
+				}
+			} else if err != nil {
+				return fmt.Errorf("failed to check Role %s: %w", role.GetName(), err)
+			}
+		}
+
+		for _, rb := range perms.RoleBindings {
+			_, err := a.opClient.KubernetesInterface().RbacV1().RoleBindings(csv.GetNamespace()).Get(
+				context.TODO(),
+				rb.GetName(),
+				metav1.GetOptions{},
+			)
+			if apierrors.IsNotFound(err) {
+				logger.WithField("rolebinding", rb.GetName()).Debug("creating missing RoleBinding")
+				_, err = a.opClient.KubernetesInterface().RbacV1().RoleBindings(csv.GetNamespace()).Create(
+					context.TODO(),
+					rb,
+					metav1.CreateOptions{},
+				)
+				if err != nil && !apierrors.IsAlreadyExists(err) {
+					return fmt.Errorf("failed to create RoleBinding %s: %w", rb.GetName(), err)
+				}
+			} else if err != nil {
+				return fmt.Errorf("failed to check RoleBinding %s: %w", rb.GetName(), err)
+			}
+		}
+
+		for _, clusterRole := range perms.ClusterRoles {
+			_, err := a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Get(
+				context.TODO(),
+				clusterRole.GetName(),
+				metav1.GetOptions{},
+			)
+			if apierrors.IsNotFound(err) {
+				logger.WithField("clusterrole", clusterRole.GetName()).Debug("creating missing ClusterRole")
+				_, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(
+					context.TODO(),
+					clusterRole,
+					metav1.CreateOptions{},
+				)
+				if err != nil && !apierrors.IsAlreadyExists(err) {
+					return fmt.Errorf("failed to create ClusterRole %s: %w", clusterRole.GetName(), err)
+				}
+			} else if err != nil {
+				return fmt.Errorf("failed to check ClusterRole %s: %w", clusterRole.GetName(), err)
+			}
+		}
+
+		for _, crb := range perms.ClusterRoleBindings {
+			_, err := a.opClient.KubernetesInterface().RbacV1().ClusterRoleBindings().Get(
+				context.TODO(),
+				crb.GetName(),
+				metav1.GetOptions{},
+			)
+			if apierrors.IsNotFound(err) {
+				logger.WithField("clusterrolebinding", crb.GetName()).Debug("creating missing ClusterRoleBinding")
+				_, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(
+					context.TODO(),
+					crb,
+					metav1.CreateOptions{},
+				)
+				if err != nil && !apierrors.IsAlreadyExists(err) {
+					return fmt.Errorf("failed to create ClusterRoleBinding %s: %w", crb.GetName(), err)
+				}
+			} else if err != nil {
+				return fmt.Errorf("failed to check ClusterRoleBinding %s: %w", crb.GetName(), err)
+			}
+		}
+	}
+
+	logger.Debug("successfully ensured all RBAC resources exist")
+	return nil
+}
 
 func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met bool, statuses []v1alpha1.RequirementStatus) {
 	if minKubeVersion == "" {
@@ -493,7 +617,18 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 		return false, nil, err
 	}
 
-	// Aggregate requirement and permissions statuses
+	if !permMet {
+		a.logger.WithField("csv", csv.GetName()).Debug("permissions not met, attempting to create missing RBAC resources")
+		if err := a.ensureRBACResources(csv); err != nil {
+			a.logger.WithError(err).Warn("failed to ensure RBAC resources")
+		} else {
+			permMet, permStatuses, err = a.permissionStatus(strategyDetailsDeployment, csv.GetNamespace(), csv)
+			if err != nil {
+				return false, nil, err
+			}
+		}
+	}
+
 	statuses := append(allReqStatuses, permStatuses...)
 	met := minKubeMet && reqMet && permMet
 	if !met {
