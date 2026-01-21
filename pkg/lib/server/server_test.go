@@ -111,6 +111,115 @@ func TestGetListenAndServeFunc_WithoutKubeConfig(t *testing.T) {
 	assert.NoError(t, err, "GetListenAndServeFunc should succeed without kubeConfig")
 }
 
+// TestGetListenAndServeFunc_WithEmptyClientCA tests that the server
+// starts successfully when TLS is enabled but client-ca is empty
+func TestGetListenAndServeFunc_WithEmptyClientCA(t *testing.T) {
+	// Generate test certificates dynamically
+	caCert, caKey, err := generateCA()
+	require.NoError(t, err)
+
+	serverCert, serverKey, err := generateServerCert(caCert, caKey, "localhost")
+	require.NoError(t, err)
+
+	tmpDir, err := os.MkdirTemp("", "server-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	tlsCertPath := filepath.Join(tmpDir, "tls.crt")
+	tlsKeyPath := filepath.Join(tmpDir, "tls.key")
+	emptyClientCAPath := "" // Empty client CA path
+
+	err = os.WriteFile(tlsCertPath, serverCert, 0644)
+	require.NoError(t, err)
+	err = os.WriteFile(tlsKeyPath, serverKey, 0600)
+	require.NoError(t, err)
+
+	logger := logrus.New()
+	logger.SetOutput(io.Discard)
+
+	// Test with TLS enabled but empty client CA - should succeed
+	_, err = GetListenAndServeFunc(
+		WithLogger(logger),
+		WithTLS(&tlsCertPath, &tlsKeyPath, &emptyClientCAPath),
+		WithDebug(false),
+	)
+
+	assert.NoError(t, err, "GetListenAndServeFunc should succeed with empty client-ca")
+}
+
+// TestGetListenAndServeFunc_WithNilClientCA tests that the server
+// starts successfully when TLS is enabled but client-ca pointer is nil
+func TestGetListenAndServeFunc_WithNilClientCA(t *testing.T) {
+	// Generate test certificates dynamically
+	caCert, caKey, err := generateCA()
+	require.NoError(t, err)
+
+	serverCert, serverKey, err := generateServerCert(caCert, caKey, "localhost")
+	require.NoError(t, err)
+
+	tmpDir, err := os.MkdirTemp("", "server-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	tlsCertPath := filepath.Join(tmpDir, "tls.crt")
+	tlsKeyPath := filepath.Join(tmpDir, "tls.key")
+
+	err = os.WriteFile(tlsCertPath, serverCert, 0644)
+	require.NoError(t, err)
+	err = os.WriteFile(tlsKeyPath, serverKey, 0600)
+	require.NoError(t, err)
+
+	logger := logrus.New()
+	logger.SetOutput(io.Discard)
+
+	// Test with TLS enabled but nil client CA pointer - should succeed
+	_, err = GetListenAndServeFunc(
+		WithLogger(logger),
+		WithTLS(&tlsCertPath, &tlsKeyPath, nil),
+		WithDebug(false),
+	)
+
+	assert.NoError(t, err, "GetListenAndServeFunc should succeed with nil client-ca pointer")
+}
+
+// TestClientCAEnabled tests the clientCAEnabled helper function
+func TestClientCAEnabled(t *testing.T) {
+	tests := []struct {
+		name         string
+		clientCAPath *string
+		expected     bool
+	}{
+		{
+			name:         "nil pointer",
+			clientCAPath: nil,
+			expected:     false,
+		},
+		{
+			name:         "empty string",
+			clientCAPath: strPtr(""),
+			expected:     false,
+		},
+		{
+			name:         "valid path",
+			clientCAPath: strPtr("/path/to/ca.crt"),
+			expected:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sc := &serverConfig{
+				clientCAPath: tt.clientCAPath,
+			}
+			assert.Equal(t, tt.expected, sc.clientCAEnabled(), "clientCAEnabled result should match expected")
+		})
+	}
+}
+
+func strPtr(s string) *string {
+	return &s
+}
+
 // TestHTTPClientHasTLSConfig verifies that rest.HTTPClientFor creates a client
 // with proper TLS configuration including CA certificates
 func TestHTTPClientHasTLSConfig(t *testing.T) {
