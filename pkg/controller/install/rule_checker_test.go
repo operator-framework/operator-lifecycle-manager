@@ -574,6 +574,7 @@ func TestRuleSatisfied(t *testing.T) {
 
 func NewFakeCSVRuleChecker(k8sObjs []runtime.Object, csv *operatorsv1alpha1.ClusterServiceVersion, namespace string, stopCh <-chan struct{}) (*CSVRuleChecker, error) {
 	// create client fakes
+	//nolint:staticcheck // SA1019: NewClientset not available until apply configurations are generated
 	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), apiextensionsfake.NewSimpleClientset(), apiregistrationfake.NewSimpleClientset())
 
 	// create test namespace

@@ -87,7 +87,9 @@ func server() {
 }
 
 func NewFakeRegistryProvider(ctx context.Context, clientObjs []runtime.Object, k8sObjs []runtime.Object, globalNamespace string) (*RegistryProvider, error) {
+	//nolint:staticcheck // SA1019: NewClientset not available until apply configurations are generated
 	clientFake := fake.NewSimpleClientset(clientObjs...)
+	//nolint:staticcheck // SA1019: NewClientset not available until apply configurations are generated
 	k8sClientFake := k8sfake.NewSimpleClientset(k8sObjs...)
 	opClientFake := operatorclient.NewClient(k8sClientFake, nil, nil)
 

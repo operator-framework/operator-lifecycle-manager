@@ -298,9 +298,11 @@ func TestCopyToNamespace(t *testing.T) {
 			lister := &operatorlisterfakes.FakeOperatorLister{}
 			v1alpha1lister := &operatorlisterfakes.FakeOperatorsV1alpha1Lister{}
 			lister.OperatorsV1alpha1Returns(v1alpha1lister)
+			//nolint:staticcheck // SA1019: NewClientset not available until apply configurations are generated
 			client := fake.NewSimpleClientset()
 
 			if tc.ExistingCopy != nil {
+				//nolint:staticcheck // SA1019: NewClientset not available until apply configurations are generated
 				client = fake.NewSimpleClientset(tc.ExistingCopy)
 				v1alpha1lister.ClusterServiceVersionListerReturns(FakeClusterServiceVersionLister{tc.ExistingCopy})
 			} else {

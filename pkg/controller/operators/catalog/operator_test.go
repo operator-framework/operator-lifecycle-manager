@@ -2163,8 +2163,10 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 	clientFake := fake.NewReactionForwardingClientsetDecorator(config.clientObjs, config.clientOptions...)
 	// TODO: Using the ReactionForwardingClientsetDecorator for k8s objects causes issues with adding Resources for discovery.
 	// For now, directly use a SimpleClientset instead.
+	//nolint:staticcheck // SA1019: NewClientset not available until apply configurations are generated
 	k8sClientFake := k8sfake.NewSimpleClientset(config.k8sObjs...)
 	k8sClientFake.Resources = apiResourcesForObjects(append(config.extObjs, config.regObjs...))
+	//nolint:staticcheck // SA1019: NewClientset not available until apply configurations are generated
 	opClientFake := operatorclient.NewClient(k8sClientFake, apiextensionsfake.NewSimpleClientset(config.extObjs...), apiregistrationfake.NewSimpleClientset(config.regObjs...))
 	dynamicClientFake := fakedynamic.NewSimpleDynamicClient(runtime.NewScheme())
 

@@ -303,13 +303,16 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 	config.externalClient = externalFake
 	// TODO: Using the ReactionForwardingClientsetDecorator for k8s objects causes issues with adding Resources for discovery.
 	// For now, directly use a SimpleClientset instead.
+	//nolint:staticcheck // SA1019: NewClientset not available until apply configurations are generated
 	k8sClientFake := k8sfake.NewSimpleClientset(config.k8sObjs...)
 	k8sClientFake.Resources = apiResourcesForObjects(append(config.extObjs, config.regObjs...))
 	k8sClientFake.PrependReactor("*", "*", clienttesting.ReactionFunc(func(action clienttesting.Action) (bool, runtime.Object, error) {
 		*config.actionLog = append(*config.actionLog, action)
 		return false, nil, nil
 	}))
+	//nolint:staticcheck // SA1019: NewClientset not available until apply configurations are generated
 	apiextensionsFake := apiextensionsfake.NewSimpleClientset(config.extObjs...)
+	//nolint:staticcheck // SA1019: NewClientset not available until apply configurations are generated
 	config.operatorClient = operatorclient.NewClient(k8sClientFake, apiextensionsFake, apiregistrationfake.NewSimpleClientset(config.regObjs...))
 	config.configClient = configfake.NewSimpleClientset()
 	metadataFake := metadatafake.NewSimpleMetadataClient(scheme, config.partialMetadata...)
