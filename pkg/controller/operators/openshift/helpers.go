@@ -91,12 +91,8 @@ func (s skews) String() string {
 		j--
 	}
 
-	// it is safe to ignore the error here, with the assumption
-	// that we build each skew object only after verifying that the
-	// version string is parseable safely.
-	maxOCPVersion, _ := semver.ParseTolerant(s[0].maxOpenShiftVersion)
-	nextY := nextY(maxOCPVersion).String()
-	return fmt.Sprintf("ClusterServiceVersions blocking minor version upgrades to %s or higher:\n%s", nextY, strings.Join(msg, "\n"))
+	// TODO Revisit this message after 4.23 release once release schedule is determined for future possible minor versions.
+	return fmt.Sprintf("ClusterServiceVersions blocking minor version upgrades to 4.23 or major version upgrades to 5.0:\n%s", strings.Join(msg, "\n"))
 }
 
 type skew struct {
