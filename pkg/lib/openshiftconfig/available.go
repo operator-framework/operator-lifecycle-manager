@@ -1,4 +1,4 @@
-package proxy
+package openshiftconfig
 
 import (
 	"errors"
@@ -14,12 +14,11 @@ const (
 	notSupportedErrorMessage = "server does not support API version"
 )
 
-// IsAPIAvailable return true if OpenShift config API is present on the cluster.
+// IsAPIAvailable returns true if OpenShift config API is present on the cluster.
 // Otherwise, supported is set to false.
-func IsAPIAvailable(discovery apidiscovery.DiscoveryInterface) (supported bool, err error) {
+func IsAPIAvailable(discovery apidiscovery.DiscoveryInterface) (bool, error) {
 	if discovery == nil {
-		err = errors.New("discovery interface can not be <nil>")
-		return
+		return false, errors.New("discovery interface can not be <nil>")
 	}
 
 	opStatusGV := schema.GroupVersion{
@@ -28,13 +27,11 @@ func IsAPIAvailable(discovery apidiscovery.DiscoveryInterface) (supported bool, 
 	}
 	if discoveryErr := apidiscovery.ServerSupportsVersion(discovery, opStatusGV); discoveryErr != nil {
 		if strings.Contains(discoveryErr.Error(), notSupportedErrorMessage) {
-			return
+			return false, nil
 		}
 
-		err = discoveryErr
-		return
+		return false, discoveryErr
 	}
 
-	supported = true
-	return
+	return true, nil
 }

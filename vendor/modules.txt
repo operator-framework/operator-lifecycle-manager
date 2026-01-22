@@ -489,6 +489,9 @@ github.com/openshift/client-go/config/informers/externalversions/internalinterfa
 github.com/openshift/client-go/config/listers/config/v1
 github.com/openshift/client-go/config/listers/config/v1alpha1
 github.com/openshift/client-go/config/listers/config/v1alpha2
+# github.com/openshift/library-go v0.0.0-20260108135436-db8dbd64c462
+## explicit; go 1.24.0
+github.com/openshift/library-go/pkg/crypto
 # github.com/operator-framework/api v0.37.0
 ## explicit; go 1.24.6
 github.com/operator-framework/api/crds

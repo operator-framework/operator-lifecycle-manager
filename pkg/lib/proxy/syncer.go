@@ -12,7 +12,6 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/client-go/discovery"
 )
 
 const (
@@ -24,7 +23,7 @@ const (
 )
 
 // NewSyncer returns informer and sync functions to enable watch of Proxy type.
-func NewSyncer(logger *logrus.Logger, client configv1client.Interface, discovery discovery.DiscoveryInterface) (proxyInformer configv1.ProxyInformer, syncer *Syncer, querier Querier, err error) {
+func NewSyncer(logger *logrus.Logger, client configv1client.Interface) (proxyInformer configv1.ProxyInformer, syncer *Syncer, querier Querier, err error) {
 	factory := externalversions.NewSharedInformerFactoryWithOptions(client, defaultSyncInterval)
 	proxyInformer = factory.Config().V1().Proxies()
 	s := &Syncer{
