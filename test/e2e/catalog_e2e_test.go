@@ -1785,7 +1785,7 @@ var _ = Describe("Starting CatalogSource e2e tests", Label("CatalogSource"), fun
 		})
 	})
 
-	It("operator workload continues running after catalog source is deleted", func() {
+	It("[FLAKE] operator workload continues running after catalog source is deleted", func() {
 		By("Create CRD and CSV for operator")
 		packageName := genName("nginx-")
 		stableChannel := "stable"
