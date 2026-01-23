@@ -24,10 +24,10 @@ OPM_IMAGE_REF=$(go run util/image-canonical-ref/main.go ${OPERATOR_REGISTRY_IMAG
 echo "Using OPM image ${OPM_IMAGE_REF}"
 echo "Using OLM image ${OLM_RELEASE_IMG_REF}"
 
-$YQ w -i $values olm.image.ref ${OLM_RELEASE_IMG_REF}
-$YQ w -i $values catalog.image.ref ${OLM_RELEASE_IMG_REF}
-$YQ w -i $values package.image.ref ${OLM_RELEASE_IMG_REF}
-$YQ w -i $values -- catalog.opmImageArgs "--opmImage=${OPM_IMAGE_REF}"
+$YQ -i '.olm.image.ref = "'"${OLM_RELEASE_IMG_REF}"'"' $values
+$YQ -i '.catalog.image.ref = "'"${OLM_RELEASE_IMG_REF}"'"' $values
+$YQ -i '.package.image.ref = "'"${OLM_RELEASE_IMG_REF}"'"' $values
+$YQ -i '.catalog.opmImageArgs = "--opmImage='"${OPM_IMAGE_REF}"'"' $values
 
 charttmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t charttmpdir)
 
