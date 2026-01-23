@@ -11,7 +11,10 @@ import (
 	apiconfigv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	configv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/openshiftconfig"
 	"github.com/sirupsen/logrus"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -56,6 +59,53 @@ func RegisterEventHandlers(informer configv1.APIServerInformer, syncer *Syncer) 
 			syncer.HandleAPIServerDelete(obj)
 		},
 	})
+}
+
+// SetupAPIServerTLSConfig sets up the APIServer TLS configuration for HTTPS servers.
+// It checks if OpenShift config API is available and if so, creates the necessary
+// syncer and informer infrastructure to watch for cluster-wide TLS configuration changes.
+//
+// Returns:
+//   - querier: A Querier that can be used to get TLS configuration (NoopQuerier if OpenShift API not available)
+//   - factory: A SharedInformerFactory that must be started after operators are ready (nil if OpenShift API not available)
+//   - error: Any error encountered during setup
+func SetupAPIServerTLSConfig(logger *logrus.Logger, config *rest.Config) (Querier, interface{ Start(<-chan struct{}) }, error) {
+	// Create Kubernetes client for discovery
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error creating kubernetes client: %w", err)
+	}
+
+	// Check if OpenShift config API is available
+	openshiftConfigAPIExists, err := openshiftconfig.IsAPIAvailable(clientset.Discovery())
+	if err != nil {
+		return nil, nil, fmt.Errorf("error checking for OpenShift config API support: %w", err)
+	}
+
+	if !openshiftConfigAPIExists {
+		return NoopQuerier(), nil, nil
+	}
+
+	logger.Info("OpenShift APIServer API available - setting up watch for APIServer TLS configuration")
+
+	// Create versioned config client
+	versionedConfigClient, err := configv1client.NewForConfig(config)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error configuring openshift config client: %w", err)
+	}
+
+	// Create syncer and informer
+	apiServerInformer, apiServerSyncer, apiServerQuerier, apiServerFactory, err := NewSyncer(logger, versionedConfigClient)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error initializing APIServer TLS syncer: %w", err)
+	}
+
+	logger.Info("APIServer TLS configuration will be applied to HTTPS servers")
+
+	// Register event handlers for APIServer resource changes
+	RegisterEventHandlers(apiServerInformer, apiServerSyncer)
+
+	return apiServerQuerier, apiServerFactory, nil
 }
 
 // Syncer deals with watching APIServer type(s) on the cluster and let the caller
