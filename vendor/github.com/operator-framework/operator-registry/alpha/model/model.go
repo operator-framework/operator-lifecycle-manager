@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -52,75 +53,75 @@ type Package struct {
 	Deprecation    *Deprecation
 }
 
-func (m *Package) Validate() error {
-	result := newValidationError(fmt.Sprintf("invalid package %q", m.Name))
+func (p *Package) Validate() error {
+	result := newValidationError(fmt.Sprintf("invalid package %q", p.Name))
 
-	if m.Name == "" {
+	if p.Name == "" {
 		result.subErrors = append(result.subErrors, errors.New("package name must not be empty"))
 	}
 
-	if err := m.Icon.Validate(); err != nil {
+	if err := p.Icon.Validate(); err != nil {
 		result.subErrors = append(result.subErrors, err)
 	}
 
-	if m.DefaultChannel == nil {
+	if p.DefaultChannel == nil {
 		result.subErrors = append(result.subErrors, fmt.Errorf("default channel must be set"))
 	}
 
-	if len(m.Channels) == 0 {
+	if len(p.Channels) == 0 {
 		result.subErrors = append(result.subErrors, fmt.Errorf("package must contain at least one channel"))
 	}
 
 	foundDefault := false
-	for name, ch := range m.Channels {
+	for name, ch := range p.Channels {
 		if name != ch.Name {
 			result.subErrors = append(result.subErrors, fmt.Errorf("channel key %q does not match channel name %q", name, ch.Name))
 		}
 		if err := ch.Validate(); err != nil {
 			result.subErrors = append(result.subErrors, err)
 		}
-		if ch == m.DefaultChannel {
+		if ch == p.DefaultChannel {
 			foundDefault = true
 		}
-		if ch.Package != m {
+		if ch.Package != p {
 			result.subErrors = append(result.subErrors, fmt.Errorf("channel %q not correctly linked to parent package", ch.Name))
 		}
 	}
 
-	if err := m.validateUniqueBundleVersions(); err != nil {
+	if err := p.validateUniqueBundleVersions(); err != nil {
 		result.subErrors = append(result.subErrors, err)
 	}
 
-	if m.DefaultChannel != nil && !foundDefault {
-		result.subErrors = append(result.subErrors, fmt.Errorf("default channel %q not found in channels list", m.DefaultChannel.Name))
+	if p.DefaultChannel != nil && !foundDefault {
+		result.subErrors = append(result.subErrors, fmt.Errorf("default channel %q not found in channels list", p.DefaultChannel.Name))
 	}
 
-	if err := m.Deprecation.Validate(); err != nil {
+	if err := p.Deprecation.Validate(); err != nil {
 		result.subErrors = append(result.subErrors, fmt.Errorf("invalid deprecation: %v", err))
 	}
 
 	return result.orNil()
 }
 
-func (m *Package) validateUniqueBundleVersions() error {
-	versionsMap := map[string]semver.Version{}
+func (p *Package) validateUniqueBundleVersions() error {
+	versionsMap := map[string]string{}
 	bundlesWithVersion := map[string]sets.Set[string]{}
-	for _, ch := range m.Channels {
+	for _, ch := range p.Channels {
 		for _, b := range ch.Bundles {
-			versionsMap[b.Version.String()] = b.Version
-			if bundlesWithVersion[b.Version.String()] == nil {
-				bundlesWithVersion[b.Version.String()] = sets.New[string]()
+			versionsMap[b.VersionString()] = b.VersionString()
+			if bundlesWithVersion[b.VersionString()] == nil {
+				bundlesWithVersion[b.VersionString()] = sets.New[string]()
 			}
-			bundlesWithVersion[b.Version.String()].Insert(b.Name)
+			bundlesWithVersion[b.VersionString()].Insert(b.Name)
 		}
 	}
 
 	versionsSlice := maps.Values(versionsMap)
-	semver.Sort(versionsSlice)
+	slices.Sort(versionsSlice)
 
 	var errs []error
 	for _, v := range versionsSlice {
-		bundles := sets.List(bundlesWithVersion[v.String()])
+		bundles := sets.List(bundlesWithVersion[v])
 		if len(bundles) > 1 {
 			errs = append(errs, fmt.Errorf("{%s: [%s]}", v, strings.Join(bundles, ", ")))
 		}
@@ -331,6 +332,49 @@ type Bundle struct {
 	// These fields are used to compare bundles in a diff.
 	PropertiesP *property.Properties
 	Version     semver.Version
+	Release     semver.Version
+}
+
+func (b *Bundle) VersionString() string {
+	if len(b.Release.Pre) > 0 {
+		pres := []string{}
+		for _, pre := range b.Release.Pre {
+			pres = append(pres, pre.String())
+		}
+		relString := strings.Join(pres, ".")
+		return strings.Join([]string{b.Version.String(), relString}, "-")
+	}
+	return b.Version.String()
+}
+
+func (b *Bundle) normalizeName() string {
+	// if the bundle has release versioning, then the name must include this in standard form:
+	// <package-name>-v<version>-<release version>
+	// if no release versioning exists, then just return the bundle name
+	if len(b.Release.Pre) > 0 {
+		return strings.Join([]string{b.Package.Name, "v" + b.VersionString()}, "-")
+	}
+	return b.Name
+}
+
+// order by version, then
+// release, if present
+func (b *Bundle) Compare(other *Bundle) int {
+	if b.Name == other.Name {
+		return 0
+	}
+	if b.Version.NE(other.Version) {
+		return b.Version.Compare(other.Version)
+	}
+	bhasrelease := len(b.Release.Pre) > 0
+	otherhasrelease := len(other.Release.Pre) > 0
+	if bhasrelease && !otherhasrelease {
+		return 1
+	}
+	if !bhasrelease && otherhasrelease {
+		return -1
+	}
+	return b.Release.Compare(other.Release)
 }
 
 func (b *Bundle) Validate() error {
@@ -338,6 +382,9 @@ func (b *Bundle) Validate() error {
 
 	if b.Name == "" {
 		result.subErrors = append(result.subErrors, errors.New("name must be set"))
+	}
+	if b.Name != b.normalizeName() {
+		result.subErrors = append(result.subErrors, fmt.Errorf("name %q does not match normalized name %q", b.Name, b.normalizeName()))
 	}
 	if b.Channel == nil {
 		result.subErrors = append(result.subErrors, errors.New("channel must be set"))
@@ -377,6 +424,10 @@ func (b *Bundle) Validate() error {
 
 	if err := b.Deprecation.Validate(); err != nil {
 		result.subErrors = append(result.subErrors, fmt.Errorf("invalid deprecation: %v", err))
+	}
+
+	if len(b.Version.Build) > 0 && len(b.Release.Pre) > 0 {
+		result.subErrors = append(result.subErrors, fmt.Errorf("cannot use build metadata in version with a release version"))
 	}
 
 	return result.orNil()

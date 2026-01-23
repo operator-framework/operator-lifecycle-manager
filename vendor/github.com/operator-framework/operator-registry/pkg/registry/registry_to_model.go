@@ -29,7 +29,7 @@ func ObjectsAndPropertiesFromBundle(b *Bundle) ([]string, []property.Property, e
 			if err := json.Unmarshal(p.Value, &v); err != nil {
 				return nil, nil, property.ParseError{Idx: i, Typ: p.Type, Err: err}
 			}
-			p := property.MustBuildPackage(v.PackageName, v.Version)
+			p := property.MustBuildPackageRelease(v.PackageName, v.Version, v.Release)
 			packageProvidedProperty = &p
 		default:
 			otherProps = append(otherProps, property.Property{
@@ -66,6 +66,11 @@ func ObjectsAndPropertiesFromBundle(b *Bundle) ([]string, []property.Property, e
 	version, err := b.Version()
 	if err != nil {
 		return nil, nil, fmt.Errorf("get version: %v", err)
+	}
+
+	release, err := b.Release()
+	if err != nil {
+		return nil, nil, fmt.Errorf("get release: %v", err)
 	}
 
 	providedApis, err := b.ProvidedAPIs()
@@ -105,7 +110,7 @@ func ObjectsAndPropertiesFromBundle(b *Bundle) ([]string, []property.Property, e
 	}
 
 	if packageProvidedProperty == nil {
-		p := property.MustBuildPackage(b.Package, version)
+		p := property.MustBuildPackageRelease(b.Package, version, release)
 		packageProvidedProperty = &p
 	}
 	props = append(props, *packageProvidedProperty)

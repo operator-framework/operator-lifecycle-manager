@@ -2,7 +2,6 @@ package manifests
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -189,7 +188,7 @@ func (b *bundleLoader) LoadBundleWalkFunc(path string, f os.FileInfo, err error)
 // loadBundle takes the directory that a CSV is in and assumes the rest of the objects in that directory
 // are part of the bundle.
 func loadBundle(csvName string, dir string) (*Bundle, error) {
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}

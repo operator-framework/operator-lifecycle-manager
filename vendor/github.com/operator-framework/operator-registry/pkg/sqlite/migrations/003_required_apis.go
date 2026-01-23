@@ -9,7 +9,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// nolint:stylecheck
 const RequiredApiMigrationKey = 3
 
 // Register this migration

@@ -38,6 +38,7 @@ func (p Property) String() string {
 type Package struct {
 	PackageName string `json:"packageName"`
 	Version     string `json:"version"`
+	Release     string `json:"release,omitzero"`
 }
 
 // NOTICE: The Channel properties are for internal use only.
@@ -246,6 +247,9 @@ func jsonMarshal(p interface{}) ([]byte, error) {
 
 func MustBuildPackage(name, version string) Property {
 	return MustBuild(&Package{PackageName: name, Version: version})
+}
+func MustBuildPackageRelease(name, version, relVersion string) Property {
+	return MustBuild(&Package{PackageName: name, Version: version, Release: relVersion})
 }
 func MustBuildPackageRequired(name, versionRange string) Property {
 	return MustBuild(&PackageRequired{name, versionRange})

@@ -63,7 +63,6 @@ func NewSQLLiteQuerier(dbFilename string, opts ...SQLiteQuerierOption) (*SQLQuer
 	return NewSQLLiteQuerierFromDb(db, opts...), nil
 }
 
-// nolint:stylecheck
 func NewSQLLiteQuerierFromDb(db *sql.DB, opts ...SQLiteQuerierOption) *SQLQuerier {
 	return NewSQLLiteQuerierFromDBQuerier(dbQuerierAdapter{db}, opts...)
 }
@@ -810,7 +809,7 @@ func (s *SQLQuerier) GetBundlePathsForPackage(ctx context.Context, pkgName strin
 			return nil, err
 		}
 		if imgName.Valid && imgName.String == "" {
-			// nolint: stylecheck
+			//nolint:staticcheck // ST1005: error message is intentionally capitalized
 			return nil, fmt.Errorf("Index malformed: cannot find paths to bundle images")
 		}
 		images = append(images, imgName.String)
@@ -846,7 +845,7 @@ func (s *SQLQuerier) GetBundlesForPackage(ctx context.Context, pkgName string) (
 			key.Version = version.String
 		}
 		if key.IsEmpty() {
-			// nolint: stylecheck
+			//nolint:staticcheck // ST1005: error message is intentionally capitalized
 			return nil, fmt.Errorf("Index malformed: cannot find identifier for bundle in package %s", pkgName)
 		}
 		bundles[key] = struct{}{}

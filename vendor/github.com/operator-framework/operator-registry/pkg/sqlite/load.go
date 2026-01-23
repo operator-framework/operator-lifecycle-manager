@@ -123,7 +123,7 @@ func (s *sqlLoader) addOperatorBundle(tx *sql.Tx, bundle *registry.Bundle) error
 	}
 
 	if substitutesFor != "" && !s.enableAlpha {
-		// nolint:stylecheck
+		//nolint:staticcheck // ST1005: error message intentionally ends with punctuation
 		return fmt.Errorf("SubstitutesFor is an alpha-only feature. You must enable alpha features with the flag --enable-alpha in order to use this feature.")
 	}
 
@@ -508,7 +508,7 @@ func (s *sqlLoader) AddPackageChannelsFromGraph(graph *registry.Package) error {
 				// If the number of nodes is 5 and the startDepth is 3, the expected depth is 7 (3, 4, 5, 6, 7)
 				expectedDepth := len(channel.Nodes) + startDepth - 1
 				if expectedDepth != depth {
-					// nolint:stylecheck
+					//nolint:staticcheck // ST1005: error message is intentionally capitalized
 					err := fmt.Errorf("Invalid graph: some (non-bottom) nodes defined in the graph were not mentioned as replacements of any node (%d != %d)", expectedDepth, depth)
 					errs = append(errs, err)
 				}
@@ -720,7 +720,7 @@ func (s *sqlLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 
 			// If we find 'replaces' in the circuit list then we've seen it already, break out
 			if _, ok := replaceCycle[replaces]; ok {
-				// nolint:stylecheck
+				//nolint:staticcheck // ST1005: error message is intentionally capitalized
 				errs = append(errs, fmt.Errorf("Cycle detected, %s replaces %s", channelEntryCSVName, replaces))
 				break
 			}
@@ -736,7 +736,7 @@ func (s *sqlLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 				break
 			}
 			if _, _, _, err := s.getBundleSkipsReplacesVersion(tx, replaces); err != nil {
-				// nolint:stylecheck
+				//nolint:staticcheck // ST1005: error message is intentionally capitalized
 				errs = append(errs, fmt.Errorf("Invalid bundle %s, replaces nonexistent bundle %s", c.CurrentCSVName, replaces))
 				break
 			}

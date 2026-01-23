@@ -39,6 +39,18 @@ func validateBundle(bundle *registry.Bundle) errors.ManifestResult {
 		result.Add(errors.ErrInvalidParse("error getting bundle CSV version", err))
 		return result
 	}
+	release, err := csv.GetRelease()
+	if err != nil {
+		result.Add(errors.ErrInvalidParse("error getting bundle CSV release version", err))
+		return result
+	}
+	substitutesFor := csv.GetSubstitutesFor()
+	if release != "" && substitutesFor != "" {
+		result.Add(errors.ErrInvalidBundle(
+			fmt.Sprintf("bundle %q cannot have both a release version (%q) and olm.substitutesFor annotation (%q)", bundle.Name, release, substitutesFor),
+			registry.DefinitionKey{},
+		))
+	}
 	return result
 }
 

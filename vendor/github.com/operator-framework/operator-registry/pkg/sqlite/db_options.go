@@ -4,14 +4,12 @@ import (
 	"database/sql"
 )
 
-// nolint:stylecheck
 type DbOptions struct {
 	// MigratorBuilder is a function that returns a migrator instance
 	MigratorBuilder func(*sql.DB) (Migrator, error)
 	EnableAlpha     bool
 }
 
-// nolint:stylecheck
 type DbOption func(*DbOptions)
 
 func defaultDBOptions() *DbOptions {

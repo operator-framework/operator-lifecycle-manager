@@ -222,7 +222,7 @@ func GetMediaType(directory string) (string, error) {
 		fileWithPath := filepath.Join(directory, item.Name())
 		fileBlob, err := os.ReadFile(fileWithPath)
 		if err != nil {
-			// nolint:stylecheck
+			//nolint:staticcheck // ST1005: error message is intentionally capitalized
 			return "", fmt.Errorf("Unable to read file %s in bundle", fileWithPath)
 		}
 
@@ -234,7 +234,7 @@ func GetMediaType(directory string) (string, error) {
 	}
 
 	if len(files) == 0 {
-		// nolint:stylecheck
+		//nolint:staticcheck // ST1005: error message is intentionally capitalized
 		return "", fmt.Errorf("The directory %s contains no yaml files", directory)
 	}
 
@@ -281,13 +281,13 @@ func ValidateAnnotations(existing, expected []byte) error {
 	for label, item := range expectedAnnotations.Annotations {
 		value, hasAnnotation := fileAnnotations.Annotations[label]
 		if !hasAnnotation {
-			// nolint:stylecheck
+			//nolint:staticcheck // ST1005: error message is intentionally capitalized
 			errs = append(errs, fmt.Errorf("Missing field: %s", label))
 			continue
 		}
 
 		if item != value {
-			// nolint:stylecheck
+			//nolint:staticcheck // ST1005: error message is intentionally capitalized
 			errs = append(errs, fmt.Errorf("Expect field %q to have value %q instead of %q",
 				label, item, value))
 		}

@@ -9,11 +9,9 @@ import (
 
 const (
 	DefaultBinarySourceImage = "quay.io/operator-framework/opm:latest"
-	// nolint:stylecheck
-	DefaultDbLocation = "/database/index.db"
-	// nolint:stylecheck
-	DbLocationLabel      = "operators.operatorframework.io.index.database.v1"
-	ConfigsLocationLabel = "operators.operatorframework.io.index.configs.v1"
+	DefaultDbLocation        = "/database/index.db"
+	DbLocationLabel          = "operators.operatorframework.io.index.database.v1"
+	ConfigsLocationLabel     = "operators.operatorframework.io.index.configs.v1"
 )
 
 // DockerfileGenerator defines functions to generate index dockerfiles

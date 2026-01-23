@@ -22,7 +22,7 @@ func GetModeFromString(mode string) (Mode, error) {
 	case "semver-skippatch":
 		return SkipPatchMode, nil
 	default:
-		// nolint:stylecheck
+		//nolint:staticcheck // ST1005: error message is intentionally capitalized
 		return -1, fmt.Errorf("Invalid channel update mode %s specified", mode)
 	}
 }

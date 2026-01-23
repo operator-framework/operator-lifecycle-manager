@@ -31,7 +31,7 @@ func ExecuteCommand(cmd *exec.Cmd) error {
 	log.Debugf("Running %#v", cmd.Args)
 
 	if err := cmd.Run(); err != nil {
-		// nolint:stylecheck
+		//nolint:staticcheck // ST1005: error message is intentionally capitalized
 		return fmt.Errorf("Failed to exec %#v: %v", cmd.Args, err)
 	}
 
