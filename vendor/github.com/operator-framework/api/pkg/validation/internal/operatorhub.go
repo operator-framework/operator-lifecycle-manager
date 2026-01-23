@@ -3,9 +3,9 @@ package internal
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/mail"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -313,7 +313,7 @@ func extractCategories(path string) (map[string]struct{}, error) {
 		return nil, fmt.Errorf("finding category file: %w", err)
 	}
 
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading category file: %w", err)
 	}

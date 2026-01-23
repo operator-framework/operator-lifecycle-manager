@@ -3,7 +3,6 @@ package internal
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -225,7 +224,7 @@ func validateImageFile(checks CommunityOperatorChecks, deprecatedAPImsg string) 
 		return checks
 	}
 
-	b, err := ioutil.ReadFile(checks.indexImagePath)
+	b, err := os.ReadFile(checks.indexImagePath)
 	if err != nil {
 		checks.errs = append(checks.errs, fmt.Errorf("unable to read the index image in the path "+
 			"(%s). Error : %s", checks.indexImagePath, err))

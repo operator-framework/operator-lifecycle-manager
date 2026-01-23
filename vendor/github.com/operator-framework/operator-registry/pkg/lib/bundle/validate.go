@@ -101,11 +101,11 @@ func (i imageValidator) ValidateBundleFormat(directory string) error {
 	}
 
 	if !manifestsFound {
-		// nolint:stylecheck
+		//nolint:staticcheck // ST1005: error message is intentionally capitalized
 		validationErrors = append(validationErrors, fmt.Errorf("Unable to locate manifests directory"))
 	}
 	if !metadataFound {
-		// nolint:stylecheck
+		//nolint:staticcheck // ST1005: error message is intentionally capitalized
 		validationErrors = append(validationErrors, fmt.Errorf("Unable to locate metadata directory"))
 	}
 
@@ -147,7 +147,7 @@ func (i imageValidator) ValidateBundleFormat(directory string) error {
 	}
 
 	if !annotationsFound {
-		// nolint:stylecheck
+		//nolint:staticcheck // ST1005: error message is intentionally capitalized
 		validationErrors = append(validationErrors, fmt.Errorf("Could not find annotations file"))
 	} else {
 		i.logger.Debug("Found annotations file")
@@ -189,7 +189,7 @@ func validateAnnotations(mediaType string, fileAnnotations *AnnotationMetadata) 
 	for label, item := range annotations {
 		val, ok := fileAnnotations.Annotations[label]
 		if !ok && label != ChannelDefaultLabel {
-			// nolint:stylecheck
+			//nolint:staticcheck // ST1005: error message is intentionally capitalized
 			aErr := fmt.Errorf("Missing annotation %q", label)
 			validationErrors = append(validationErrors, aErr)
 		}
@@ -197,31 +197,31 @@ func validateAnnotations(mediaType string, fileAnnotations *AnnotationMetadata) 
 		switch label {
 		case MediatypeLabel:
 			if item != val {
-				// nolint:stylecheck
+				//nolint:staticcheck // ST1005: error message is intentionally capitalized
 				aErr := fmt.Errorf("Expecting annotation %q to have value %q instead of %q", label, item, val)
 				validationErrors = append(validationErrors, aErr)
 			}
 		case ManifestsLabel:
 			if item != ManifestsDir {
-				// nolint:stylecheck
+				//nolint:staticcheck // ST1005: error message is intentionally capitalized
 				aErr := fmt.Errorf("Expecting annotation %q to have value %q instead of %q", label, ManifestsDir, val)
 				validationErrors = append(validationErrors, aErr)
 			}
 		case MetadataDir:
 			if item != MetadataLabel {
-				// nolint:stylecheck
+				//nolint:staticcheck // ST1005: error message is intentionally capitalized
 				aErr := fmt.Errorf("Expecting annotation %q to have value %q instead of %q", label, MetadataDir, val)
 				validationErrors = append(validationErrors, aErr)
 			}
 		case ChannelsLabel:
 			if val == "" {
-				// nolint:stylecheck
+				//nolint:staticcheck // ST1005: error message is intentionally capitalized
 				aErr := fmt.Errorf("Expecting annotation %q to have non-empty value", label)
 				validationErrors = append(validationErrors, aErr)
 			}
 		case ChannelDefaultLabel:
 			if ok && val == "" {
-				// nolint:stylecheck
+				//nolint:staticcheck // ST1005: error message is intentionally capitalized
 				aErr := fmt.Errorf("Expecting annotation %q to have non-empty value", label)
 				validationErrors = append(validationErrors, aErr)
 			}
@@ -301,7 +301,7 @@ func (i imageValidator) ValidateBundleContent(manifestDir string) error {
 		fileWithPath := filepath.Join(manifestDir, item.Name())
 		data, err := os.ReadFile(fileWithPath)
 		if err != nil {
-			// nolint:stylecheck
+			//nolint:staticcheck // ST1005: error message is intentionally capitalized
 			validationErrors = append(validationErrors, fmt.Errorf("Unable to read file %s in supported types", fileWithPath))
 			continue
 		}
@@ -373,7 +373,7 @@ func (i imageValidator) ValidateBundleContent(manifestDir string) error {
 					}
 				}
 			default:
-				// nolint:stylecheck
+				//nolint:staticcheck // ST1005: error message is intentionally capitalized
 				validationErrors = append(validationErrors, fmt.Errorf("Unsupported api version of CRD: %s", gv))
 			}
 		} else {

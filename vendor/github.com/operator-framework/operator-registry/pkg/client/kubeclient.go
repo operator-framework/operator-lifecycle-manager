@@ -27,7 +27,7 @@ func NewKubeClient(kubeconfig string, logger *logrus.Logger) (*kubernetes.Client
 	}
 
 	if err != nil {
-		// nolint:stylecheck
+		//nolint:staticcheck // ST1005: error message is intentionally capitalized
 		err = fmt.Errorf("Cannot load config for REST client: %v", err)
 		return nil, err
 	}

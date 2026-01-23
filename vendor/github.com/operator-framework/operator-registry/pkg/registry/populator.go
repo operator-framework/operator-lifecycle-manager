@@ -181,7 +181,7 @@ func (i *DirectoryPopulator) loadManifests(imagesToAdd []*ImageInput, mode Mode)
 			}
 		}
 	default:
-		// nolint:stylecheck
+		//nolint:staticcheck // ST1005: error message is intentionally capitalized
 		return fmt.Errorf("Unsupported update mode")
 	}
 

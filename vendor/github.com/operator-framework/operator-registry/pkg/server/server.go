@@ -1,7 +1,7 @@
 package server
 
 import (
-	"golang.org/x/net/context"
+	"context"
 
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/registry"

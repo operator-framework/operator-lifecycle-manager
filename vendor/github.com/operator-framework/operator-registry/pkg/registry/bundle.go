@@ -42,6 +42,7 @@ type Bundle struct {
 	Channels     []string
 	BundleImage  string
 	version      string
+	release      string
 	csv          *ClusterServiceVersion
 	v1beta1crds  []*apiextensionsv1beta1.CustomResourceDefinition
 	v1crds       []*apiextensionsv1.CustomResourceDefinition
@@ -128,6 +129,23 @@ func (b *Bundle) Version() (string, error) {
 	}
 
 	return b.version, err
+}
+
+func (b *Bundle) Release() (string, error) {
+	if b.release != "" {
+		return b.release, nil
+	}
+
+	var err error
+	if err = b.cache(); err != nil {
+		return "", err
+	}
+
+	if b.csv != nil {
+		b.release, err = b.csv.GetRelease()
+	}
+
+	return b.release, err
 }
 
 func (b *Bundle) SkipRange() (string, error) {

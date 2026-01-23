@@ -68,7 +68,6 @@ func (EmptyQuery) GetImagesForBundle(ctx context.Context, bundleName string) ([]
 	return nil, errors.New("empty querier: cannot get image list")
 }
 
-// nolint:stylecheck
 func (EmptyQuery) GetApisForEntry(ctx context.Context, entryId int64) ([]*api.GroupVersionKind, []*api.GroupVersionKind, error) {
 	return nil, nil, errors.New("empty querier: cannot apis")
 }

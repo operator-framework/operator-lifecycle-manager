@@ -62,7 +62,7 @@ func (v *validationError) errorPrefix(prefix []rune, last bool, seen []error) st
 		if errors.As(serr, &verr) {
 			errMsg.WriteString(verr.errorPrefix(subPrefix, subLast, seen))
 		} else {
-			errMsg.WriteString(fmt.Sprintf("%s%s\n", string(subPrefix), serr))
+			fmt.Fprintf(errMsg, "%s%s\n", string(subPrefix), serr)
 		}
 	}
 	return errMsg.String()

@@ -8,7 +8,6 @@ import (
 
 // BuildIdCompare compares two versions and returns negative one if the first arg is less than the second arg, positive one if it is larger, and zero if they are equal.
 // This comparison follows typical semver precedence rules, with one addition: whenever two versions are equal with the exception of their build-ids, the build-ids are compared using prerelease precedence rules. Further, versions with no build-id are always less than versions with build-ids; e.g. 1.0.0 < 1.0.0+1.
-// nolint:stylecheck
 func BuildIdCompare(b semver.Version, v semver.Version) (int, error) {
 	if c := b.Compare(v); c != 0 {
 		return c, nil
