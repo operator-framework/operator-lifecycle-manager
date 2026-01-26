@@ -133,9 +133,14 @@ func main() {
 	// create a config that validates we're creating objects with labels
 	validatingConfig := validatingroundtripper.Wrap(config, mgr.GetScheme())
 
-	versionedConfigClient, err := configclientset.NewForConfig(config)
+	// Create separate config client for operator's proxy syncer to avoid
+	// SharedInformerFactory conflicts with the APIServer TLS syncer factory.
+	// The APIServer TLS syncer (in SetupAPIServerTLSConfig) creates its own
+	// factory, and the operator's proxy syncer creates another factory. Using
+	// separate client instances prevents watch conflicts between the two factories.
+	operatorConfigClient, err := configclientset.NewForConfig(config)
 	if err != nil {
-		logger.WithError(err).Fatal("error configuring openshift proxy client")
+		logger.WithError(err).Fatal("error configuring openshift config client for operator")
 	}
 	configClient, err := configv1client.NewForConfig(config)
 	if err != nil {
@@ -189,7 +194,7 @@ func main() {
 		olm.WithMetadataClient(metadataClient),
 		olm.WithOperatorClient(opClient),
 		olm.WithRestConfig(validatingConfig),
-		olm.WithConfigClient(versionedConfigClient),
+		olm.WithConfigClient(operatorConfigClient),
 		olm.WithProtectedCopiedCSVNamespaces(*protectedCopiedCSVNamespaces),
 		olm.WithOpenshiftConfigAPIExists(openshiftConfigAPIExists),
 	)
