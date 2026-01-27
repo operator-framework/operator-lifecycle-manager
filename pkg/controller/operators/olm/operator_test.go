@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -71,6 +72,15 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
 )
+
+// TestMain disables WatchListClient feature for all tests in this package.
+// This is required because fake clients don't support WatchList semantics properly in K8s 1.35.
+// See: https://github.com/kubernetes/kubernetes/issues/135895
+func TestMain(m *testing.M) {
+	// Disable WatchListClient feature gate for fake clients
+	os.Setenv("KUBE_FEATURE_WatchListClient", "false")
+	os.Exit(m.Run())
+}
 
 type TestStrategy struct{}
 

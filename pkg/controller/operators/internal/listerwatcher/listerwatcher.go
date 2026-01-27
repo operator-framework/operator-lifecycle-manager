@@ -12,7 +12,9 @@ import (
 )
 
 func NewListerWatcher(client versioned.Interface, namespace string, override func(*metav1.ListOptions)) cache.ListerWatcher {
-	return &cache.ListWatch{
+	// Wrap with ToListWatcherWithWatchListSemantics to signal fake client compatibility
+	// See: https://github.com/kubernetes/kubernetes/issues/135895
+	return cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			override(&options)
 			return client.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(context.TODO(), options)
@@ -21,5 +23,5 @@ func NewListerWatcher(client versioned.Interface, namespace string, override fun
 			override(&options)
 			return client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Watch(context.TODO(), options)
 		},
-	}
+	}, client)
 }
