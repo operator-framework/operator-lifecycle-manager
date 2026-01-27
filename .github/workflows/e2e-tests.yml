@@ -117,9 +117,9 @@ jobs:
     - run: |
         echo "Matrix result: ${{ needs.e2e.result }}"
     - name: check individual matrix results
-      if: ${{ needs.e2e.result == 'failure' }}
+      if: ${{ needs.e2e.result != 'success' }}
       run: |
-        echo 'Failure: at least one e2e matrix job has failed'
+        echo 'Failure: at least one e2e matrix job has failed or been cancelled'
         exit 1
 
   # Run e2e tests in parallel jobs
