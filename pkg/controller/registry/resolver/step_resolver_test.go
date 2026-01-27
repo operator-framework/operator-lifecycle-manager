@@ -284,6 +284,7 @@ func TestIsReplacementChainThatEndsInFailure(t *testing.T) {
 }
 
 func TestInitHooks(t *testing.T) {
+	//nolint:staticcheck // SA1019: NewClientset not available until apply configurations are generated
 	clientFake := fake.NewSimpleClientset()
 	lister := operatorlister.NewLister()
 	log := logrus.New()
@@ -1473,6 +1474,7 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 
 func StartResolverInformers(namespace string, stopCh <-chan struct{}, objs ...runtime.Object) (versioned.Interface, externalversions.SharedInformerFactory, []cache.InformerSynced) {
 	// Create client fakes
+	//nolint:staticcheck // SA1019: NewClientset not available until apply configurations are generated
 	clientFake := fake.NewSimpleClientset(objs...)
 
 	var hasSyncedCheckFns []cache.InformerSynced

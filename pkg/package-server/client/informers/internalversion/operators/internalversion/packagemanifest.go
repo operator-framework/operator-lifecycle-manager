@@ -57,7 +57,7 @@ func NewPackageManifestInformer(client clientsetinternalversion.Interface, names
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredPackageManifestInformer(client clientsetinternalversion.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
-		&cache.ListWatch{
+		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
@@ -82,7 +82,7 @@ func NewFilteredPackageManifestInformer(client clientsetinternalversion.Interfac
 				}
 				return client.Packages().PackageManifests(namespace).Watch(ctx, options)
 			},
-		},
+		}, client),
 		&operators.PackageManifest{},
 		resyncPeriod,
 		indexers,

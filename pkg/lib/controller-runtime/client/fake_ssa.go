@@ -36,6 +36,26 @@ type fakeStatusWriter struct {
 }
 
 func (c fakeStatusWriter) Patch(ctx context.Context, obj k8scontrollerclient.Object, patch k8scontrollerclient.Patch, opts ...k8scontrollerclient.SubResourcePatchOption) error {
+	// Apply patch type is not supported on the fake controller
+	// Convert Apply patches to Merge patches
+	if patch.Type() == types.ApplyPatchType {
+		patch = k8scontrollerclient.Merge
+		// Filter out ForceOwnership option since it's only valid for Apply patches
+		subResourceOpts := make([]k8scontrollerclient.SubResourcePatchOption, 0, len(opts))
+		for _, opt := range opts {
+			// Skip ForceOwnership options by checking if they would apply it
+			if subOpt, ok := opt.(interface{ ApplyToPatch(*k8scontrollerclient.PatchOptions) }); ok {
+				testOpts := &k8scontrollerclient.PatchOptions{}
+				subOpt.ApplyToPatch(testOpts)
+				// If Force is set, this is ForceOwnership, skip it
+				if testOpts.Force != nil && *testOpts.Force {
+					continue
+				}
+			}
+			subResourceOpts = append(subResourceOpts, opt)
+		}
+		opts = subResourceOpts
+	}
 	return c.StatusWriter.Patch(ctx, obj, patch, opts...)
 }
 

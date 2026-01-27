@@ -355,6 +355,7 @@ func TestEnsureServiceAccount(t *testing.T) {
 				objects = append(objects, tc.existingServiceAccount)
 			}
 
+			//nolint:staticcheck // SA1019: NewClientset not available until apply configurations are generated
 			fakeClient := k8sfake.NewSimpleClientset(objects...)
 
 			// Setup expectations
@@ -406,7 +407,8 @@ func TestEnsureServiceAccount(t *testing.T) {
 
 			// Create StepEnsurer
 			ensurer := &StepEnsurer{
-				kubeClient:    mockClient,
+				kubeClient: mockClient,
+				//nolint:staticcheck // SA1019: NewClientset not available until apply configurations are generated
 				crClient:      fake.NewSimpleClientset(),
 				dynamicClient: fakedynamic.NewSimpleDynamicClient(runtime.NewScheme()),
 			}

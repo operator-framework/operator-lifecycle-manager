@@ -1612,6 +1612,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
+			//nolint:staticcheck // SA1019: NewClientset not available until apply configurations are generated
 			client := k8sfake.NewSimpleClientset(tt.fields.objs...)
 
 			period := 5 * time.Minute
@@ -1632,6 +1633,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 			factory.Start(stop)
 			factory.WaitForCacheSync(context.Background().Done())
 
+			//nolint:staticcheck // SA1019: NewClientset not available until apply configurations are generated
 			crClient := crfake.NewSimpleClientset(tt.fields.crs...)
 			crFactory := crinformers.NewSharedInformerFactory(crClient, period)
 			csLister := crFactory.Operators().V1alpha1().CatalogSources().Lister()
