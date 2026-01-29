@@ -2,6 +2,7 @@ package openshift
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -19,6 +20,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
+
+// TestMain disables WatchListClient feature for all tests in this package.
+// This is required because envtest doesn't fully support WatchList semantics in K8s 1.35.
+// See: https://github.com/kubernetes/kubernetes/issues/135895
+func TestMain(m *testing.M) {
+	// Disable WatchListClient feature gate
+	os.Setenv("KUBE_FEATURE_WatchListClient", "false")
+	os.Exit(m.Run())
+}
 
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)

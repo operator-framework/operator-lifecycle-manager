@@ -3,6 +3,7 @@ package operators
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -71,6 +72,15 @@ var (
 		testobj.WithFixtureFile(&operatorsv1alpha1.InstallPlan{}, "testdata/fixtures/installplan.yaml"),
 	)
 )
+
+// TestMain disables WatchListClient feature for all tests in this package.
+// This is required because envtest doesn't fully support WatchList semantics in K8s 1.35.
+// See: https://github.com/kubernetes/kubernetes/issues/135895
+func TestMain(m *testing.M) {
+	// Disable WatchListClient feature gate
+	os.Setenv("KUBE_FEATURE_WatchListClient", "false")
+	os.Exit(m.Run())
+}
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
