@@ -358,6 +358,18 @@ func runManifestInspect(image, tool string) (manifestInspect, error) {
 	if err := json.Unmarshal(output, &inspect); err != nil {
 		return manifestInspect{}, err
 	}
+
+	// Filter out attestation manifests and other entries with unknown OS or architecture
+	// These are typically SBOM/provenance attestations that don't represent actual platform builds
+	var filteredManifests []manifestData
+	for _, manifest := range inspect.ManifestData {
+		if manifest.Platform.OS != "unknown" && manifest.Platform.Architecture != "unknown" &&
+			manifest.Platform.OS != "" && manifest.Platform.Architecture != "" {
+			filteredManifests = append(filteredManifests, manifest)
+		}
+	}
+	inspect.ManifestData = filteredManifests
+
 	return inspect, nil
 }
 

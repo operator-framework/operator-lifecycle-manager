@@ -30,6 +30,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/client-go/util/cert"
+
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 // TLS versions that are known to golang. Go 1.13 adds support for
@@ -242,6 +244,9 @@ func ValidCipherSuites() []string {
 	sort.Strings(validCipherSuites)
 	return validCipherSuites
 }
+
+// DefaultTLSProfileType is the intermediate profile type.
+const DefaultTLSProfileType = configv1.TLSProfileIntermediateType
 
 // DefaultCiphers returns the default cipher suites for TLS connections.
 //
