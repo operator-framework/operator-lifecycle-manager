@@ -37,6 +37,7 @@ github.com/clipperhouse/stringish v0.1.1/go.mod h1:v/WhFtE1q0ovMta2+m+UbpZ+2/HEX
 github.com/clipperhouse/uax29/v2 v2.3.0 h1:SNdx9DVUqMoBuBoW3iLOj4FQv3dN5mDtuqwuhIGpJy4=
 github.com/clipperhouse/uax29/v2 v2.3.0/go.mod h1:Wn1g7MK6OoeDT0vL+Q0SQLDz/KpfsVRgg6W7ihQeh4g=
 github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGXZJjfX53e64911xZQV5JYwmTeXPW+k8Sc=
+github.com/containerd/cgroups v1.1.0 h1:v8rEWFl6EoqHB+swVNjVoCJE8o3jX7e8nqBGPLaDFBM=
 github.com/containerd/cgroups/v3 v3.1.2 h1:OSosXMtkhI6Qove637tg1XgK4q+DhR0mX8Wi8EhrHa4=
 github.com/containerd/cgroups/v3 v3.1.2/go.mod h1:PKZ2AcWmSBsY/tJUVhtS/rluX0b1uq1GmPO1ElCmbOw=
 github.com/containerd/containerd v1.7.30 h1:/2vezDpLDVGGmkUXmlNPLCCNKHJ5BbC5tJB5JNzQhqE=
@@ -55,6 +56,7 @@ github.com/containerd/platforms v0.2.1 h1:zvwtM3rz2YHPQsF2CHYM8+KtB5dvhISiXh5ZpS
 github.com/containerd/platforms v0.2.1/go.mod h1:XHCb+2/hzowdiut9rkudds9bE5yJ7npe7dG/wG+uFPw=
 github.com/containerd/ttrpc v1.2.7 h1:qIrroQvuOL9HQ1X6KHe2ohc7p+HP/0VE6XPU7elJRqQ=
 github.com/containerd/ttrpc v1.2.7/go.mod h1:YCXHsb32f+Sq5/72xHubdiJRQY9inL4a4ZQrAbN1q9o=
+github.com/containerd/typeurl v1.0.2 h1:Chlt8zIieDbzQFzXzAeBEF92KhExuE4p9p92/QmY7aY=
 github.com/containerd/typeurl/v2 v2.2.3 h1:yNA/94zxWdvYACdYO8zofhrTVuQY73fFU1y++dYSw40=
 github.com/containerd/typeurl/v2 v2.2.3/go.mod h1:95ljDnPfD3bAbDJRugOiShd/DlAAsxGtUBhJxIn7SCk=
 github.com/containers/libtrust v0.0.0-20230121012942-c1716e8a8d01 h1:Qzk5C6cYglewc+UyGf6lc8Mj2UaPTHy/iF2De0/77CA=
@@ -339,14 +341,20 @@ github.com/opencontainers/runtime-spec v1.3.0 h1:YZupQUdctfhpZy3TM39nN9Ika5CBWT5
 github.com/opencontainers/runtime-spec v1.3.0/go.mod h1:jwyrGlmzljRJv/Fgzds9SsS/C5hL+LL3ko9hs6T5lQ0=
 github.com/openshift/api v0.0.0-20260203111218-618697272d69 h1:qMtJjQas6bqd+NkIgh5XT8aTcfwfLe1HyRuh0P1aQMg=
 github.com/openshift/api v0.0.0-20260203111218-618697272d69/go.mod h1:d5uzF0YN2nQQFA0jIEWzzOZ+edmo6wzlGLvx5Fhz4uY=
+github.com/openshift/api v0.0.0-20260204104751-e09e5a4ebcd0 h1:mj1uTiMB24CUakpEcHr65f6dX8xmirVROnnfa4ukwHs=
+github.com/openshift/api v0.0.0-20260204104751-e09e5a4ebcd0/go.mod h1:d5uzF0YN2nQQFA0jIEWzzOZ+edmo6wzlGLvx5Fhz4uY=
 github.com/openshift/client-go v0.0.0-20260108185524-48f4ccfc4e13 h1:6rd4zSo2UaWQcAPZfHK9yzKVqH0BnMv1hqMzqXZyTds=
 github.com/openshift/client-go v0.0.0-20260108185524-48f4ccfc4e13/go.mod h1:YvOmPmV7wcJxpfhTDuFqqs2Xpb3M3ovsM6Qs/i2ptq4=
 github.com/openshift/library-go v0.0.0-20260203175009-3067285722b9 h1:RJP39fxlIyoPPZB65mr1KdCdLwFbMsMXhsF37A2N+qA=
 github.com/openshift/library-go v0.0.0-20260203175009-3067285722b9/go.mod h1:DCRz1EgdayEmr9b6KXKDL+DWBN0rGHu/VYADeHzPoOk=
+github.com/openshift/library-go v0.0.0-20260204111611-b7d4fa0e292a h1:YLnZtVfqGUfTbQ+M06QAslEmP4WrnRoPrk4AtoBJdm8=
+github.com/openshift/library-go v0.0.0-20260204111611-b7d4fa0e292a/go.mod h1:DCRz1EgdayEmr9b6KXKDL+DWBN0rGHu/VYADeHzPoOk=
 github.com/operator-framework/api v0.39.0 h1:9h7aVufeQ+l2ACXJE51hkMFcqrQwJOLM6/vwgGu6tgI=
 github.com/operator-framework/api v0.39.0/go.mod h1:tcYIwuznZzfo4HKUTu0dbquIHqxiewnKW/ZmhHKzMH8=
 github.com/operator-framework/operator-registry v1.62.0 h1:9BwFNU/NWfFAr8nZ0Lmcvmztnd4XXbQLdzrvLqrv+M0=
 github.com/operator-framework/operator-registry v1.62.0/go.mod h1:NsgBzgp1nuM1lZ7IyEe2FsJYadY6EHj5pL3SxLokvbQ=
+github.com/operator-framework/operator-registry v1.63.0 h1:UIahnpjkH7y98A8AgPw3DUXVsM1yQr36JajRaJ/00nQ=
+github.com/operator-framework/operator-registry v1.63.0/go.mod h1:A1w3zzvxx1h5rvkuQG2FgHq6lTMHASLb/YPelq7AmxQ=
 github.com/otiai10/copy v1.14.1 h1:5/7E6qsUMBaH5AnQ0sSLzzTg1oTECmcCmT6lvF45Na8=
 github.com/otiai10/copy v1.14.1/go.mod h1:oQwrEDDOci3IM8dJF0d8+jnbfPDllW6vUjNc3DoZm9I=
 github.com/otiai10/mint v1.6.3 h1:87qsV/aw1F5as1eH1zS/yqHY85ANKVMgkDrf9rcxbQs=
