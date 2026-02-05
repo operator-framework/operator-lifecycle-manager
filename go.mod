@@ -18,11 +18,11 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
-	github.com/openshift/api v0.0.0-20260203111218-618697272d69
+	github.com/openshift/api v0.0.0-20260204104751-e09e5a4ebcd0
 	github.com/openshift/client-go v0.0.0-20260108185524-48f4ccfc4e13
-	github.com/openshift/library-go v0.0.0-20260203175009-3067285722b9
+	github.com/openshift/library-go v0.0.0-20260204111611-b7d4fa0e292a
 	github.com/operator-framework/api v0.39.0
-	github.com/operator-framework/operator-registry v1.62.0
+	github.com/operator-framework/operator-registry v1.63.0
 	github.com/otiai10/copy v1.14.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.23.2
