@@ -110,10 +110,7 @@ networkPolicy:
         port: 53
       - protocol: UDP
         port: 53
-  kubeAPIServer:
-    ports:
-      - protocol: TCP
-        port: 6443
+  kubeAPIServer: {}
   metrics:
     ports:
       - protocol: TCP
