@@ -30,8 +30,8 @@ const (
 	CatalogSourceUpdateKey      = "catalogsource.operators.coreos.com/update"
 	ServiceHashLabelKey         = "olm.service-spec-hash"
 	CatalogPollingRequeuePeriod = 30 * time.Second
-	// pathologicalRestartCountThreshold is the number of container restarts above which a pod is considered failed for catalog polling.
-	pathologicalRestartCountThreshold = 10
+	// containerReasonCrashLoopBackOff is the kubelet Waiting reason when a container is backing off after repeated crashes.
+	containerReasonCrashLoopBackOff = "CrashLoopBackOff"
 )
 
 // grpcCatalogSourceDecorator wraps CatalogSource to add additional methods
@@ -756,15 +756,15 @@ func swapLabels(pod *corev1.Pod, labelKey, updateKey string) *corev1.Pod {
 	return pod
 }
 
-// podPathologicallyRestarting returns true if any container in the pod has restarts exceeding pathologicalRestartCountThreshold.
-func podPathologicallyRestarting(pod *corev1.Pod) bool {
+// podContainersArePathological returns true if any container in the pod has restarts exceeding pathologicalRestartCountThreshold or is in CrashLoopBackOff.
+func podContainersArePathological(pod *corev1.Pod) bool {
 	for _, s := range pod.Status.ContainerStatuses {
-		if s.RestartCount > pathologicalRestartCountThreshold {
+		if s.State.Waiting != nil && s.State.Waiting.Reason == containerReasonCrashLoopBackOff {
 			return true
 		}
 	}
 	for _, s := range pod.Status.InitContainerStatuses {
-		if s.RestartCount > pathologicalRestartCountThreshold {
+		if s.State.Waiting != nil && s.State.Waiting.Reason == containerReasonCrashLoopBackOff {
 			return true
 		}
 	}
@@ -774,7 +774,7 @@ func podPathologicallyRestarting(pod *corev1.Pod) bool {
 
 // podFailed checks whether the pod status is in a failed or unknown state, and deletes the pod if so.
 func (c *GrpcRegistryReconciler) podFailed(pod *corev1.Pod) (bool, error) {
-	if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodUnknown || podPathologicallyRestarting(pod) {
+	if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodUnknown || podContainersArePathological(pod) {
 		logrus.WithField("UpdatePod", pod.GetName()).Infof("catalog polling result: update pod %s failed to start", pod.GetName())
 		err := c.removePods([]*corev1.Pod{pod}, pod.GetNamespace())
 		if err != nil {
