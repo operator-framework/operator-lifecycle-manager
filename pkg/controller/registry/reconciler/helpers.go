@@ -49,14 +49,7 @@ func DesiredGRPCServerNetworkPolicy(catalogSource *v1alpha1.CatalogSource, match
 	// Allow egress to kube-apiserver from configmap backed catalog sources
 	if catalogSource.Spec.SourceType == v1alpha1.SourceTypeConfigmap || catalogSource.Spec.SourceType == v1alpha1.SourceTypeInternal {
 		np.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{
-			{
-				Ports: []networkingv1.NetworkPolicyPort{
-					{
-						Protocol: ptr.To(corev1.ProtocolTCP),
-						Port:     ptr.To(intstr.FromInt32(6443)),
-					},
-				},
-			},
+			{},
 		}
 	}
 
@@ -90,14 +83,7 @@ func DesiredUnpackBundlesNetworkPolicy(catalogSource client.Object) *networkingv
 			},
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 			Egress: []networkingv1.NetworkPolicyEgressRule{
-				{
-					Ports: []networkingv1.NetworkPolicyPort{
-						{
-							Protocol: ptr.To(corev1.ProtocolTCP),
-							Port:     ptr.To(intstr.FromInt32(6443)),
-						},
-					},
-				},
+				{},
 			},
 		},
 	}
