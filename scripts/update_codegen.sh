@@ -82,6 +82,27 @@ kube::codegen::gen_openapi \
     ${UPDATE_REPORT:+"${UPDATE_REPORT}"} \
     "${SCRIPT_ROOT}/pkg/package-server/apis" # input
 
+# Generate OpenAPIModelName() functions for local packages only.
+# This uses openapi-gen directly rather than kube::codegen::gen_openapi for two reasons:
+# 1. gen_openapi's --output-model-name-file generates model name files in every input
+#    package with a +k8s:openapi-model-package marker, including vendored --extra-pkgs.
+#    Running openapi-gen with only the local package avoids writing into vendor/.
+# 2. gen_openapi automatically adds k8s.io/apimachinery packages and performs violation
+#    report diffing, which fails without the full exceptions list.
+# The --output-dir, --output-file, and --report-filename go to a temp directory because
+# their output is not needed — the gen_openapi call above already produces the OpenAPI
+# definitions and tracks API violations.
+MODEL_NAME_TMPDIR=$(mktemp -d)
+trap "rm -rf ${MODEL_NAME_TMPDIR}" EXIT
+go run k8s.io/kube-openapi/cmd/openapi-gen \
+    --go-header-file "${BOILERPLATE}" \
+    --output-file "zz_generated.openapi.go" \
+    --output-dir "${MODEL_NAME_TMPDIR}" \
+    --output-pkg "discarded" \
+    --output-model-name-file "zz_generated.model_name.go" \
+    --report-filename "${MODEL_NAME_TMPDIR}/violations.report" \
+    "${OLM_MODULE}/pkg/package-server/apis/operators/v1"
+
 # generate clients
 # generate pacakge-server operators/v1 client
 ${CLIENT_GEN} \
