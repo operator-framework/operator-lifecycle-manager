@@ -41,6 +41,9 @@ spec:
   egress:
     - {{ .Values.networkPolicy.kubeAPIServer | toYaml | nindent 6 | trimSuffix "\n" }}
     - {{ .Values.networkPolicy.dns | toYaml | nindent 6 | trimSuffix "\n" }}
+    - ports:
+      - protocol: TCP
+        port: {{ .Values.catalogGrpcPodPort }}
   policyTypes:
     - Ingress
     - Egress
@@ -61,6 +64,9 @@ spec:
   egress:
     - {{ .Values.networkPolicy.kubeAPIServer | toYaml | nindent 6 | trimSuffix "\n" }}
     - {{ .Values.networkPolicy.dns | toYaml | nindent 6 | trimSuffix "\n" }}
+    - ports:
+      - protocol: TCP
+        port: {{ .Values.catalogGrpcPodPort }}
   policyTypes:
   - Ingress
   - Egress
