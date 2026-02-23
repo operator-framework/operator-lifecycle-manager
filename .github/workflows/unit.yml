@@ -1,0 +1,22 @@
+name: unit
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+  merge_group:
+  issue_comment:
+    types: [created]  # Triggers the workflow when a comment is created. see `if` section
+jobs:
+  unit:
+    if: >-
+      github.event_name != 'issue_comment' || startsWith(github.event.comment.body, '/retest unit')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+      - name: Run unit tests
+        run: make unit

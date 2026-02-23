@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace }}
+  labels: 
+    {{- if .Values.namespace_psa }}
+    pod-security.kubernetes.io/enforce: {{ .Values.namespace_psa.enforceLevel }}
+    pod-security.kubernetes.io/enforce-version: {{ .Values.namespace_psa.enforceVersion }}
+    pod-security.kubernetes.io/audit: {{ .Values.namespace_psa.auditLevel }}
+    pod-security.kubernetes.io/audit-version: {{ .Values.namespace_psa.auditVersion }}
+    pod-security.kubernetes.io/warn: {{ .Values.namespace_psa.warnLevel }}
+    pod-security.kubernetes.io/warn-version: {{ .Values.namespace_psa.warnVersion }}
+    {{- end }}
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.operator_namespace }}
+  labels:
+    {{- if .Values.operator_namespace_psa }}
+    pod-security.kubernetes.io/enforce: {{ .Values.operator_namespace_psa.enforceLevel }}
+    pod-security.kubernetes.io/enforce-version: {{ .Values.operator_namespace_psa.enforceVersion }}
+    pod-security.kubernetes.io/audit: {{ .Values.namespace_psa.auditLevel }}
+    pod-security.kubernetes.io/audit-version: {{ .Values.namespace_psa.auditVersion }}
+    pod-security.kubernetes.io/warn: {{ .Values.namespace_psa.warnLevel }}
+    pod-security.kubernetes.io/warn-version: {{ .Values.namespace_psa.warnVersion }}
+    {{- end }}

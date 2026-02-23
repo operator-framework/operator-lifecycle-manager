@@ -1,0 +1,10 @@
+{
+  "Rules": [
+    {
+      "SelectorRegexp": "k8s[.]io/kubernetes/pkg/(api$|apis/)",
+      "ForbiddenPrefixes": [
+        "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/printers"
+      ]
+    }
+  ]
+}

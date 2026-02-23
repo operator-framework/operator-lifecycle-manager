@@ -1,0 +1,14 @@
+##---
+# Source: olm/templates/0000_30_15-olm-operators.catalogsource.yaml
+#! validate-crd: ./deploy/chart/templates/05-catalogsource.crd.yaml
+#! parse-kind: CatalogSource
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: olm-operators
+  namespace: olm
+spec:
+  sourceType: internal
+  configMap: olm-operators
+  displayName: OLM Operators
+  publisher: Red Hat

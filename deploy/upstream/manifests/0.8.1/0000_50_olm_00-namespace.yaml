@@ -1,0 +1,15 @@
+---
+# Source: olm/templates/0000_50_olm_00-namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: olm
+  labels:
+    openshift.io/run-level: "1"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: operators
+  labels:
+    openshift.io/run-level: "1"

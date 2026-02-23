@@ -1,0 +1,18 @@
+apiVersion: hive.openshift.io/v1
+kind: MachinePool
+metadata:
+  name: test
+spec:
+  name: "test"
+  platform:
+    aws:
+      rootVolume:
+        iops: 1
+        size: 1
+        type: a
+      type: m4-large
+  clusterDeploymentRef:
+    name: osd-abc
+  labels:
+    node-role.kubernetes.io: infra
+    node-role.kubernetes.io/infra: ""

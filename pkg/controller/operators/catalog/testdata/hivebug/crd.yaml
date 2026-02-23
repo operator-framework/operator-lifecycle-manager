@@ -1,0 +1,471 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  creationTimestamp: null
+  name: machinepools.hive.openshift.io
+spec:
+  additionalPrinterColumns:
+    - JSONPath: .spec.name
+      name: PoolName
+      type: string
+    - JSONPath: .spec.clusterDeploymentRef.name
+      name: ClusterDeployment
+      type: string
+    - JSONPath: .spec.replicas
+      name: Replicas
+      type: integer
+  group: hive.openshift.io
+  names:
+    kind: MachinePool
+    listKind: MachinePoolList
+    plural: machinepools
+    singular: machinepool
+  scope: Namespaced
+  subresources:
+    scale:
+      specReplicasPath: .spec.replicas
+      statusReplicasPath: .status.replicas
+    status: {}
+  validation:
+    openAPIV3Schema:
+      description: MachinePool is the Schema for the machinepools API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: MachinePoolSpec defines the desired state of MachinePool
+          properties:
+            autoscaling:
+              description: Autoscaling is the details for auto-scaling the machine
+                pool. Replicas and autoscaling cannot be used together.
+              properties:
+                maxReplicas:
+                  description: MaxReplicas is the maximum number of replicas for the
+                    machine pool.
+                  format: int32
+                  type: integer
+                minReplicas:
+                  description: MinReplicas is the minimum number of replicas for the
+                    machine pool.
+                  format: int32
+                  type: integer
+              required:
+                - maxReplicas
+                - minReplicas
+              type: object
+            clusterDeploymentRef:
+              description: ClusterDeploymentRef references the cluster deployment
+                to which this machine pool belongs.
+              properties:
+                name:
+                  description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    TODO: Add other useful fields. apiVersion, kind, uid?'
+                  type: string
+              type: object
+            labels:
+              additionalProperties:
+                type: string
+              description: Map of label string keys and values that will be applied
+                to the created MachineSet's MachineSpec. This list will overwrite
+                any modifications made to Node labels on an ongoing basis.
+              type: object
+            name:
+              description: Name is the name of the machine pool.
+              type: string
+            platform:
+              description: Platform is configuration for machine pool specific to
+                the platform.
+              properties:
+                aws:
+                  description: AWS is the configuration used when installing on AWS.
+                  properties:
+                    rootVolume:
+                      description: EC2RootVolume defines the storage for ec2 instance.
+                      properties:
+                        iops:
+                          description: IOPS defines the iops for the storage.
+                          type: integer
+                        size:
+                          description: Size defines the size of the storage.
+                          type: integer
+                        type:
+                          description: Type defines the type of the storage.
+                          type: string
+                      required:
+                        - iops
+                        - size
+                        - type
+                      type: object
+                    spotMarketOptions:
+                      description: SpotMarketOptions allows users to configure instances
+                        to be run using AWS Spot instances.
+                      properties:
+                        maxPrice:
+                          description: 'The maximum price the user is willing to pay
+                            for their instances Default: On-Demand price'
+                          type: string
+                      type: object
+                    subnets:
+                      description: Subnets is the list of subnets to which to attach
+                        the machines. There must be exactly one private subnet for
+                        each availability zone used. If public subnets are specified,
+                        there must be exactly one private and one public subnet specified
+                        for each availability zone.
+                      items:
+                        type: string
+                      type: array
+                    type:
+                      description: InstanceType defines the ec2 instance type. eg.
+                        m4-large
+                      type: string
+                    zones:
+                      description: Zones is list of availability zones that can be
+                        used.
+                      items:
+                        type: string
+                      type: array
+                  required:
+                    - rootVolume
+                    - type
+                  type: object
+                azure:
+                  description: Azure is the configuration used when installing on
+                    Azure.
+                  properties:
+                    osDisk:
+                      description: OSDisk defines the storage for instance.
+                      properties:
+                        diskSizeGB:
+                          description: DiskSizeGB defines the size of disk in GB.
+                          format: int32
+                          type: integer
+                      required:
+                        - diskSizeGB
+                      type: object
+                    type:
+                      description: InstanceType defines the azure instance type. eg.
+                        Standard_DS_V2
+                      type: string
+                    zones:
+                      description: Zones is list of availability zones that can be
+                        used. eg. ["1", "2", "3"]
+                      items:
+                        type: string
+                      type: array
+                  required:
+                    - osDisk
+                    - type
+                  type: object
+                gcp:
+                  description: GCP is the configuration used when installing on GCP.
+                  properties:
+                    osDisk:
+                      description: OSDisk defines the storage for instances.
+                      properties:
+                        diskSizeGB:
+                          description: DiskSizeGB defines the size of disk in GB.
+                            Defaulted internally to 128.
+                          format: int64
+                          maximum: 65536
+                          minimum: 16
+                          type: integer
+                        diskType:
+                          description: DiskType defines the type of disk. The valid
+                            values are pd-standard and pd-ssd. Defaulted internally
+                            to pd-ssd.
+                          enum:
+                            - pd-ssd
+                            - pd-standard
+                          type: string
+                        encryptionKey:
+                          description: EncryptionKey defines the KMS key to be used
+                            to encrypt the disk.
+                          properties:
+                            kmsKey:
+                              description: KMSKey is a reference to a KMS Key to use
+                                for the encryption.
+                              properties:
+                                keyRing:
+                                  description: KeyRing is the name of the KMS Key
+                                    Ring which the KMS Key belongs to.
+                                  type: string
+                                location:
+                                  description: Location is the GCP location in which
+                                    the Key Ring exists.
+                                  type: string
+                                name:
+                                  description: Name is the name of the customer managed
+                                    encryption key to be used for the disk encryption.
+                                  type: string
+                                projectID:
+                                  description: ProjectID is the ID of the Project
+                                    in which the KMS Key Ring exists. Defaults to
+                                    the VM ProjectID if not set.
+                                  type: string
+                              required:
+                                - keyRing
+                                - location
+                                - name
+                              type: object
+                            kmsKeyServiceAccount:
+                              description: KMSKeyServiceAccount is the service account
+                                being used for the encryption request for the given
+                                KMS key. If absent, the Compute Engine default service
+                                account is used. See https://cloud.google.com/compute/docs/access/service-accounts#compute_engine_service_account
+                                for details on the default service account.
+                              type: string
+                          type: object
+                      type: object
+                    type:
+                      description: InstanceType defines the GCP instance type. eg.
+                        n1-standard-4
+                      type: string
+                    zones:
+                      description: Zones is list of availability zones that can be
+                        used.
+                      items:
+                        type: string
+                      type: array
+                  required:
+                    - type
+                  type: object
+                openstack:
+                  description: OpenStack is the configuration used when installing
+                    on OpenStack.
+                  properties:
+                    flavor:
+                      description: Flavor defines the OpenStack Nova flavor. eg. m1.large
+                        The json key here differs from the installer which uses both
+                        "computeFlavor" and type "type" depending on which type you're
+                        looking at, and the resulting field on the MachineSet is "flavor".
+                        We are opting to stay consistent with the end result.
+                      type: string
+                    rootVolume:
+                      description: RootVolume defines the root volume for instances
+                        in the machine pool. The instances use ephemeral disks if
+                        not set.
+                      properties:
+                        size:
+                          description: Size defines the size of the volume in gibibytes
+                            (GiB). Required
+                          type: integer
+                        type:
+                          description: Type defines the type of the volume. Required
+                          type: string
+                      required:
+                        - size
+                        - type
+                      type: object
+                  required:
+                    - flavor
+                  type: object
+                ovirt:
+                  description: Ovirt is the configuration used when installing on
+                    oVirt.
+                  properties:
+                    cpu:
+                      description: CPU defines the VM CPU.
+                      properties:
+                        cores:
+                          description: Cores is the number of cores per socket. Total
+                            CPUs is (Sockets * Cores)
+                          format: int32
+                          type: integer
+                        sockets:
+                          description: Sockets is the number of sockets for a VM.
+                            Total CPUs is (Sockets * Cores)
+                          format: int32
+                          type: integer
+                      required:
+                        - cores
+                        - sockets
+                      type: object
+                    memoryMB:
+                      description: MemoryMB is the size of a VM's memory in MiBs.
+                      format: int32
+                      type: integer
+                    osDisk:
+                      description: OSDisk is the the root disk of the node.
+                      properties:
+                        sizeGB:
+                          description: SizeGB size of the bootable disk in GiB.
+                          format: int64
+                          type: integer
+                      required:
+                        - sizeGB
+                      type: object
+                    vmType:
+                      description: VMType defines the workload type of the VM.
+                      enum:
+                        - ""
+                        - desktop
+                        - server
+                        - high_performance
+                      type: string
+                  type: object
+                vsphere:
+                  description: VSphere is the configuration used when installing on
+                    vSphere
+                  properties:
+                    coresPerSocket:
+                      description: NumCoresPerSocket is the number of cores per socket
+                        in a vm. The number of vCPUs on the vm will be NumCPUs/NumCoresPerSocket.
+                      format: int32
+                      type: integer
+                    cpus:
+                      description: NumCPUs is the total number of virtual processor
+                        cores to assign a vm.
+                      format: int32
+                      type: integer
+                    memoryMB:
+                      description: Memory is the size of a VM's memory in MB.
+                      format: int64
+                      type: integer
+                    osDisk:
+                      description: OSDisk defines the storage for instance.
+                      properties:
+                        diskSizeGB:
+                          description: DiskSizeGB defines the size of disk in GB.
+                          format: int32
+                          type: integer
+                      required:
+                        - diskSizeGB
+                      type: object
+                  required:
+                    - coresPerSocket
+                    - cpus
+                    - memoryMB
+                    - osDisk
+                  type: object
+              type: object
+            replicas:
+              description: Replicas is the count of machines for this machine pool.
+                Replicas and autoscaling cannot be used together. Default is 1, if
+                autoscaling is not used.
+              format: int64
+              type: integer
+            taints:
+              description: List of taints that will be applied to the created MachineSet's
+                MachineSpec. This list will overwrite any modifications made to Node
+                taints on an ongoing basis.
+              items:
+                description: The node this Taint is attached to has the "effect" on
+                  any pod that does not tolerate the Taint.
+                properties:
+                  effect:
+                    description: Required. The effect of the taint on pods that do
+                      not tolerate the taint. Valid effects are NoSchedule, PreferNoSchedule
+                      and NoExecute.
+                    type: string
+                  key:
+                    description: Required. The taint key to be applied to a node.
+                    type: string
+                  timeAdded:
+                    description: TimeAdded represents the time at which the taint
+                      was added. It is only written for NoExecute taints.
+                    format: date-time
+                    type: string
+                  value:
+                    description: The taint value corresponding to the taint key.
+                    type: string
+                required:
+                  - effect
+                  - key
+                type: object
+              type: array
+          required:
+            - clusterDeploymentRef
+            - name
+            - platform
+          type: object
+        status:
+          description: MachinePoolStatus defines the observed state of MachinePool
+          properties:
+            conditions:
+              description: Conditions includes more detailed status for the cluster
+                deployment
+              items:
+                description: MachinePoolCondition contains details for the current
+                  condition of a machine pool
+                properties:
+                  lastProbeTime:
+                    description: LastProbeTime is the last time we probed the condition.
+                    format: date-time
+                    type: string
+                  lastTransitionTime:
+                    description: LastTransitionTime is the last time the condition
+                      transitioned from one status to another.
+                    format: date-time
+                    type: string
+                  message:
+                    description: Message is a human-readable message indicating details
+                      about last transition.
+                    type: string
+                  reason:
+                    description: Reason is a unique, one-word, CamelCase reason for
+                      the condition's last transition.
+                    type: string
+                  status:
+                    description: Status is the status of the condition.
+                    type: string
+                  type:
+                    description: Type is the type of the condition.
+                    type: string
+                required:
+                  - status
+                  - type
+                type: object
+              type: array
+            machineSets:
+              description: MachineSets is the status of the machine sets for the machine
+                pool on the remote cluster.
+              items:
+                description: MachineSetStatus is the status of a machineset in the
+                  remote cluster.
+                properties:
+                  maxReplicas:
+                    description: MaxReplicas is the maximum number of replicas for
+                      the machine set.
+                    format: int32
+                    type: integer
+                  minReplicas:
+                    description: MinReplicas is the minimum number of replicas for
+                      the machine set.
+                    format: int32
+                    type: integer
+                  name:
+                    description: Name is the name of the machine set.
+                    type: string
+                  replicas:
+                    description: Replicas is the current number of replicas for the
+                      machine set.
+                    format: int32
+                    type: integer
+                required:
+                  - maxReplicas
+                  - minReplicas
+                  - name
+                  - replicas
+                type: object
+              type: array
+            replicas:
+              description: Replicas is the current number of replicas for the machine
+                pool.
+              format: int32
+              type: integer
+          type: object
+  version: v1
+  versions:
+    - name: v1
+      served: true
+      storage: true

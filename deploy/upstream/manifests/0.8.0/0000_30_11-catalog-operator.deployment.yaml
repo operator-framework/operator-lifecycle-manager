@@ -1,0 +1,41 @@
+##---
+# Source: olm/templates/0000_30_11-catalog-operator.deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-operator
+  namespace: olm
+  labels:
+    app: catalog-operator
+spec:
+  strategy:
+    type: RollingUpdate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: catalog-operator
+  template:
+    metadata:
+      labels:
+        app: catalog-operator
+    spec:
+      serviceAccountName: olm-operator-serviceaccount
+      containers:
+        - name: catalog-operator
+          command:
+          - /bin/catalog
+          args:
+          - '-namespace'
+          - olm
+          image: quay.io/coreos/olm@sha256:1639d570809c5827810a1870763016e8c046283632d47e0b47183c82f8e515f2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080

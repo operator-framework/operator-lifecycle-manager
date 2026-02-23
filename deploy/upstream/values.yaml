@@ -1,0 +1,44 @@
+installType: upstream
+rbacApiVersion: rbac.authorization.k8s.io
+namespace: olm
+# see https://kubernetes.io/docs/concepts/security/pod-security-admission/ for more details
+namespace_psa: 
+  enforceLevel: restricted
+  enforceVersion: latest
+catalog_namespace: olm
+operator_namespace: operators
+# see https://kubernetes.io/docs/concepts/security/pod-security-admission/ for more details
+operator_namespace_psa: 
+  enforceLevel: baseline
+  enforceVersion: latest
+imagestream: false
+writeStatusName: '""'
+writePackageServerStatusName: ""
+olm:
+  replicaCount: 1
+  image:
+    ref: quay.io/operator-framework/olm@sha256:e74b2ac57963c7f3ba19122a8c31c9f2a0deb3c0c5cac9e5323ccffd0ca198ed
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 8080
+catalog:
+  setWorkloadUserID: true
+  replicaCount: 1
+  image:
+    ref: quay.io/operator-framework/olm@sha256:e74b2ac57963c7f3ba19122a8c31c9f2a0deb3c0c5cac9e5323ccffd0ca198ed
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 8080
+package:
+  replicaCount: 2
+  maxUnavailable: 1
+  maxSurge: 1
+  image:
+    ref: quay.io/operator-framework/olm@sha256:e74b2ac57963c7f3ba19122a8c31c9f2a0deb3c0c5cac9e5323ccffd0ca198ed
+    pullPolicy: Always
+  service:
+    internalPort: 5443
+  securityContext:
+    runAsUser: 1000
+catalog_sources:
+  - rh-operators

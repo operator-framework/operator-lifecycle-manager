@@ -1,0 +1,5 @@
+apiVersion: operators.io.operator-framework/v1
+kind: Deprecated
+metadata:
+  namespace: placeholder
+  name: foo

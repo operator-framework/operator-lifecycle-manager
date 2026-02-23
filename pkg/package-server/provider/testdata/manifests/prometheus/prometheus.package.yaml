@@ -1,0 +1,5 @@
+#! package-manifest: ./deploy/chart/catalog_resources/rh-operators/prometheusoperator.0.22.2.clusterserviceversion.yaml
+packageName: prometheus
+channels:
+- name: preview
+  currentCSV: prometheusoperator.0.22.2

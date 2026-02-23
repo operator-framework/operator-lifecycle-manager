@@ -1,0 +1,8 @@
+apiVersion: stable.example.com/v1
+kind: CronTab
+metadata:
+  name: my-crontab-v1
+spec:
+  cronSpec: "* * * * *"
+  image: ""
+  replicas: 9

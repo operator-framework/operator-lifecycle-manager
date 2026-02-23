@@ -1,0 +1,46 @@
+installType: upstream
+rbacApiVersion: rbac.authorization.k8s.io
+namespace: olm
+writeStatusName: '""'
+catalog_namespace: olm
+operator_namespace: operators
+debug: true
+
+olm:
+  replicaCount: 1
+  image:
+    ref: quay.io/operator-framework/olm:local
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 8080
+
+catalog:
+  replicaCount: 1
+  image:
+    ref: quay.io/operator-framework/olm:local
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 8080
+
+package:
+  replicaCount: 1
+  image:
+    ref: quay.io/operator-framework/olm:local
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 5443
+  tolerations:
+  - key: node-role.kubernetes.io/master
+    operator: Exists
+    effect: "NoSchedule"
+  - key: "node.kubernetes.io/unreachable"
+    operator: "Exists"
+    effect: "NoExecute"
+    tolerationSeconds: 120
+  - key: "node.kubernetes.io/not-ready"
+    operator: "Exists"
+    effect: "NoExecute"
+    tolerationSeconds: 120
+
+catalog_sources:
+  - rh-operators

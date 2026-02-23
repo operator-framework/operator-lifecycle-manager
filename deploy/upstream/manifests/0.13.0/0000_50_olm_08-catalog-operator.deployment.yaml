@@ -1,0 +1,58 @@
+---
+# Source: olm/templates/0000_50_olm_08-catalog-operator.deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-operator
+  namespace: olm
+  labels:
+    app: catalog-operator
+spec:
+  strategy:
+    type: RollingUpdate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: catalog-operator
+  template:
+    metadata:
+      labels:
+        app: catalog-operator
+    spec:
+      serviceAccountName: olm-operator-serviceaccount
+      containers:
+        - name: catalog-operator
+          command:
+          - /bin/catalog
+          args:
+          - '-namespace'
+          - olm
+          - -configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
+          image: quay.io/operator-framework/olm@sha256:73d60e4f2adbc70ed8df93245fb2d83c9e0062489a22110d897b83c21918e101
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+            - containerPort: 8081
+              name: metrics
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          terminationMessagePolicy: FallbackToLogsOnError
+          env:
+          
+          resources:
+            requests:
+              cpu: 10m
+              memory: 80Mi
+            
+          
+      
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+        

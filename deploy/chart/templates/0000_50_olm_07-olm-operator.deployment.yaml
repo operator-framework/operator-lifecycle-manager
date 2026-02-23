@@ -1,0 +1,130 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: olm-operator
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: olm-operator
+spec:
+  strategy:
+    type: Recreate
+  replicas: {{ .Values.olm.replicaCount }}
+  selector:
+    matchLabels:
+      app: olm-operator
+  template:
+    metadata:
+      labels:
+        app: olm-operator
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: olm-operator-serviceaccount
+      volumes:
+      {{- if .Values.certManager.enabled }}
+      - name: srv-cert
+        secret:
+          secretName: {{ .Values.certManager.certificate.secretName }}
+      - name: profile-collector-cert
+        secret:
+          secretName: {{ .Values.certManager.certificate.secretName }}
+      {{- else if .Values.serviceCa.enabled }}
+      - name: srv-cert
+        secret:
+          secretName: {{ .Values.serviceCa.olmOperator.secretName }}
+      - name: profile-collector-cert
+        secret:
+          secretName: {{ .Values.serviceCa.olmOperator.secretName }}
+      {{- end }}
+      - name: tmpfs
+        emptyDir: {}
+      containers:
+        - name: olm-operator
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ "ALL" ]
+          volumeMounts:
+          {{- if or .Values.certManager.enabled .Values.serviceCa.enabled }}
+          - name: srv-cert
+            mountPath: "/srv-cert"
+            readOnly: true
+          - name: profile-collector-cert
+            mountPath: "/profile-collector-cert"
+            readOnly: true
+          {{- end }}
+          - name: tmpfs
+            mountPath: /tmp
+          command:
+          - /bin/olm
+          args:
+          - --namespace
+          - $(OPERATOR_NAMESPACE)
+          {{- if .Values.watchedNamespaces }}
+          - --watchedNamespaces
+          - {{ .Values.watchedNamespaces }}
+          {{- end }}
+          {{- if .Values.olm.commandArgs }}
+          - {{ .Values.olm.commandArgs }}
+          {{- end }}
+          {{- if .Values.debug }}
+          - --debug
+          {{- end }}
+          {{- if .Values.writeStatusName }}
+          - --writeStatusName
+          - {{ .Values.writeStatusName }}
+          {{- end }}
+          {{- if .Values.writePackageServerStatusName }}
+          - --writePackageServerStatusName
+          - {{ .Values.writePackageServerStatusName }}
+          {{- end }}
+         {{- if or .Values.certManager.enabled .Values.serviceCa.enabled }}
+          - --tls-cert
+          - /srv-cert/tls.crt
+          - --tls-key
+          - /srv-cert/tls.key
+          - --client-ca
+          - /profile-collector-cert/tls.crt
+          {{- end }}
+          image: {{ .Values.olm.image.ref }}
+          imagePullPolicy: {{ .Values.olm.image.pullPolicy }}
+          ports:
+            - containerPort: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.olm.service.internalPortHttps }}{{ else }}{{ .Values.olm.service.internalPort }}{{ end }}
+              name: metrics
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.olm.service.internalPortHttps }}{{ else }}{{ .Values.olm.service.internalPort }}{{ end }}
+              scheme: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}HTTPS{{ else }}HTTP{{ end }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.olm.service.internalPortHttps }}{{ else }}{{ .Values.olm.service.internalPort }}{{ end }}
+              scheme: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}HTTPS{{ else }}HTTP{{ end }}
+          terminationMessagePolicy: FallbackToLogsOnError
+          env:
+          - name: OPERATOR_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: OPERATOR_NAME
+            value: olm-operator
+          {{- if .Values.debug }}
+          - name: CI
+            value: "true"
+          {{- end }}
+          {{- if .Values.olm.resources }}
+          resources:
+{{ toYaml .Values.olm.resources | indent 12 }}
+          {{- end}}
+    {{- if .Values.olm.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.olm.nodeSelector | indent 8 }}
+    {{- end }}
+    {{- if .Values.olm.tolerations }}
+      tolerations:
+{{ toYaml .Values.olm.tolerations | indent 6 }}
+    {{- end }}

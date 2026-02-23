@@ -1,0 +1,39 @@
+{{ if .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: olm-alert-rules
+  namespace: {{ .Values.namespace }}
+  labels:
+    prometheus: alert-rules
+    role: alert-rules
+spec:
+  groups:
+  - name: olm.csv_abnormal.rules
+    rules:
+      - alert: CsvAbnormalFailedOver2Min
+        expr: last_over_time(csv_abnormal{phase="Failed"}[5m])
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: CSV failed for over 2 minutes
+          description: Failed to install Operator {{ printf "{{ $labels.name }}" }} version {{ printf "{{ $labels.version }}" }}. Reason-{{ printf "{{ $labels.reason }}" }}
+      - alert: CsvAbnormalOver30Min
+        expr: last_over_time(csv_abnormal{phase=~"(Replacing|Pending|Deleting|Unknown)"}[5m])
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: CSV abnormal for over 30 minutes
+          description: Failed to install Operator {{ printf "{{ $labels.name }}" }} version {{ printf "{{ $labels.version }}" }}. Phase-{{ printf "{{ $labels.phase }}" }} Reason-{{ printf "{{ $labels.reason }}" }}
+  - name: olm.installplan.rules
+    rules:
+    - alert: InstallPlanStepAppliedWithWarnings
+      expr: sum by(namespace) (increase(installplan_warnings_total[5m])) > 0
+      labels:
+        severity: warning
+      annotations:
+        summary: API returned a warning when modifying an operator
+        description: The API server returned a warning during installation or upgrade of an operator. An Event with reason "AppliedWithWarnings" has been created with complete details, including a reference to the InstallPlan step that generated the warning.
+{{ end }}

@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-operator
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: catalog-operator
+spec:
+  strategy:
+    type: Recreate
+  replicas: {{ .Values.catalog.replicaCount }}
+  selector:
+    matchLabels:
+      app: catalog-operator
+  template:
+    metadata:
+      labels:
+        app: catalog-operator
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: olm-operator-serviceaccount
+      volumes:
+      {{- if .Values.certManager.enabled }}
+      - name: srv-cert
+        secret:
+          secretName: {{ .Values.certManager.certificate.secretName }}
+      - name: profile-collector-cert
+        secret:
+          secretName: {{ .Values.certManager.certificate.secretName }}
+      {{- else if .Values.serviceCa.enabled }}
+      - name: srv-cert
+        secret:
+          secretName: {{ .Values.serviceCa.catalogOperator.secretName }}
+      - name: profile-collector-cert
+        secret:
+          secretName: {{ .Values.serviceCa.catalogOperator.secretName }}
+      {{- end }}
+      - name: tmpfs
+        emptyDir: {}
+      containers:
+        - name: catalog-operator
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ "ALL" ]
+          volumeMounts:
+          {{- if or .Values.certManager.enabled .Values.serviceCa.enabled }}
+          - name: srv-cert
+            mountPath: "/srv-cert"
+            readOnly: true
+          - name: profile-collector-cert
+            mountPath: "/profile-collector-cert"
+            readOnly: true
+          {{- end }}
+          - name: tmpfs
+            mountPath: /tmp
+          command:
+          - /bin/catalog
+          args:
+          - '--namespace'
+          - {{ .Values.catalog_namespace }}
+          {{- if .Values.debug }}
+          - '--debug'
+          {{- end }}
+          {{- if .Values.catalog.commandArgs }}
+          - {{ .Values.catalog.commandArgs }}
+          {{- end }}
+          {{- if .Values.catalog.opmImageArgs }}
+          - {{ .Values.catalog.opmImageArgs }}
+          {{- end }}
+          - --util-image
+          -  {{ .Values.catalog.image.ref }}
+          {{- if .Values.writeStatusNameCatalog }}
+          - --writeStatusName
+          - {{ .Values.writeStatusNameCatalog }}
+          {{- end }}
+          {{- if or .Values.certManager.enabled .Values.serviceCa.enabled }}
+          - --tls-cert
+          - /srv-cert/tls.crt
+          - --tls-key
+          - /srv-cert/tls.key
+          - --client-ca
+          - /profile-collector-cert/tls.crt
+          {{- end }}
+          {{- if eq .Values.catalog.setWorkloadUserID true }}
+          - --set-workload-user-id=true
+          {{- else }}
+          - --set-workload-user-id=false
+          {{ end }}
+          image: {{ .Values.catalog.image.ref }}
+          {{- if .Values.debug }}
+          env:
+            - name: CI
+              value: "true"
+          {{- end }}
+          imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
+          ports:
+            - containerPort: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.catalog.service.internalPortHttps }}{{ else }}{{ .Values.catalog.service.internalPort }}{{ end }}
+              name: metrics
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.catalog.service.internalPortHttps }}{{ else }}{{ .Values.catalog.service.internalPort }}{{ end }}
+              scheme: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}HTTPS{{ else }}HTTP{{ end }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}{{ .Values.catalog.service.internalPortHttps }}{{ else }}{{ .Values.catalog.service.internalPort }}{{ end }}
+              scheme: {{ if or .Values.certManager.enabled .Values.serviceCa.enabled }}HTTPS{{ else }}HTTP{{ end }}
+          terminationMessagePolicy: FallbackToLogsOnError
+          {{- if .Values.catalog.resources }}
+          resources:
+{{ toYaml .Values.catalog.resources | indent 12 }}
+          {{- end}}
+    {{- if .Values.catalog.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.catalog.nodeSelector | indent 8 }}
+    {{- end }}
+    {{- if .Values.catalog.tolerations }}
+      tolerations:
+{{ toYaml .Values.catalog.tolerations | indent 6 }}
+    {{- end }}

@@ -1,0 +1,96 @@
+---
+# Source: olm/templates/0000_50_olm_09-operatorgroup.crd.yaml
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: operatorgroups.operators.coreos.com
+spec:
+  group: operators.coreos.com
+  version: v1alpha2
+  versions:
+  - name: v1alpha2
+    served: true
+    storage: true
+  names:
+    plural: operatorgroups
+    singular: operatorgroup
+    kind: OperatorGroup
+    listKind: OperatorGroupList
+    shortNames:
+      - og
+    categories:
+      - olm
+  scope: Namespaced
+  subresources:
+    # status enables the status subresource.
+    status: {}
+  validation:
+    openAPIV3Schema:
+      properties:
+        spec:
+          properties:
+            selector:
+              type: object
+              description: Optional label selector to find resources associated with or managed by the operator
+              anyOf:
+                - properties:
+                    matchLabels:
+                      type: object
+                      description: Label key:value pairs to match directly
+                  required:
+                    - matchLabels
+                - properties:
+                    matchExpressions:
+                      type: array
+                      description: A set of expressions to match against the resource.
+                      items:
+                        allOf:
+                          - type: object
+                            required:
+                            - key
+                            - operator
+                            - values
+                            properties:
+                              key:
+                                type: string
+                                description: the key to match
+                              operator:
+                                type: string
+                                description: the operator for the expression
+                                enum:
+                                - In
+                                - NotIn
+                                - Exists
+                                - DoesNotExist
+                              values:
+                                type: array
+                                description: set of values for the expression
+                  required:
+                    - matchExpressions
+            targetNamespaces:
+              type: array
+              description: Optional list of target namespaces. If set, OLM will ignore selector.
+              items:
+                type: string
+                pattern: ^\S+$
+            serviceAccountName:
+              type: string
+            staticProvidedAPIs:
+              type: boolean
+              description: If true, OLM will not modify the OperatorGroup's providedAPIs annotation.
+          type: object
+        status:
+          properties:
+            lastUpdated:
+              format: date-time
+              type: string
+            namespaces:
+              items:
+                type: string
+              type: array
+          required:
+          - namespaces
+          - lastUpdated
+          type: object
+      required:
+      - metadata
