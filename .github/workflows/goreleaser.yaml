@@ -39,7 +39,7 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD }}
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           version: 0.177.0
           args: release --rm-dist ${{ github.event_name == 'pull_request' && '--snapshot' || '' }}
