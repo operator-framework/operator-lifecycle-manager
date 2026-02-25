@@ -519,7 +519,7 @@ github.com/openshift/client-go/config/listers/config/v1alpha2
 # github.com/openshift/library-go v0.0.0-20260204111611-b7d4fa0e292a
 ## explicit; go 1.24.0
 github.com/openshift/library-go/pkg/crypto
-# github.com/operator-framework/api v0.39.0
+# github.com/operator-framework/api v0.40.0
 ## explicit; go 1.25.3
 github.com/operator-framework/api/crds
 github.com/operator-framework/api/pkg/constraints
