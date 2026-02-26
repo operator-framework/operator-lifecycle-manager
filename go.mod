@@ -21,7 +21,7 @@ require (
 	github.com/openshift/api v0.0.0-20260204104751-e09e5a4ebcd0
 	github.com/openshift/client-go v0.0.0-20260108185524-48f4ccfc4e13
 	github.com/openshift/library-go v0.0.0-20260204111611-b7d4fa0e292a
-	github.com/operator-framework/api v0.39.0
+	github.com/operator-framework/api v0.40.0
 	github.com/operator-framework/operator-registry v1.63.0
 	github.com/otiai10/copy v1.14.1
 	github.com/pkg/errors v0.9.1

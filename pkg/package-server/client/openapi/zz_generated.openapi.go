@@ -20,111 +20,142 @@ limitations under the License.
 package openapi
 
 import (
-	libversion "github.com/operator-framework/api/pkg/lib/version"
+	version "github.com/operator-framework/api/pkg/lib/version"
+	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
-	version "k8s.io/apimachinery/pkg/version"
+	pkgversion "k8s.io/apimachinery/pkg/version"
 	common "k8s.io/kube-openapi/pkg/common"
 	spec "k8s.io/kube-openapi/pkg/validation/spec"
 )
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/operator-framework/api/pkg/lib/version.OperatorVersion":                       schema_api_pkg_lib_version_OperatorVersion(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.APIResourceReference":           schema_api_pkg_operators_v1alpha1_APIResourceReference(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.APIServiceDefinitions":          schema_api_pkg_operators_v1alpha1_APIServiceDefinitions(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.APIServiceDescription":          schema_api_pkg_operators_v1alpha1_APIServiceDescription(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.ActionDescriptor":               schema_api_pkg_operators_v1alpha1_ActionDescriptor(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.AppLink":                        schema_api_pkg_operators_v1alpha1_AppLink(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.CRDDescription":                 schema_api_pkg_operators_v1alpha1_CRDDescription(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.CleanupSpec":                    schema_api_pkg_operators_v1alpha1_CleanupSpec(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.CleanupStatus":                  schema_api_pkg_operators_v1alpha1_CleanupStatus(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.ClusterServiceVersionCondition": schema_api_pkg_operators_v1alpha1_ClusterServiceVersionCondition(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.ClusterServiceVersionSpec":      schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.ClusterServiceVersionStatus":    schema_api_pkg_operators_v1alpha1_ClusterServiceVersionStatus(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.CustomResourceDefinitions":      schema_api_pkg_operators_v1alpha1_CustomResourceDefinitions(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.DependentStatus":                schema_api_pkg_operators_v1alpha1_DependentStatus(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.Icon":                           schema_api_pkg_operators_v1alpha1_Icon(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.InstallMode":                    schema_api_pkg_operators_v1alpha1_InstallMode(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.Maintainer":                     schema_api_pkg_operators_v1alpha1_Maintainer(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.NamedInstallStrategy":           schema_api_pkg_operators_v1alpha1_NamedInstallStrategy(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.RelatedImage":                   schema_api_pkg_operators_v1alpha1_RelatedImage(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.RequirementStatus":              schema_api_pkg_operators_v1alpha1_RequirementStatus(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.ResourceInstance":               schema_api_pkg_operators_v1alpha1_ResourceInstance(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.ResourceList":                   schema_api_pkg_operators_v1alpha1_ResourceList(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.SpecDescriptor":                 schema_api_pkg_operators_v1alpha1_SpecDescriptor(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.StatusDescriptor":               schema_api_pkg_operators_v1alpha1_StatusDescriptor(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDeploymentPermissions":  schema_api_pkg_operators_v1alpha1_StrategyDeploymentPermissions(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDeploymentSpec":         schema_api_pkg_operators_v1alpha1_StrategyDeploymentSpec(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDetailsDeployment":      schema_api_pkg_operators_v1alpha1_StrategyDetailsDeployment(ref),
-		"github.com/operator-framework/api/pkg/operators/v1alpha1.WebhookDescription":             schema_api_pkg_operators_v1alpha1_WebhookDescription(ref),
-		v1.AppLink{}.OpenAPIModelName():                                                           schema_package_server_apis_operators_v1_AppLink(ref),
-		v1.CSVDescription{}.OpenAPIModelName():                                                    schema_package_server_apis_operators_v1_CSVDescription(ref),
-		v1.ChannelEntry{}.OpenAPIModelName():                                                      schema_package_server_apis_operators_v1_ChannelEntry(ref),
-		v1.Deprecation{}.OpenAPIModelName():                                                       schema_package_server_apis_operators_v1_Deprecation(ref),
-		v1.Icon{}.OpenAPIModelName():                                                              schema_package_server_apis_operators_v1_Icon(ref),
-		v1.Maintainer{}.OpenAPIModelName():                                                        schema_package_server_apis_operators_v1_Maintainer(ref),
-		v1.PackageChannel{}.OpenAPIModelName():                                                    schema_package_server_apis_operators_v1_PackageChannel(ref),
-		v1.PackageManifest{}.OpenAPIModelName():                                                   schema_package_server_apis_operators_v1_PackageManifest(ref),
-		v1.PackageManifestList{}.OpenAPIModelName():                                               schema_package_server_apis_operators_v1_PackageManifestList(ref),
-		v1.PackageManifestSpec{}.OpenAPIModelName():                                               schema_package_server_apis_operators_v1_PackageManifestSpec(ref),
-		v1.PackageManifestStatus{}.OpenAPIModelName():                                             schema_package_server_apis_operators_v1_PackageManifestStatus(ref),
-		resource.Quantity{}.OpenAPIModelName():                                                    schema_apimachinery_pkg_api_resource_Quantity(ref),
-		metav1.APIGroup{}.OpenAPIModelName():                                                      schema_pkg_apis_meta_v1_APIGroup(ref),
-		metav1.APIGroupList{}.OpenAPIModelName():                                                  schema_pkg_apis_meta_v1_APIGroupList(ref),
-		metav1.APIResource{}.OpenAPIModelName():                                                   schema_pkg_apis_meta_v1_APIResource(ref),
-		metav1.APIResourceList{}.OpenAPIModelName():                                               schema_pkg_apis_meta_v1_APIResourceList(ref),
-		metav1.APIVersions{}.OpenAPIModelName():                                                   schema_pkg_apis_meta_v1_APIVersions(ref),
-		metav1.ApplyOptions{}.OpenAPIModelName():                                                  schema_pkg_apis_meta_v1_ApplyOptions(ref),
-		metav1.Condition{}.OpenAPIModelName():                                                     schema_pkg_apis_meta_v1_Condition(ref),
-		metav1.CreateOptions{}.OpenAPIModelName():                                                 schema_pkg_apis_meta_v1_CreateOptions(ref),
-		metav1.DeleteOptions{}.OpenAPIModelName():                                                 schema_pkg_apis_meta_v1_DeleteOptions(ref),
-		metav1.Duration{}.OpenAPIModelName():                                                      schema_pkg_apis_meta_v1_Duration(ref),
-		metav1.FieldSelectorRequirement{}.OpenAPIModelName():                                      schema_pkg_apis_meta_v1_FieldSelectorRequirement(ref),
-		metav1.FieldsV1{}.OpenAPIModelName():                                                      schema_pkg_apis_meta_v1_FieldsV1(ref),
-		metav1.GetOptions{}.OpenAPIModelName():                                                    schema_pkg_apis_meta_v1_GetOptions(ref),
-		metav1.GroupKind{}.OpenAPIModelName():                                                     schema_pkg_apis_meta_v1_GroupKind(ref),
-		metav1.GroupResource{}.OpenAPIModelName():                                                 schema_pkg_apis_meta_v1_GroupResource(ref),
-		metav1.GroupVersion{}.OpenAPIModelName():                                                  schema_pkg_apis_meta_v1_GroupVersion(ref),
-		metav1.GroupVersionForDiscovery{}.OpenAPIModelName():                                      schema_pkg_apis_meta_v1_GroupVersionForDiscovery(ref),
-		metav1.GroupVersionKind{}.OpenAPIModelName():                                              schema_pkg_apis_meta_v1_GroupVersionKind(ref),
-		metav1.GroupVersionResource{}.OpenAPIModelName():                                          schema_pkg_apis_meta_v1_GroupVersionResource(ref),
-		metav1.InternalEvent{}.OpenAPIModelName():                                                 schema_pkg_apis_meta_v1_InternalEvent(ref),
-		metav1.LabelSelector{}.OpenAPIModelName():                                                 schema_pkg_apis_meta_v1_LabelSelector(ref),
-		metav1.LabelSelectorRequirement{}.OpenAPIModelName():                                      schema_pkg_apis_meta_v1_LabelSelectorRequirement(ref),
-		metav1.List{}.OpenAPIModelName():                                                          schema_pkg_apis_meta_v1_List(ref),
-		metav1.ListMeta{}.OpenAPIModelName():                                                      schema_pkg_apis_meta_v1_ListMeta(ref),
-		metav1.ListOptions{}.OpenAPIModelName():                                                   schema_pkg_apis_meta_v1_ListOptions(ref),
-		metav1.ManagedFieldsEntry{}.OpenAPIModelName():                                            schema_pkg_apis_meta_v1_ManagedFieldsEntry(ref),
-		metav1.MicroTime{}.OpenAPIModelName():                                                     schema_pkg_apis_meta_v1_MicroTime(ref),
-		metav1.ObjectMeta{}.OpenAPIModelName():                                                    schema_pkg_apis_meta_v1_ObjectMeta(ref),
-		metav1.OwnerReference{}.OpenAPIModelName():                                                schema_pkg_apis_meta_v1_OwnerReference(ref),
-		metav1.PartialObjectMetadata{}.OpenAPIModelName():                                         schema_pkg_apis_meta_v1_PartialObjectMetadata(ref),
-		metav1.PartialObjectMetadataList{}.OpenAPIModelName():                                     schema_pkg_apis_meta_v1_PartialObjectMetadataList(ref),
-		metav1.Patch{}.OpenAPIModelName():                                                         schema_pkg_apis_meta_v1_Patch(ref),
-		metav1.PatchOptions{}.OpenAPIModelName():                                                  schema_pkg_apis_meta_v1_PatchOptions(ref),
-		metav1.Preconditions{}.OpenAPIModelName():                                                 schema_pkg_apis_meta_v1_Preconditions(ref),
-		metav1.RootPaths{}.OpenAPIModelName():                                                     schema_pkg_apis_meta_v1_RootPaths(ref),
-		metav1.ServerAddressByClientCIDR{}.OpenAPIModelName():                                     schema_pkg_apis_meta_v1_ServerAddressByClientCIDR(ref),
-		metav1.Status{}.OpenAPIModelName():                                                        schema_pkg_apis_meta_v1_Status(ref),
-		metav1.StatusCause{}.OpenAPIModelName():                                                   schema_pkg_apis_meta_v1_StatusCause(ref),
-		metav1.StatusDetails{}.OpenAPIModelName():                                                 schema_pkg_apis_meta_v1_StatusDetails(ref),
-		metav1.Table{}.OpenAPIModelName():                                                         schema_pkg_apis_meta_v1_Table(ref),
-		metav1.TableColumnDefinition{}.OpenAPIModelName():                                         schema_pkg_apis_meta_v1_TableColumnDefinition(ref),
-		metav1.TableOptions{}.OpenAPIModelName():                                                  schema_pkg_apis_meta_v1_TableOptions(ref),
-		metav1.TableRow{}.OpenAPIModelName():                                                      schema_pkg_apis_meta_v1_TableRow(ref),
-		metav1.TableRowCondition{}.OpenAPIModelName():                                             schema_pkg_apis_meta_v1_TableRowCondition(ref),
-		metav1.Time{}.OpenAPIModelName():                                                          schema_pkg_apis_meta_v1_Time(ref),
-		metav1.Timestamp{}.OpenAPIModelName():                                                     schema_pkg_apis_meta_v1_Timestamp(ref),
-		metav1.TypeMeta{}.OpenAPIModelName():                                                      schema_pkg_apis_meta_v1_TypeMeta(ref),
-		metav1.UpdateOptions{}.OpenAPIModelName():                                                 schema_pkg_apis_meta_v1_UpdateOptions(ref),
-		metav1.WatchEvent{}.OpenAPIModelName():                                                    schema_pkg_apis_meta_v1_WatchEvent(ref),
-		runtime.RawExtension{}.OpenAPIModelName():                                                 schema_k8sio_apimachinery_pkg_runtime_RawExtension(ref),
-		runtime.TypeMeta{}.OpenAPIModelName():                                                     schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
-		runtime.Unknown{}.OpenAPIModelName():                                                      schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
-		version.Info{}.OpenAPIModelName():                                                         schema_k8sio_apimachinery_pkg_version_Info(ref),
+		version.OperatorVersion{}.OpenAPIModelName():                 schema_api_pkg_lib_version_OperatorVersion(ref),
+		v1alpha1.APIResourceReference{}.OpenAPIModelName():           schema_api_pkg_operators_v1alpha1_APIResourceReference(ref),
+		v1alpha1.APIServiceDefinitions{}.OpenAPIModelName():          schema_api_pkg_operators_v1alpha1_APIServiceDefinitions(ref),
+		v1alpha1.APIServiceDescription{}.OpenAPIModelName():          schema_api_pkg_operators_v1alpha1_APIServiceDescription(ref),
+		v1alpha1.ActionDescriptor{}.OpenAPIModelName():               schema_api_pkg_operators_v1alpha1_ActionDescriptor(ref),
+		v1alpha1.AppLink{}.OpenAPIModelName():                        schema_api_pkg_operators_v1alpha1_AppLink(ref),
+		v1alpha1.BundleLookup{}.OpenAPIModelName():                   schema_api_pkg_operators_v1alpha1_BundleLookup(ref),
+		v1alpha1.BundleLookupCondition{}.OpenAPIModelName():          schema_api_pkg_operators_v1alpha1_BundleLookupCondition(ref),
+		v1alpha1.CRDDescription{}.OpenAPIModelName():                 schema_api_pkg_operators_v1alpha1_CRDDescription(ref),
+		v1alpha1.CatalogSource{}.OpenAPIModelName():                  schema_api_pkg_operators_v1alpha1_CatalogSource(ref),
+		v1alpha1.CatalogSourceList{}.OpenAPIModelName():              schema_api_pkg_operators_v1alpha1_CatalogSourceList(ref),
+		v1alpha1.CatalogSourceSpec{}.OpenAPIModelName():              schema_api_pkg_operators_v1alpha1_CatalogSourceSpec(ref),
+		v1alpha1.CatalogSourceStatus{}.OpenAPIModelName():            schema_api_pkg_operators_v1alpha1_CatalogSourceStatus(ref),
+		v1alpha1.CleanupSpec{}.OpenAPIModelName():                    schema_api_pkg_operators_v1alpha1_CleanupSpec(ref),
+		v1alpha1.CleanupStatus{}.OpenAPIModelName():                  schema_api_pkg_operators_v1alpha1_CleanupStatus(ref),
+		v1alpha1.ClusterServiceVersion{}.OpenAPIModelName():          schema_api_pkg_operators_v1alpha1_ClusterServiceVersion(ref),
+		v1alpha1.ClusterServiceVersionCondition{}.OpenAPIModelName(): schema_api_pkg_operators_v1alpha1_ClusterServiceVersionCondition(ref),
+		v1alpha1.ClusterServiceVersionList{}.OpenAPIModelName():      schema_api_pkg_operators_v1alpha1_ClusterServiceVersionList(ref),
+		v1alpha1.ClusterServiceVersionSpec{}.OpenAPIModelName():      schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref),
+		v1alpha1.ClusterServiceVersionStatus{}.OpenAPIModelName():    schema_api_pkg_operators_v1alpha1_ClusterServiceVersionStatus(ref),
+		v1alpha1.ConfigMapResourceReference{}.OpenAPIModelName():     schema_api_pkg_operators_v1alpha1_ConfigMapResourceReference(ref),
+		v1alpha1.CustomResourceDefinitions{}.OpenAPIModelName():      schema_api_pkg_operators_v1alpha1_CustomResourceDefinitions(ref),
+		v1alpha1.DependentStatus{}.OpenAPIModelName():                schema_api_pkg_operators_v1alpha1_DependentStatus(ref),
+		v1alpha1.ExtractContentConfig{}.OpenAPIModelName():           schema_api_pkg_operators_v1alpha1_ExtractContentConfig(ref),
+		v1alpha1.GRPCConnectionState{}.OpenAPIModelName():            schema_api_pkg_operators_v1alpha1_GRPCConnectionState(ref),
+		v1alpha1.GrpcPodConfig{}.OpenAPIModelName():                  schema_api_pkg_operators_v1alpha1_GrpcPodConfig(ref),
+		v1alpha1.Icon{}.OpenAPIModelName():                           schema_api_pkg_operators_v1alpha1_Icon(ref),
+		v1alpha1.InstallMode{}.OpenAPIModelName():                    schema_api_pkg_operators_v1alpha1_InstallMode(ref),
+		v1alpha1.InstallPlan{}.OpenAPIModelName():                    schema_api_pkg_operators_v1alpha1_InstallPlan(ref),
+		v1alpha1.InstallPlanCondition{}.OpenAPIModelName():           schema_api_pkg_operators_v1alpha1_InstallPlanCondition(ref),
+		v1alpha1.InstallPlanList{}.OpenAPIModelName():                schema_api_pkg_operators_v1alpha1_InstallPlanList(ref),
+		v1alpha1.InstallPlanReference{}.OpenAPIModelName():           schema_api_pkg_operators_v1alpha1_InstallPlanReference(ref),
+		v1alpha1.InstallPlanSpec{}.OpenAPIModelName():                schema_api_pkg_operators_v1alpha1_InstallPlanSpec(ref),
+		v1alpha1.InstallPlanStatus{}.OpenAPIModelName():              schema_api_pkg_operators_v1alpha1_InstallPlanStatus(ref),
+		v1alpha1.Maintainer{}.OpenAPIModelName():                     schema_api_pkg_operators_v1alpha1_Maintainer(ref),
+		v1alpha1.NamedInstallStrategy{}.OpenAPIModelName():           schema_api_pkg_operators_v1alpha1_NamedInstallStrategy(ref),
+		v1alpha1.RegistryPoll{}.OpenAPIModelName():                   schema_api_pkg_operators_v1alpha1_RegistryPoll(ref),
+		v1alpha1.RegistryServiceStatus{}.OpenAPIModelName():          schema_api_pkg_operators_v1alpha1_RegistryServiceStatus(ref),
+		v1alpha1.RelatedImage{}.OpenAPIModelName():                   schema_api_pkg_operators_v1alpha1_RelatedImage(ref),
+		v1alpha1.RequirementStatus{}.OpenAPIModelName():              schema_api_pkg_operators_v1alpha1_RequirementStatus(ref),
+		v1alpha1.ResourceInstance{}.OpenAPIModelName():               schema_api_pkg_operators_v1alpha1_ResourceInstance(ref),
+		v1alpha1.ResourceList{}.OpenAPIModelName():                   schema_api_pkg_operators_v1alpha1_ResourceList(ref),
+		v1alpha1.SpecDescriptor{}.OpenAPIModelName():                 schema_api_pkg_operators_v1alpha1_SpecDescriptor(ref),
+		v1alpha1.StatusDescriptor{}.OpenAPIModelName():               schema_api_pkg_operators_v1alpha1_StatusDescriptor(ref),
+		v1alpha1.Step{}.OpenAPIModelName():                           schema_api_pkg_operators_v1alpha1_Step(ref),
+		v1alpha1.StepResource{}.OpenAPIModelName():                   schema_api_pkg_operators_v1alpha1_StepResource(ref),
+		v1alpha1.StrategyDeploymentPermissions{}.OpenAPIModelName():  schema_api_pkg_operators_v1alpha1_StrategyDeploymentPermissions(ref),
+		v1alpha1.StrategyDeploymentSpec{}.OpenAPIModelName():         schema_api_pkg_operators_v1alpha1_StrategyDeploymentSpec(ref),
+		v1alpha1.StrategyDetailsDeployment{}.OpenAPIModelName():      schema_api_pkg_operators_v1alpha1_StrategyDetailsDeployment(ref),
+		v1alpha1.Subscription{}.OpenAPIModelName():                   schema_api_pkg_operators_v1alpha1_Subscription(ref),
+		v1alpha1.SubscriptionCatalogHealth{}.OpenAPIModelName():      schema_api_pkg_operators_v1alpha1_SubscriptionCatalogHealth(ref),
+		v1alpha1.SubscriptionCondition{}.OpenAPIModelName():          schema_api_pkg_operators_v1alpha1_SubscriptionCondition(ref),
+		v1alpha1.SubscriptionConfig{}.OpenAPIModelName():             schema_api_pkg_operators_v1alpha1_SubscriptionConfig(ref),
+		v1alpha1.SubscriptionList{}.OpenAPIModelName():               schema_api_pkg_operators_v1alpha1_SubscriptionList(ref),
+		v1alpha1.SubscriptionSpec{}.OpenAPIModelName():               schema_api_pkg_operators_v1alpha1_SubscriptionSpec(ref),
+		v1alpha1.SubscriptionStatus{}.OpenAPIModelName():             schema_api_pkg_operators_v1alpha1_SubscriptionStatus(ref),
+		v1alpha1.UpdateStrategy{}.OpenAPIModelName():                 schema_api_pkg_operators_v1alpha1_UpdateStrategy(ref),
+		v1alpha1.WebhookDescription{}.OpenAPIModelName():             schema_api_pkg_operators_v1alpha1_WebhookDescription(ref),
+		v1.AppLink{}.OpenAPIModelName():                              schema_package_server_apis_operators_v1_AppLink(ref),
+		v1.CSVDescription{}.OpenAPIModelName():                       schema_package_server_apis_operators_v1_CSVDescription(ref),
+		v1.ChannelEntry{}.OpenAPIModelName():                         schema_package_server_apis_operators_v1_ChannelEntry(ref),
+		v1.Deprecation{}.OpenAPIModelName():                          schema_package_server_apis_operators_v1_Deprecation(ref),
+		v1.Icon{}.OpenAPIModelName():                                 schema_package_server_apis_operators_v1_Icon(ref),
+		v1.Maintainer{}.OpenAPIModelName():                           schema_package_server_apis_operators_v1_Maintainer(ref),
+		v1.PackageChannel{}.OpenAPIModelName():                       schema_package_server_apis_operators_v1_PackageChannel(ref),
+		v1.PackageManifest{}.OpenAPIModelName():                      schema_package_server_apis_operators_v1_PackageManifest(ref),
+		v1.PackageManifestList{}.OpenAPIModelName():                  schema_package_server_apis_operators_v1_PackageManifestList(ref),
+		v1.PackageManifestSpec{}.OpenAPIModelName():                  schema_package_server_apis_operators_v1_PackageManifestSpec(ref),
+		v1.PackageManifestStatus{}.OpenAPIModelName():                schema_package_server_apis_operators_v1_PackageManifestStatus(ref),
+		resource.Quantity{}.OpenAPIModelName():                       schema_apimachinery_pkg_api_resource_Quantity(ref),
+		metav1.APIGroup{}.OpenAPIModelName():                         schema_pkg_apis_meta_v1_APIGroup(ref),
+		metav1.APIGroupList{}.OpenAPIModelName():                     schema_pkg_apis_meta_v1_APIGroupList(ref),
+		metav1.APIResource{}.OpenAPIModelName():                      schema_pkg_apis_meta_v1_APIResource(ref),
+		metav1.APIResourceList{}.OpenAPIModelName():                  schema_pkg_apis_meta_v1_APIResourceList(ref),
+		metav1.APIVersions{}.OpenAPIModelName():                      schema_pkg_apis_meta_v1_APIVersions(ref),
+		metav1.ApplyOptions{}.OpenAPIModelName():                     schema_pkg_apis_meta_v1_ApplyOptions(ref),
+		metav1.Condition{}.OpenAPIModelName():                        schema_pkg_apis_meta_v1_Condition(ref),
+		metav1.CreateOptions{}.OpenAPIModelName():                    schema_pkg_apis_meta_v1_CreateOptions(ref),
+		metav1.DeleteOptions{}.OpenAPIModelName():                    schema_pkg_apis_meta_v1_DeleteOptions(ref),
+		metav1.Duration{}.OpenAPIModelName():                         schema_pkg_apis_meta_v1_Duration(ref),
+		metav1.FieldSelectorRequirement{}.OpenAPIModelName():         schema_pkg_apis_meta_v1_FieldSelectorRequirement(ref),
+		metav1.FieldsV1{}.OpenAPIModelName():                         schema_pkg_apis_meta_v1_FieldsV1(ref),
+		metav1.GetOptions{}.OpenAPIModelName():                       schema_pkg_apis_meta_v1_GetOptions(ref),
+		metav1.GroupKind{}.OpenAPIModelName():                        schema_pkg_apis_meta_v1_GroupKind(ref),
+		metav1.GroupResource{}.OpenAPIModelName():                    schema_pkg_apis_meta_v1_GroupResource(ref),
+		metav1.GroupVersion{}.OpenAPIModelName():                     schema_pkg_apis_meta_v1_GroupVersion(ref),
+		metav1.GroupVersionForDiscovery{}.OpenAPIModelName():         schema_pkg_apis_meta_v1_GroupVersionForDiscovery(ref),
+		metav1.GroupVersionKind{}.OpenAPIModelName():                 schema_pkg_apis_meta_v1_GroupVersionKind(ref),
+		metav1.GroupVersionResource{}.OpenAPIModelName():             schema_pkg_apis_meta_v1_GroupVersionResource(ref),
+		metav1.InternalEvent{}.OpenAPIModelName():                    schema_pkg_apis_meta_v1_InternalEvent(ref),
+		metav1.LabelSelector{}.OpenAPIModelName():                    schema_pkg_apis_meta_v1_LabelSelector(ref),
+		metav1.LabelSelectorRequirement{}.OpenAPIModelName():         schema_pkg_apis_meta_v1_LabelSelectorRequirement(ref),
+		metav1.List{}.OpenAPIModelName():                             schema_pkg_apis_meta_v1_List(ref),
+		metav1.ListMeta{}.OpenAPIModelName():                         schema_pkg_apis_meta_v1_ListMeta(ref),
+		metav1.ListOptions{}.OpenAPIModelName():                      schema_pkg_apis_meta_v1_ListOptions(ref),
+		metav1.ManagedFieldsEntry{}.OpenAPIModelName():               schema_pkg_apis_meta_v1_ManagedFieldsEntry(ref),
+		metav1.MicroTime{}.OpenAPIModelName():                        schema_pkg_apis_meta_v1_MicroTime(ref),
+		metav1.ObjectMeta{}.OpenAPIModelName():                       schema_pkg_apis_meta_v1_ObjectMeta(ref),
+		metav1.OwnerReference{}.OpenAPIModelName():                   schema_pkg_apis_meta_v1_OwnerReference(ref),
+		metav1.PartialObjectMetadata{}.OpenAPIModelName():            schema_pkg_apis_meta_v1_PartialObjectMetadata(ref),
+		metav1.PartialObjectMetadataList{}.OpenAPIModelName():        schema_pkg_apis_meta_v1_PartialObjectMetadataList(ref),
+		metav1.Patch{}.OpenAPIModelName():                            schema_pkg_apis_meta_v1_Patch(ref),
+		metav1.PatchOptions{}.OpenAPIModelName():                     schema_pkg_apis_meta_v1_PatchOptions(ref),
+		metav1.Preconditions{}.OpenAPIModelName():                    schema_pkg_apis_meta_v1_Preconditions(ref),
+		metav1.RootPaths{}.OpenAPIModelName():                        schema_pkg_apis_meta_v1_RootPaths(ref),
+		metav1.ServerAddressByClientCIDR{}.OpenAPIModelName():        schema_pkg_apis_meta_v1_ServerAddressByClientCIDR(ref),
+		metav1.Status{}.OpenAPIModelName():                           schema_pkg_apis_meta_v1_Status(ref),
+		metav1.StatusCause{}.OpenAPIModelName():                      schema_pkg_apis_meta_v1_StatusCause(ref),
+		metav1.StatusDetails{}.OpenAPIModelName():                    schema_pkg_apis_meta_v1_StatusDetails(ref),
+		metav1.Table{}.OpenAPIModelName():                            schema_pkg_apis_meta_v1_Table(ref),
+		metav1.TableColumnDefinition{}.OpenAPIModelName():            schema_pkg_apis_meta_v1_TableColumnDefinition(ref),
+		metav1.TableOptions{}.OpenAPIModelName():                     schema_pkg_apis_meta_v1_TableOptions(ref),
+		metav1.TableRow{}.OpenAPIModelName():                         schema_pkg_apis_meta_v1_TableRow(ref),
+		metav1.TableRowCondition{}.OpenAPIModelName():                schema_pkg_apis_meta_v1_TableRowCondition(ref),
+		metav1.Time{}.OpenAPIModelName():                             schema_pkg_apis_meta_v1_Time(ref),
+		metav1.Timestamp{}.OpenAPIModelName():                        schema_pkg_apis_meta_v1_Timestamp(ref),
+		metav1.TypeMeta{}.OpenAPIModelName():                         schema_pkg_apis_meta_v1_TypeMeta(ref),
+		metav1.UpdateOptions{}.OpenAPIModelName():                    schema_pkg_apis_meta_v1_UpdateOptions(ref),
+		metav1.WatchEvent{}.OpenAPIModelName():                       schema_pkg_apis_meta_v1_WatchEvent(ref),
+		runtime.RawExtension{}.OpenAPIModelName():                    schema_k8sio_apimachinery_pkg_runtime_RawExtension(ref),
+		runtime.TypeMeta{}.OpenAPIModelName():                        schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
+		runtime.Unknown{}.OpenAPIModelName():                         schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
+		pkgversion.Info{}.OpenAPIModelName():                         schema_k8sio_apimachinery_pkg_version_Info(ref),
 	}
 }
 
@@ -133,8 +164,8 @@ func schema_api_pkg_lib_version_OperatorVersion(ref common.ReferenceCallback) co
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
 				Description: "OperatorVersion is a wrapper around semver.Version which supports correct marshaling to YAML and JSON.",
-				Type:        libversion.OperatorVersion{}.OpenAPISchemaType(),
-				Format:      libversion.OperatorVersion{}.OpenAPISchemaFormat(),
+				Type:        version.OperatorVersion{}.OpenAPISchemaType(),
+				Format:      version.OperatorVersion{}.OpenAPISchemaFormat(),
 			},
 		},
 	}
@@ -192,7 +223,7 @@ func schema_api_pkg_operators_v1alpha1_APIServiceDefinitions(ref common.Referenc
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.APIServiceDescription"),
+										Ref:     ref(v1alpha1.APIServiceDescription{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -205,7 +236,7 @@ func schema_api_pkg_operators_v1alpha1_APIServiceDefinitions(ref common.Referenc
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.APIServiceDescription"),
+										Ref:     ref(v1alpha1.APIServiceDescription{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -215,7 +246,7 @@ func schema_api_pkg_operators_v1alpha1_APIServiceDefinitions(ref common.Referenc
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/api/pkg/operators/v1alpha1.APIServiceDescription"},
+			v1alpha1.APIServiceDescription{}.OpenAPIModelName()},
 	}
 }
 
@@ -285,7 +316,7 @@ func schema_api_pkg_operators_v1alpha1_APIServiceDescription(ref common.Referenc
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.APIResourceReference"),
+										Ref:     ref(v1alpha1.APIResourceReference{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -298,7 +329,7 @@ func schema_api_pkg_operators_v1alpha1_APIServiceDescription(ref common.Referenc
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.StatusDescriptor"),
+										Ref:     ref(v1alpha1.StatusDescriptor{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -311,7 +342,7 @@ func schema_api_pkg_operators_v1alpha1_APIServiceDescription(ref common.Referenc
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.SpecDescriptor"),
+										Ref:     ref(v1alpha1.SpecDescriptor{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -324,7 +355,7 @@ func schema_api_pkg_operators_v1alpha1_APIServiceDescription(ref common.Referenc
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.ActionDescriptor"),
+										Ref:     ref(v1alpha1.ActionDescriptor{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -335,7 +366,7 @@ func schema_api_pkg_operators_v1alpha1_APIServiceDescription(ref common.Referenc
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/api/pkg/operators/v1alpha1.APIResourceReference", "github.com/operator-framework/api/pkg/operators/v1alpha1.ActionDescriptor", "github.com/operator-framework/api/pkg/operators/v1alpha1.SpecDescriptor", "github.com/operator-framework/api/pkg/operators/v1alpha1.StatusDescriptor"},
+			v1alpha1.APIResourceReference{}.OpenAPIModelName(), v1alpha1.ActionDescriptor{}.OpenAPIModelName(), v1alpha1.SpecDescriptor{}.OpenAPIModelName(), v1alpha1.StatusDescriptor{}.OpenAPIModelName()},
 	}
 }
 
@@ -416,6 +447,136 @@ func schema_api_pkg_operators_v1alpha1_AppLink(ref common.ReferenceCallback) com
 	}
 }
 
+func schema_api_pkg_operators_v1alpha1_BundleLookup(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "BundleLookup is a request to pull and unpackage the content of a bundle to the cluster.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"path": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Path refers to the location of a bundle to pull. It's typically an image reference.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"identifier": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Identifier is the catalog-unique name of the operator (the name of the CSV for bundles that contain CSVs)",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"replaces": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Replaces is the name of the bundle to replace with the one found at Path.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"catalogSourceRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CatalogSourceRef is a reference to the CatalogSource the bundle path was resolved from.",
+							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
+						},
+					},
+					"conditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-patch-merge-key": "type",
+								"x-kubernetes-patch-strategy":  "merge",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "Conditions represents the overall state of a BundleLookup.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref(v1alpha1.BundleLookupCondition{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+					"properties": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The effective properties of the unpacked bundle.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"path", "identifier", "replaces", "catalogSourceRef"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.BundleLookupCondition{}.OpenAPIModelName(), "k8s.io/api/core/v1.ObjectReference"},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_BundleLookupCondition(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Type of condition.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Status of the condition, one of True, False, Unknown.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The reason for the condition's last transition.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Description: "A human readable message indicating details about the transition.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"lastUpdateTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Last time the condition was probed.",
+							Ref:         ref(metav1.Time{}.OpenAPIModelName()),
+						},
+					},
+					"lastTransitionTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Last time the condition transitioned from one status to another.",
+							Ref:         ref(metav1.Time{}.OpenAPIModelName()),
+						},
+					},
+				},
+				Required: []string{"type", "status"},
+			},
+		},
+		Dependencies: []string{
+			metav1.Time{}.OpenAPIModelName()},
+	}
+}
+
 func schema_api_pkg_operators_v1alpha1_CRDDescription(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -463,7 +624,7 @@ func schema_api_pkg_operators_v1alpha1_CRDDescription(ref common.ReferenceCallba
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.APIResourceReference"),
+										Ref:     ref(v1alpha1.APIResourceReference{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -476,7 +637,7 @@ func schema_api_pkg_operators_v1alpha1_CRDDescription(ref common.ReferenceCallba
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.StatusDescriptor"),
+										Ref:     ref(v1alpha1.StatusDescriptor{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -489,7 +650,7 @@ func schema_api_pkg_operators_v1alpha1_CRDDescription(ref common.ReferenceCallba
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.SpecDescriptor"),
+										Ref:     ref(v1alpha1.SpecDescriptor{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -502,7 +663,7 @@ func schema_api_pkg_operators_v1alpha1_CRDDescription(ref common.ReferenceCallba
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.ActionDescriptor"),
+										Ref:     ref(v1alpha1.ActionDescriptor{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -513,7 +674,283 @@ func schema_api_pkg_operators_v1alpha1_CRDDescription(ref common.ReferenceCallba
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/api/pkg/operators/v1alpha1.APIResourceReference", "github.com/operator-framework/api/pkg/operators/v1alpha1.ActionDescriptor", "github.com/operator-framework/api/pkg/operators/v1alpha1.SpecDescriptor", "github.com/operator-framework/api/pkg/operators/v1alpha1.StatusDescriptor"},
+			v1alpha1.APIResourceReference{}.OpenAPIModelName(), v1alpha1.ActionDescriptor{}.OpenAPIModelName(), v1alpha1.SpecDescriptor{}.OpenAPIModelName(), v1alpha1.StatusDescriptor{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_CatalogSource(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CatalogSource is a repository of CSVs, CRDs, and operator packages.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(metav1.ObjectMeta{}.OpenAPIModelName()),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1alpha1.CatalogSourceSpec{}.OpenAPIModelName()),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1alpha1.CatalogSourceStatus{}.OpenAPIModelName()),
+						},
+					},
+				},
+				Required: []string{"metadata", "spec"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.CatalogSourceSpec{}.OpenAPIModelName(), v1alpha1.CatalogSourceStatus{}.OpenAPIModelName(), metav1.ObjectMeta{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_CatalogSourceList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CatalogSourceList is a repository of CSVs, CRDs, and operator packages.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(metav1.ListMeta{}.OpenAPIModelName()),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref(v1alpha1.CatalogSource{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.CatalogSource{}.OpenAPIModelName(), metav1.ListMeta{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_CatalogSourceSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"sourceType": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SourceType is the type of source",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"priority": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Priority field assigns a weight to the catalog source to prioritize them so that it can be consumed by the dependency resolver. Usage: Higher weight indicates that this catalog source is preferred over lower weighted catalog sources during dependency resolution. The range of the priority value can go from positive to negative in the range of int32. The default value to a catalog source with unassigned priority would be 0. The catalog source with the same priority values will be ranked lexicographically based on its name.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"configMap": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ConfigMap is the name of the ConfigMap to be used to back a configmap-server registry. Only used when SourceType = SourceTypeConfigmap or SourceTypeInternal.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"address": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Address is a host that OLM can use to connect to a pre-existing registry. Format: <registry-host or ip>:<port> Only used when SourceType = SourceTypeGrpc. Ignored when the Image field is set.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"image": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Image is an operator-registry container image to instantiate a registry-server with. Only used when SourceType = SourceTypeGrpc. If present, the address field is ignored.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"grpcPodConfig": {
+						SchemaProps: spec.SchemaProps{
+							Description: "GrpcPodConfig exposes different overrides for the pod spec of the CatalogSource Pod. Only used when SourceType = SourceTypeGrpc and Image is set.",
+							Ref:         ref(v1alpha1.GrpcPodConfig{}.OpenAPIModelName()),
+						},
+					},
+					"updateStrategy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "UpdateStrategy defines how updated catalog source images can be discovered Consists of an interval that defines polling duration and an embedded strategy type",
+							Ref:         ref(v1alpha1.UpdateStrategy{}.OpenAPIModelName()),
+						},
+					},
+					"secrets": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Secrets represent set of secrets that can be used to access the contents of the catalog. It is best to keep this list small, since each will need to be tried for every catalog entry.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Metadata",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"publisher": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"icon": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1alpha1.Icon{}.OpenAPIModelName()),
+						},
+					},
+				},
+				Required: []string{"sourceType"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.GrpcPodConfig{}.OpenAPIModelName(), v1alpha1.Icon{}.OpenAPIModelName(), v1alpha1.UpdateStrategy{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_CatalogSourceStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Description: "A human readable message indicating details about why the CatalogSource is in this condition.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Reason is the reason the CatalogSource was transitioned to its current state.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"latestImageRegistryPoll": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The last time the CatalogSource image registry has been polled to ensure the image is up-to-date",
+							Ref:         ref(metav1.Time{}.OpenAPIModelName()),
+						},
+					},
+					"configMapReference": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ConfigMapReference (deprecated) is the reference to the ConfigMap containing the catalog source's configuration, when the catalog source is a ConfigMap",
+							Ref:         ref(v1alpha1.ConfigMapResourceReference{}.OpenAPIModelName()),
+						},
+					},
+					"registryService": {
+						SchemaProps: spec.SchemaProps{
+							Description: "RegistryService represents the current state of the GRPC service used to serve the catalog",
+							Ref:         ref(v1alpha1.RegistryServiceStatus{}.OpenAPIModelName()),
+						},
+					},
+					"connectionState": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ConnectionState represents the current state of the CatalogSource's connection to the registry",
+							Ref:         ref(v1alpha1.GRPCConnectionState{}.OpenAPIModelName()),
+						},
+					},
+					"conditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"type",
+								},
+								"x-kubernetes-list-type":       "map",
+								"x-kubernetes-patch-merge-key": "type",
+								"x-kubernetes-patch-strategy":  "merge",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "Represents the state of a CatalogSource. Note that Message and Reason represent the original status information, which may be migrated to be conditions based in the future. Any new features introduced will use conditions.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref(metav1.Condition{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.ConfigMapResourceReference{}.OpenAPIModelName(), v1alpha1.GRPCConnectionState{}.OpenAPIModelName(), v1alpha1.RegistryServiceStatus{}.OpenAPIModelName(), metav1.Condition{}.OpenAPIModelName(), metav1.Time{}.OpenAPIModelName()},
 	}
 }
 
@@ -552,7 +989,7 @@ func schema_api_pkg_operators_v1alpha1_CleanupStatus(ref common.ReferenceCallbac
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.ResourceList"),
+										Ref:     ref(v1alpha1.ResourceList{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -562,7 +999,55 @@ func schema_api_pkg_operators_v1alpha1_CleanupStatus(ref common.ReferenceCallbac
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/api/pkg/operators/v1alpha1.ResourceList"},
+			v1alpha1.ResourceList{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_ClusterServiceVersion(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ClusterServiceVersion is a Custom Resource of type `ClusterServiceVersionSpec`.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(metav1.ObjectMeta{}.OpenAPIModelName()),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1alpha1.ClusterServiceVersionSpec{}.OpenAPIModelName()),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1alpha1.ClusterServiceVersionStatus{}.OpenAPIModelName()),
+						},
+					},
+				},
+				Required: []string{"metadata", "spec"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.ClusterServiceVersionSpec{}.OpenAPIModelName(), v1alpha1.ClusterServiceVersionStatus{}.OpenAPIModelName(), metav1.ObjectMeta{}.OpenAPIModelName()},
 	}
 }
 
@@ -614,6 +1099,55 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionCondition(ref common
 	}
 }
 
+func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ClusterServiceVersionList represents a list of ClusterServiceVersions.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(metav1.ListMeta{}.OpenAPIModelName()),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref(v1alpha1.ClusterServiceVersion{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.ClusterServiceVersion{}.OpenAPIModelName(), metav1.ListMeta{}.OpenAPIModelName()},
+	}
+}
+
 func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -624,12 +1158,12 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 					"install": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.NamedInstallStrategy"),
+							Ref:     ref(v1alpha1.NamedInstallStrategy{}.OpenAPIModelName()),
 						},
 					},
 					"version": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/operator-framework/api/pkg/lib/version.OperatorVersion"),
+							Ref: ref(version.OperatorVersion{}.OpenAPIModelName()),
 						},
 					},
 					"release": {
@@ -647,13 +1181,13 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 					"customresourcedefinitions": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.CustomResourceDefinitions"),
+							Ref:     ref(v1alpha1.CustomResourceDefinitions{}.OpenAPIModelName()),
 						},
 					},
 					"apiservicedefinitions": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.APIServiceDefinitions"),
+							Ref:     ref(v1alpha1.APIServiceDefinitions{}.OpenAPIModelName()),
 						},
 					},
 					"webhookdefinitions": {
@@ -663,7 +1197,7 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.WebhookDescription"),
+										Ref:     ref(v1alpha1.WebhookDescription{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -726,7 +1260,7 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.Maintainer"),
+										Ref:     ref(v1alpha1.Maintainer{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -736,7 +1270,7 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 						SchemaProps: spec.SchemaProps{
 							Description: "The publishing entity behind the operator.",
 							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/operator-framework/api/pkg/operators/v1alpha1.AppLink"),
+							Ref:         ref(v1alpha1.AppLink{}.OpenAPIModelName()),
 						},
 					},
 					"links": {
@@ -747,7 +1281,7 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.AppLink"),
+										Ref:     ref(v1alpha1.AppLink{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -761,7 +1295,7 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.Icon"),
+										Ref:     ref(v1alpha1.Icon{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -775,7 +1309,7 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.InstallMode"),
+										Ref:     ref(v1alpha1.InstallMode{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -830,7 +1364,7 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 						SchemaProps: spec.SchemaProps{
 							Description: "Cleanup specifies the cleanup behaviour when the CSV gets deleted",
 							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/operator-framework/api/pkg/operators/v1alpha1.CleanupSpec"),
+							Ref:         ref(v1alpha1.CleanupSpec{}.OpenAPIModelName()),
 						},
 					},
 					"skips": {
@@ -856,7 +1390,7 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.RelatedImage"),
+										Ref:     ref(v1alpha1.RelatedImage{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -867,7 +1401,7 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/api/pkg/lib/release.OperatorRelease", "github.com/operator-framework/api/pkg/lib/version.OperatorVersion", "github.com/operator-framework/api/pkg/operators/v1alpha1.APIServiceDefinitions", "github.com/operator-framework/api/pkg/operators/v1alpha1.AppLink", "github.com/operator-framework/api/pkg/operators/v1alpha1.CleanupSpec", "github.com/operator-framework/api/pkg/operators/v1alpha1.CustomResourceDefinitions", "github.com/operator-framework/api/pkg/operators/v1alpha1.Icon", "github.com/operator-framework/api/pkg/operators/v1alpha1.InstallMode", "github.com/operator-framework/api/pkg/operators/v1alpha1.Maintainer", "github.com/operator-framework/api/pkg/operators/v1alpha1.NamedInstallStrategy", "github.com/operator-framework/api/pkg/operators/v1alpha1.RelatedImage", "github.com/operator-framework/api/pkg/operators/v1alpha1.WebhookDescription", metav1.GroupVersionKind{}.OpenAPIModelName(), metav1.LabelSelector{}.OpenAPIModelName()},
+			"github.com/operator-framework/api/pkg/lib/release.OperatorRelease", version.OperatorVersion{}.OpenAPIModelName(), v1alpha1.APIServiceDefinitions{}.OpenAPIModelName(), v1alpha1.AppLink{}.OpenAPIModelName(), v1alpha1.CleanupSpec{}.OpenAPIModelName(), v1alpha1.CustomResourceDefinitions{}.OpenAPIModelName(), v1alpha1.Icon{}.OpenAPIModelName(), v1alpha1.InstallMode{}.OpenAPIModelName(), v1alpha1.Maintainer{}.OpenAPIModelName(), v1alpha1.NamedInstallStrategy{}.OpenAPIModelName(), v1alpha1.RelatedImage{}.OpenAPIModelName(), v1alpha1.WebhookDescription{}.OpenAPIModelName(), metav1.GroupVersionKind{}.OpenAPIModelName(), metav1.LabelSelector{}.OpenAPIModelName()},
 	}
 }
 
@@ -919,7 +1453,7 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionStatus(ref common.Re
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.ClusterServiceVersionCondition"),
+										Ref:     ref(v1alpha1.ClusterServiceVersionCondition{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -933,7 +1467,7 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionStatus(ref common.Re
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.RequirementStatus"),
+										Ref:     ref(v1alpha1.RequirementStatus{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -955,14 +1489,60 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionStatus(ref common.Re
 						SchemaProps: spec.SchemaProps{
 							Description: "CleanupStatus represents information about the status of cleanup while a CSV is pending deletion",
 							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/operator-framework/api/pkg/operators/v1alpha1.CleanupStatus"),
+							Ref:         ref(v1alpha1.CleanupStatus{}.OpenAPIModelName()),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/api/pkg/operators/v1alpha1.CleanupStatus", "github.com/operator-framework/api/pkg/operators/v1alpha1.ClusterServiceVersionCondition", "github.com/operator-framework/api/pkg/operators/v1alpha1.RequirementStatus", metav1.Time{}.OpenAPIModelName()},
+			v1alpha1.CleanupStatus{}.OpenAPIModelName(), v1alpha1.ClusterServiceVersionCondition{}.OpenAPIModelName(), v1alpha1.RequirementStatus{}.OpenAPIModelName(), metav1.Time{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_ConfigMapResourceReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"namespace": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"uid": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"resourceVersion": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"lastUpdateTime": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref(metav1.Time{}.OpenAPIModelName()),
+						},
+					},
+				},
+				Required: []string{"name", "namespace"},
+			},
+		},
+		Dependencies: []string{
+			metav1.Time{}.OpenAPIModelName()},
 	}
 }
 
@@ -980,7 +1560,7 @@ func schema_api_pkg_operators_v1alpha1_CustomResourceDefinitions(ref common.Refe
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.CRDDescription"),
+										Ref:     ref(v1alpha1.CRDDescription{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -993,7 +1573,7 @@ func schema_api_pkg_operators_v1alpha1_CustomResourceDefinitions(ref common.Refe
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.CRDDescription"),
+										Ref:     ref(v1alpha1.CRDDescription{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -1003,7 +1583,7 @@ func schema_api_pkg_operators_v1alpha1_CustomResourceDefinitions(ref common.Refe
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/api/pkg/operators/v1alpha1.CRDDescription"},
+			v1alpha1.CRDDescription{}.OpenAPIModelName()},
 	}
 }
 
@@ -1058,6 +1638,145 @@ func schema_api_pkg_operators_v1alpha1_DependentStatus(ref common.ReferenceCallb
 				Required: []string{"group", "version", "kind", "status"},
 			},
 		},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_ExtractContentConfig(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ExtractContentConfig configures context extraction from a file-based catalog index image.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"cacheDir": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CacheDir is the (optional) directory storing the pre-calculated API cache.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"catalogDir": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CatalogDir is the directory storing the file-based catalog contents.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"catalogDir"},
+			},
+		},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_GRPCConnectionState(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"address": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"lastObservedState": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"lastConnect": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref(metav1.Time{}.OpenAPIModelName()),
+						},
+					},
+				},
+				Required: []string{"lastObservedState"},
+			},
+		},
+		Dependencies: []string{
+			metav1.Time{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_GrpcPodConfig(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "GrpcPodConfig contains configuration specified for a catalog source",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeSelector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "NodeSelector is a selector which must be true for the pod to fit on a node. Selector which must match a node's labels for the pod to be scheduled on that node.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"tolerations": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Tolerations are the catalog source's pod's tolerations.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/core/v1.Toleration"),
+									},
+								},
+							},
+						},
+					},
+					"affinity": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Affinity is the catalog source's pod's affinity.",
+							Ref:         ref("k8s.io/api/core/v1.Affinity"),
+						},
+					},
+					"priorityClassName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "If specified, indicates the pod's priority. If not specified, the pod priority will be default or zero if there is no default.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"securityContextConfig": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SecurityContextConfig can be one of `legacy` or `restricted`. The CatalogSource's pod is either injected with the right pod.spec.securityContext and pod.spec.container[*].securityContext values to allow the pod to run in Pod Security Admission (PSA) `restricted` mode, or doesn't set these values at all, in which case the pod can only be run in PSA `baseline` or `privileged` namespaces. If the SecurityContextConfig is unspecified, the mode will be determined by the namespace's PSA configuration. If the namespace is enforcing `restricted` mode, then the pod will be configured as if `restricted` was specified. Otherwise, it will be configured as if `legacy` was specified. Specifying a value other than `legacy` or `restricted` result in a validation error. When using older catalog images, which can not run in `restricted` mode, the SecurityContextConfig should be set to `legacy`.\n\nMore information about PSA can be found here: https://kubernetes.io/docs/concepts/security/pod-security-admission/",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"memoryTarget": {
+						SchemaProps: spec.SchemaProps{
+							Description: "MemoryTarget configures the $GOMEMLIMIT value for the gRPC catalog Pod. This is a soft memory limit for the server, which the runtime will attempt to meet but makes no guarantees that it will do so. If this value is set, the Pod will have the following modifications made to the container running the server: - the $GOMEMLIMIT environment variable will be set to this value in bytes - the memory request will be set to this value\n\nThis field should be set if it's desired to reduce the footprint of a catalog server as much as possible, or if a catalog being served is very large and needs more than the default allocation. If your index image has a file- system cache, determine a good approximation for this value by doubling the size of the package cache at /tmp/cache/cache/packages.json in the index image.\n\nThis field is best-effort; if unset, no default will be used and no Pod memory limit or $GOMEMLIMIT value will be set.",
+							Ref:         ref(resource.Quantity{}.OpenAPIModelName()),
+						},
+					},
+					"extractContent": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ExtractContent configures the gRPC catalog Pod to extract catalog metadata from the provided index image and use a well-known version of the `opm` server to expose it. The catalog index image that this CatalogSource is configured to use *must* be using the file-based catalogs in order to utilize this feature.",
+							Ref:         ref(v1alpha1.ExtractContentConfig{}.OpenAPIModelName()),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.ExtractContentConfig{}.OpenAPIModelName(), "k8s.io/api/core/v1.Affinity", "k8s.io/api/core/v1.Toleration", resource.Quantity{}.OpenAPIModelName()},
 	}
 }
 
@@ -1116,6 +1835,349 @@ func schema_api_pkg_operators_v1alpha1_InstallMode(ref common.ReferenceCallback)
 	}
 }
 
+func schema_api_pkg_operators_v1alpha1_InstallPlan(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "InstallPlan defines the installation of a set of operators.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(metav1.ObjectMeta{}.OpenAPIModelName()),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1alpha1.InstallPlanSpec{}.OpenAPIModelName()),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1alpha1.InstallPlanStatus{}.OpenAPIModelName()),
+						},
+					},
+				},
+				Required: []string{"metadata", "spec"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.InstallPlanSpec{}.OpenAPIModelName(), v1alpha1.InstallPlanStatus{}.OpenAPIModelName(), metav1.ObjectMeta{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_InstallPlanCondition(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "InstallPlanCondition represents the overall status of the execution of an InstallPlan.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"lastUpdateTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "True, False, or Unknown",
+							Ref:         ref(metav1.Time{}.OpenAPIModelName()),
+						},
+					},
+					"lastTransitionTime": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref(metav1.Time{}.OpenAPIModelName()),
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			metav1.Time{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_InstallPlanList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "InstallPlanList is a list of InstallPlan resources.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(metav1.ListMeta{}.OpenAPIModelName()),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref(v1alpha1.InstallPlan{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.InstallPlan{}.OpenAPIModelName(), metav1.ListMeta{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_InstallPlanReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"uuid": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+				},
+				Required: []string{"apiVersion", "kind", "name", "uuid"},
+			},
+		},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_InstallPlanSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "InstallPlanSpec defines a set of Application resources to be installed",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"source": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"sourceNamespace": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"clusterServiceVersionNames": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"approval": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"approved": {
+						SchemaProps: spec.SchemaProps{
+							Default: false,
+							Type:    []string{"boolean"},
+							Format:  "",
+						},
+					},
+					"generation": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+				},
+				Required: []string{"clusterServiceVersionNames", "approval", "approved"},
+			},
+		},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_InstallPlanStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "InstallPlanStatus represents the information about the status of steps required to complete installation.\n\nStatus may trail the actual state of a system.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"phase": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref(v1alpha1.InstallPlanCondition{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+					"catalogSources": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"plan": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref(v1alpha1.Step{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+					"bundleLookups": {
+						SchemaProps: spec.SchemaProps{
+							Description: "BundleLookups is the set of in-progress requests to pull and unpackage bundle content to the cluster.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref(v1alpha1.BundleLookup{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+					"attenuatedServiceAccountRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "AttenuatedServiceAccountRef references the service account that is used to do scoped operator install.",
+							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
+						},
+					},
+					"startTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "StartTime is the time when the controller began applying the resources listed in the plan to the cluster.",
+							Ref:         ref(metav1.Time{}.OpenAPIModelName()),
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Message is a human-readable message containing detailed information that may be important to understanding why the plan has its current status.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"phase", "catalogSources"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.BundleLookup{}.OpenAPIModelName(), v1alpha1.InstallPlanCondition{}.OpenAPIModelName(), v1alpha1.Step{}.OpenAPIModelName(), "k8s.io/api/core/v1.ObjectReference", metav1.Time{}.OpenAPIModelName()},
+	}
+}
+
 func schema_api_pkg_operators_v1alpha1_Maintainer(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1157,7 +2219,7 @@ func schema_api_pkg_operators_v1alpha1_NamedInstallStrategy(ref common.Reference
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDetailsDeployment"),
+							Ref:     ref(v1alpha1.StrategyDetailsDeployment{}.OpenAPIModelName()),
 						},
 					},
 				},
@@ -1165,7 +2227,69 @@ func schema_api_pkg_operators_v1alpha1_NamedInstallStrategy(ref common.Reference
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDetailsDeployment"},
+			v1alpha1.StrategyDetailsDeployment{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_RegistryPoll(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"interval": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Interval is used to determine the time interval between checks of the latest catalog source version. The catalog operator polls to see if a new version of the catalog source is available. If available, the latest image is pulled and gRPC traffic is directed to the latest catalog source.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_RegistryServiceStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"protocol": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"serviceName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"serviceNamespace": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"port": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"createdAt": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref(metav1.Time{}.OpenAPIModelName()),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			metav1.Time{}.OpenAPIModelName()},
 	}
 }
 
@@ -1257,7 +2381,7 @@ func schema_api_pkg_operators_v1alpha1_RequirementStatus(ref common.ReferenceCal
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.DependentStatus"),
+										Ref:     ref(v1alpha1.DependentStatus{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -1268,7 +2392,7 @@ func schema_api_pkg_operators_v1alpha1_RequirementStatus(ref common.ReferenceCal
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/api/pkg/operators/v1alpha1.DependentStatus"},
+			v1alpha1.DependentStatus{}.OpenAPIModelName()},
 	}
 }
 
@@ -1327,7 +2451,7 @@ func schema_api_pkg_operators_v1alpha1_ResourceList(ref common.ReferenceCallback
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.ResourceInstance"),
+										Ref:     ref(v1alpha1.ResourceInstance{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -1338,7 +2462,7 @@ func schema_api_pkg_operators_v1alpha1_ResourceList(ref common.ReferenceCallback
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/api/pkg/operators/v1alpha1.ResourceInstance"},
+			v1alpha1.ResourceInstance{}.OpenAPIModelName()},
 	}
 }
 
@@ -1448,6 +2572,110 @@ func schema_api_pkg_operators_v1alpha1_StatusDescriptor(ref common.ReferenceCall
 	}
 }
 
+func schema_api_pkg_operators_v1alpha1_Step(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "Step represents the status of an individual step in an InstallPlan.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"resolving": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"resource": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1alpha1.StepResource{}.OpenAPIModelName()),
+						},
+					},
+					"optional": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"boolean"},
+							Format: "",
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+				},
+				Required: []string{"resolving", "resource", "status"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.StepResource{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_StepResource(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "StepResource represents the status of a resource to be tracked by an InstallPlan.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"sourceName": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"sourceNamespace": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"group": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"version": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"manifest": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"sourceName", "sourceNamespace", "group", "version", "kind", "name"},
+			},
+		},
+	}
+}
+
 func schema_api_pkg_operators_v1alpha1_StrategyDeploymentPermissions(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1542,7 +2770,7 @@ func schema_api_pkg_operators_v1alpha1_StrategyDetailsDeployment(ref common.Refe
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDeploymentSpec"),
+										Ref:     ref(v1alpha1.StrategyDeploymentSpec{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -1555,7 +2783,7 @@ func schema_api_pkg_operators_v1alpha1_StrategyDetailsDeployment(ref common.Refe
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDeploymentPermissions"),
+										Ref:     ref(v1alpha1.StrategyDeploymentPermissions{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -1568,7 +2796,7 @@ func schema_api_pkg_operators_v1alpha1_StrategyDetailsDeployment(ref common.Refe
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDeploymentPermissions"),
+										Ref:     ref(v1alpha1.StrategyDeploymentPermissions{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -1579,7 +2807,514 @@ func schema_api_pkg_operators_v1alpha1_StrategyDetailsDeployment(ref common.Refe
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDeploymentPermissions", "github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDeploymentSpec"},
+			v1alpha1.StrategyDeploymentPermissions{}.OpenAPIModelName(), v1alpha1.StrategyDeploymentSpec{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_Subscription(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "Subscription keeps operators up to date by tracking changes to Catalogs.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(metav1.ObjectMeta{}.OpenAPIModelName()),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref(v1alpha1.SubscriptionSpec{}.OpenAPIModelName()),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1alpha1.SubscriptionStatus{}.OpenAPIModelName()),
+						},
+					},
+				},
+				Required: []string{"metadata", "spec"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.SubscriptionSpec{}.OpenAPIModelName(), v1alpha1.SubscriptionStatus{}.OpenAPIModelName(), metav1.ObjectMeta{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_SubscriptionCatalogHealth(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "SubscriptionCatalogHealth describes the health of a CatalogSource the Subscription knows about.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"catalogSourceRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CatalogSourceRef is a reference to a CatalogSource.",
+							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
+						},
+					},
+					"lastUpdated": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LastUpdated represents the last time that the CatalogSourceHealth changed",
+							Ref:         ref(metav1.Time{}.OpenAPIModelName()),
+						},
+					},
+					"healthy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Healthy is true if the CatalogSource is healthy; false otherwise.",
+							Default:     false,
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"catalogSourceRef", "lastUpdated", "healthy"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/core/v1.ObjectReference", metav1.Time{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_SubscriptionCondition(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "SubscriptionCondition represents the latest available observations of a Subscription's state.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Type is the type of Subscription condition.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Status is the status of the condition, one of True, False, Unknown.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Reason is a one-word CamelCase reason for the condition's last transition.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Message is a human-readable message indicating details about last transition.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"lastHeartbeatTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LastHeartbeatTime is the last time we got an update on a given condition",
+							Ref:         ref(metav1.Time{}.OpenAPIModelName()),
+						},
+					},
+					"lastTransitionTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LastTransitionTime is the last time the condition transit from one status to another",
+							Ref:         ref(metav1.Time{}.OpenAPIModelName()),
+						},
+					},
+				},
+				Required: []string{"type", "status"},
+			},
+		},
+		Dependencies: []string{
+			metav1.Time{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_SubscriptionConfig(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "SubscriptionConfig contains configuration specified for a subscription.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"selector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Selector is the label selector for pods to be configured. Existing ReplicaSets whose pods are selected by this will be the ones affected by this deployment. It must match the pod template's labels.",
+							Ref:         ref(metav1.LabelSelector{}.OpenAPIModelName()),
+						},
+					},
+					"nodeSelector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "NodeSelector is a selector which must be true for the pod to fit on a node. Selector which must match a node's labels for the pod to be scheduled on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"tolerations": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Tolerations are the pod's tolerations.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/core/v1.Toleration"),
+									},
+								},
+							},
+						},
+					},
+					"resources": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Resources represents compute resources required by this container. Immutable. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/",
+							Ref:         ref("k8s.io/api/core/v1.ResourceRequirements"),
+						},
+					},
+					"envFrom": {
+						SchemaProps: spec.SchemaProps{
+							Description: "EnvFrom is a list of sources to populate environment variables in the container. The keys defined within a source must be a C_IDENTIFIER. All invalid keys will be reported as an event when the container is starting. When a key exists in multiple sources, the value associated with the last source will take precedence. Values defined by an Env with a duplicate key will take precedence. Immutable.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/core/v1.EnvFromSource"),
+									},
+								},
+							},
+						},
+					},
+					"env": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-patch-merge-key": "name",
+								"x-kubernetes-patch-strategy":  "merge",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "Env is a list of environment variables to set in the container. Cannot be updated.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/core/v1.EnvVar"),
+									},
+								},
+							},
+						},
+					},
+					"volumes": {
+						SchemaProps: spec.SchemaProps{
+							Description: "List of Volumes to set in the podSpec.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/core/v1.Volume"),
+									},
+								},
+							},
+						},
+					},
+					"volumeMounts": {
+						SchemaProps: spec.SchemaProps{
+							Description: "List of VolumeMounts to set in the container.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/core/v1.VolumeMount"),
+									},
+								},
+							},
+						},
+					},
+					"affinity": {
+						SchemaProps: spec.SchemaProps{
+							Description: "If specified, overrides the pod's scheduling constraints. nil sub-attributes will *not* override the original values in the pod.spec for those sub-attributes. Use empty object ({}) to erase original sub-attribute values.",
+							Ref:         ref("k8s.io/api/core/v1.Affinity"),
+						},
+					},
+					"annotations": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Annotations is an unstructured key value map stored with each Deployment, Pod, APIService in the Operator. Typically, annotations may be set by external tools to store and retrieve arbitrary metadata. Use this field to pre-define annotations that OLM should add to each of the Subscription's deployments, pods, and apiservices.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/core/v1.Affinity", "k8s.io/api/core/v1.EnvFromSource", "k8s.io/api/core/v1.EnvVar", "k8s.io/api/core/v1.ResourceRequirements", "k8s.io/api/core/v1.Toleration", "k8s.io/api/core/v1.Volume", "k8s.io/api/core/v1.VolumeMount", metav1.LabelSelector{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_SubscriptionList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "SubscriptionList is a list of Subscription resources.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(metav1.ListMeta{}.OpenAPIModelName()),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref(v1alpha1.Subscription{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.Subscription{}.OpenAPIModelName(), metav1.ListMeta{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_SubscriptionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "SubscriptionSpec defines an Application that can be installed",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"source": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"sourceNamespace": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"channel": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"startingCSV": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"installPlanApproval": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"config": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref(v1alpha1.SubscriptionConfig{}.OpenAPIModelName()),
+						},
+					},
+				},
+				Required: []string{"source", "sourceNamespace", "name"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.SubscriptionConfig{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_SubscriptionStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"currentCSV": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CurrentCSV is the CSV the Subscription is progressing to.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"installedCSV": {
+						SchemaProps: spec.SchemaProps{
+							Description: "InstalledCSV is the CSV currently installed by the Subscription.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"installplan": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Install is a reference to the latest InstallPlan generated for the Subscription. DEPRECATED: InstallPlanRef",
+							Ref:         ref(v1alpha1.InstallPlanReference{}.OpenAPIModelName()),
+						},
+					},
+					"state": {
+						SchemaProps: spec.SchemaProps{
+							Description: "State represents the current state of the Subscription",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Reason is the reason the Subscription was transitioned to its current state.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"installPlanGeneration": {
+						SchemaProps: spec.SchemaProps{
+							Description: "InstallPlanGeneration is the current generation of the installplan",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"installPlanRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "InstallPlanRef is a reference to the latest InstallPlan that contains the Subscription's current CSV.",
+							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
+						},
+					},
+					"catalogHealth": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CatalogHealth contains the Subscription's view of its relevant CatalogSources' status. It is used to determine SubscriptionStatusConditions related to CatalogSources.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref(v1alpha1.SubscriptionCatalogHealth{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Conditions is a list of the latest available observations about a Subscription's current state.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref(v1alpha1.SubscriptionCondition{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+					"lastUpdated": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LastUpdated represents the last time that the Subscription status was updated.",
+							Ref:         ref(metav1.Time{}.OpenAPIModelName()),
+						},
+					},
+				},
+				Required: []string{"lastUpdated"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.InstallPlanReference{}.OpenAPIModelName(), v1alpha1.SubscriptionCatalogHealth{}.OpenAPIModelName(), v1alpha1.SubscriptionCondition{}.OpenAPIModelName(), "k8s.io/api/core/v1.ObjectReference", metav1.Time{}.OpenAPIModelName()},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_UpdateStrategy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "UpdateStrategy holds all the different types of catalog source update strategies Currently only registry polling strategy is implemented",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"registryPoll": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref(v1alpha1.RegistryPoll{}.OpenAPIModelName()),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.RegistryPoll{}.OpenAPIModelName()},
 	}
 }
 
@@ -1773,7 +3508,7 @@ func schema_package_server_apis_operators_v1_CSVDescription(ref common.Reference
 					"version": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Version is the CSV's semantic version",
-							Ref:         ref("github.com/operator-framework/api/pkg/lib/version.OperatorVersion"),
+							Ref:         ref(version.OperatorVersion{}.OpenAPIModelName()),
 						},
 					},
 					"provider": {
@@ -1884,7 +3619,7 @@ func schema_package_server_apis_operators_v1_CSVDescription(ref common.Reference
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.InstallMode"),
+										Ref:     ref(v1alpha1.InstallMode{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -1893,13 +3628,13 @@ func schema_package_server_apis_operators_v1_CSVDescription(ref common.Reference
 					"customresourcedefinitions": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.CustomResourceDefinitions"),
+							Ref:     ref(v1alpha1.CustomResourceDefinitions{}.OpenAPIModelName()),
 						},
 					},
 					"apiservicedefinitions": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.APIServiceDefinitions"),
+							Ref:     ref(v1alpha1.APIServiceDefinitions{}.OpenAPIModelName()),
 						},
 					},
 					"nativeApis": {
@@ -1941,7 +3676,7 @@ func schema_package_server_apis_operators_v1_CSVDescription(ref common.Reference
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/api/pkg/lib/version.OperatorVersion", "github.com/operator-framework/api/pkg/operators/v1alpha1.APIServiceDefinitions", "github.com/operator-framework/api/pkg/operators/v1alpha1.CustomResourceDefinitions", "github.com/operator-framework/api/pkg/operators/v1alpha1.InstallMode", v1.AppLink{}.OpenAPIModelName(), v1.Icon{}.OpenAPIModelName(), v1.Maintainer{}.OpenAPIModelName(), metav1.GroupVersionKind{}.OpenAPIModelName()},
+			version.OperatorVersion{}.OpenAPIModelName(), v1alpha1.APIServiceDefinitions{}.OpenAPIModelName(), v1alpha1.CustomResourceDefinitions{}.OpenAPIModelName(), v1alpha1.InstallMode{}.OpenAPIModelName(), v1.AppLink{}.OpenAPIModelName(), v1.Icon{}.OpenAPIModelName(), v1.Maintainer{}.OpenAPIModelName(), metav1.GroupVersionKind{}.OpenAPIModelName()},
 	}
 }
 
