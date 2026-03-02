@@ -187,6 +187,7 @@ func (csv *ClusterServiceVersion) GetVersion() (string, error) {
 // GetRelease returns the release of the CSV
 //
 // If not defined, the function returns an empty string.
+// The release field can be either a string or a number.
 func (csv *ClusterServiceVersion) GetRelease() (string, error) {
 	var objmap map[string]*json.RawMessage
 	if err := json.Unmarshal(csv.Spec, &objmap); err != nil {
@@ -198,12 +199,24 @@ func (csv *ClusterServiceVersion) GetRelease() (string, error) {
 		return "", nil
 	}
 
+	// Try to unmarshal as string first (the expected type)
 	var r string
-	if err := json.Unmarshal(*rawValue, &r); err != nil {
-		return "", err
+	if err := json.Unmarshal(*rawValue, &r); err == nil {
+		return r, nil
 	}
 
-	return r, nil
+	// If string unmarshal fails, try as a number and convert to string
+	var num float64
+	if err := json.Unmarshal(*rawValue, &num); err == nil {
+		// Format as integer if it's a whole number, otherwise as float
+		if num == float64(int64(num)) {
+			return fmt.Sprintf("%d", int64(num)), nil
+		}
+		return fmt.Sprintf("%g", num), nil
+	}
+
+	// If both attempts fail, return an error
+	return "", fmt.Errorf("release field must be a string or number")
 }
 
 // GetSkipRange returns the skiprange of the CSV

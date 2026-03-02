@@ -395,7 +395,7 @@ github.com/mattn/go-colorable
 # github.com/mattn/go-isatty v0.0.20
 ## explicit; go 1.15
 github.com/mattn/go-isatty
-# github.com/mattn/go-sqlite3 v1.14.33
+# github.com/mattn/go-sqlite3 v1.14.34
 ## explicit; go 1.19
 github.com/mattn/go-sqlite3
 # github.com/maxbrunsfeld/counterfeiter/v6 v6.12.1
@@ -519,8 +519,8 @@ github.com/openshift/client-go/config/listers/config/v1alpha2
 # github.com/openshift/library-go v0.0.0-20260204111611-b7d4fa0e292a
 ## explicit; go 1.24.0
 github.com/openshift/library-go/pkg/crypto
-# github.com/operator-framework/api v0.40.0
-## explicit; go 1.25.3
+# github.com/operator-framework/api v0.41.0
+## explicit; go 1.25.7
 github.com/operator-framework/api/crds
 github.com/operator-framework/api/pkg/constraints
 github.com/operator-framework/api/pkg/encoding
@@ -538,8 +538,8 @@ github.com/operator-framework/api/pkg/validation
 github.com/operator-framework/api/pkg/validation/errors
 github.com/operator-framework/api/pkg/validation/interfaces
 github.com/operator-framework/api/pkg/validation/internal
-# github.com/operator-framework/operator-registry v1.63.0
-## explicit; go 1.25.3
+# github.com/operator-framework/operator-registry v1.64.0
+## explicit; go 1.25.7
 github.com/operator-framework/operator-registry/alpha/model
 github.com/operator-framework/operator-registry/alpha/property
 github.com/operator-framework/operator-registry/pkg/api
@@ -724,7 +724,7 @@ go.opentelemetry.io/proto/otlp/collector/trace/v1
 go.opentelemetry.io/proto/otlp/common/v1
 go.opentelemetry.io/proto/otlp/resource/v1
 go.opentelemetry.io/proto/otlp/trace/v1
-# go.podman.io/common v0.66.1
+# go.podman.io/common v0.67.0
 ## explicit; go 1.24.2
 go.podman.io/common/pkg/auth
 go.podman.io/common/pkg/capabilities
@@ -819,7 +819,7 @@ golang.org/x/crypto/salsa20/salsa
 ## explicit; go 1.24.0
 golang.org/x/exp/maps
 golang.org/x/exp/slices
-# golang.org/x/mod v0.32.0
+# golang.org/x/mod v0.33.0
 ## explicit; go 1.24.0
 golang.org/x/mod/internal/lazyregexp
 golang.org/x/mod/modfile
