@@ -297,14 +297,14 @@ e2e: #HELP Run e2e tests against a cluster running OLM (params: $E2E_TEST_NS (op
 	$(GO_TEST_ENV) $(GINKGO) -timeout $(E2E_TIMEOUT) $(GINKGO_OPTS) $(E2E_GINKGO_OPTS) ./test/e2e -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -catalogNamespace=$(E2E_CATALOG_NS) $(E2E_OPTS)
 
 .PHONY: e2e-local
-e2e-local: e2e-build kind-create e2e-local-deploy e2e
+e2e-local: e2e-build kind-create cert-manager-install e2e-local-deploy e2e
 
 .PHONY: e2e-local-deploy
-e2e-local-deploy: $(KIND) $(HELM) #HELP Deploy OLM for e2e testing (without cert-manager)
+e2e-local-deploy: $(KIND) $(HELM) #HELP Deploy OLM for e2e testing
 	$(KIND) load docker-image $(OLM_IMAGE) --name $(KIND_CLUSTER_NAME); \
 	$(HELM) upgrade --install olm deploy/chart \
 		--set debug=true \
-		--set certManager.enabled=false \
+		--set certManager.enabled=true \
 		--set olm.image.ref=$(OLM_IMAGE) \
 		--set olm.image.pullPolicy=IfNotPresent \
 		--set catalog.image.ref=$(OLM_IMAGE) \
