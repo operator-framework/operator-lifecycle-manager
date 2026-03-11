@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -665,50 +666,31 @@ var _ = Describe("CSVs with a Webhook", Label("Webhooks"), func() {
 			packageName := "webhook-operator"
 			channelName := "alpha"
 
-			catSrcImage := "quay.io/operator-framework/webhook-operator-index"
-
-			By(`Create gRPC CatalogSource`)
-			source := &operatorsv1alpha1.CatalogSource{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       operatorsv1alpha1.CatalogSourceKind,
-					APIVersion: operatorsv1alpha1.CatalogSourceCRDAPIVersion,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      sourceName,
-					Namespace: generatedNamespace.GetName(),
-				},
-				Spec: operatorsv1alpha1.CatalogSourceSpec{
-					SourceType: operatorsv1alpha1.SourceTypeGrpc,
-					Image:      catSrcImage + ":0.0.3",
-					GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
-						SecurityContextConfig: operatorsv1alpha1.Restricted,
-					},
-				},
-			}
-
-			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
-			require.NoError(GinkgoT(), err)
+			By(`Deploy MagicCatalog with inline webhook-operator bundle`)
+			provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "webhook", "webhook-operator-catalog.yaml"))
+			Expect(err).To(BeNil())
+			magicCatalog := NewMagicCatalog(ctx.Ctx().Client(), generatedNamespace.GetName(), sourceName, provider)
+			Expect(magicCatalog.DeployCatalog(context.Background())).To(BeNil())
 			cleanupCatSrc = func() {
-				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{}))
+				errs := magicCatalog.UndeployCatalog(context.Background())
+				for _, e := range errs {
+					GinkgoWriter.Println("cleanup catalog error:", e)
+				}
 			}
-
-			By(`Wait for the CatalogSource to be ready`)
-			_, err = fetchCatalogSourceOnStatus(crc, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced())
-			require.NoError(GinkgoT(), err)
 
 			By(`Create a Subscription for the webhook-operator`)
 			subscriptionName := genName("sub-")
-			cleanupSubscription := createSubscriptionForCatalog(crc, source.GetNamespace(), subscriptionName, source.GetName(), packageName, channelName, "", operatorsv1alpha1.ApprovalAutomatic)
+			cleanupSubscription := createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subscriptionName, sourceName, packageName, channelName, "", operatorsv1alpha1.ApprovalAutomatic)
 			defer cleanupSubscription()
 
-			_, err = fetchSubscription(crc, source.GetNamespace(), subscriptionName, subscriptionHasInstallPlanChecker())
+			_, err = fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 			require.NoError(GinkgoT(), err)
 
 			By(`Wait for webhook-operator v2 csv to succeed`)
-			csv, err := fetchCSV(crc, source.GetNamespace(), csvName, csvSucceededChecker)
+			csv, err := fetchCSV(crc, generatedNamespace.GetName(), csvName, csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
-			cleanupCSV = buildCSVCleanupFunc(c, crc, *csv, source.GetNamespace(), true, true)
+			cleanupCSV = buildCSVCleanupFunc(c, crc, *csv, generatedNamespace.GetName(), true, true)
 		})
 
 		AfterEach(func() {
