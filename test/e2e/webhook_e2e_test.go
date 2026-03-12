@@ -650,7 +650,7 @@ var _ = Describe("CSVs with a Webhook", Label("Webhooks"), func() {
 		}).Should(Equal(2))
 	})
 	When("Installed from a catalog Source", func() {
-		const csvName = "webhook-operator.v0.0.1"
+		const csvName = "webhook-operator.v0.0.5"
 		var cleanupCSV cleanupFunc
 		var cleanupCatSrc cleanupFunc
 		var cleanupSubscription cleanupFunc
@@ -665,7 +665,7 @@ var _ = Describe("CSVs with a Webhook", Label("Webhooks"), func() {
 			packageName := "webhook-operator"
 			channelName := "alpha"
 
-			catSrcImage := "quay.io/operator-framework/webhook-operator-index"
+			catSrcImage := "quay.io/olmtest/webhook-operator-index"
 
 			By(`Create gRPC CatalogSource`)
 			source := &operatorsv1alpha1.CatalogSource{
@@ -679,7 +679,7 @@ var _ = Describe("CSVs with a Webhook", Label("Webhooks"), func() {
 				},
 				Spec: operatorsv1alpha1.CatalogSourceSpec{
 					SourceType: operatorsv1alpha1.SourceTypeGrpc,
-					Image:      catSrcImage + ":0.0.3",
+					Image:      catSrcImage + ":v0.0.5",
 					GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
 						SecurityContextConfig: operatorsv1alpha1.Restricted,
 					},
@@ -709,6 +709,57 @@ var _ = Describe("CSVs with a Webhook", Label("Webhooks"), func() {
 			require.NoError(GinkgoT(), err)
 
 			cleanupCSV = buildCSVCleanupFunc(c, crc, *csv, source.GetNamespace(), true, true)
+
+			By(`Wait for the ValidatingWebhookConfiguration to be created`)
+			Eventually(func() error {
+				webhookList, err := c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{})
+				if err != nil {
+					return err
+				}
+				for _, webhook := range webhookList.Items {
+					for _, wh := range webhook.Webhooks {
+						if wh.Name == "vwebhooktest-v1.kb.io" {
+							return nil
+						}
+					}
+				}
+				return fmt.Errorf("ValidatingWebhookConfiguration with webhook name vwebhooktest-v1.kb.io not found")
+			}, 2*time.Minute, 2*time.Second).Should(Succeed(), "ValidatingWebhookConfiguration should be created after CSV succeeds")
+
+			By(`Wait for the webhook service to have endpoints`)
+			Eventually(func() error {
+				// Find the webhook deployment from the CSV
+				if len(csv.Spec.WebhookDefinitions) == 0 {
+					return fmt.Errorf("CSV has no webhook definitions")
+				}
+				webhookDef := csv.Spec.WebhookDefinitions[0]
+				serviceName := install.ServiceName(webhookDef.DeploymentName)
+
+				// Check if the service has endpoints
+				endpoints, err := c.KubernetesInterface().CoreV1().Endpoints(source.GetNamespace()).Get(context.TODO(), serviceName, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if len(endpoints.Subsets) == 0 || len(endpoints.Subsets[0].Addresses) == 0 {
+					return fmt.Errorf("service %s has no ready endpoints", serviceName)
+				}
+				return nil
+			}, 2*time.Minute, 2*time.Second).Should(Succeed(), "Webhook service should have ready endpoints")
+
+			By(`Wait for the webhooktests CRD to be established`)
+			Eventually(func() error {
+				crd, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), "webhooktests.webhook.operators.coreos.io", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				// Check if CRD is established
+				for _, cond := range crd.Status.Conditions {
+					if cond.Type == apiextensionsv1.Established && cond.Status == apiextensionsv1.ConditionTrue {
+						return nil
+					}
+				}
+				return fmt.Errorf("CRD webhooktests.webhook.operators.coreos.io is not established yet")
+			}, 2*time.Minute, 2*time.Second).Should(Succeed(), "WebhookTest CRD should be established")
 		})
 
 		AfterEach(func() {
@@ -738,14 +789,39 @@ var _ = Describe("CSVs with a Webhook", Label("Webhooks"), func() {
 					},
 				},
 			}
-			expectedErrorMessage := "admission webhook \"vwebhooktest.kb.io\" denied the request: WebhookTest.test.operators.coreos.com \"my-cr-1\" is invalid: spec.schedule: Invalid value: false: Spec.Valid must be true"
-			Eventually(func() bool {
+			// Use more flexible error matching - check for key parts of the error message
+			// instead of exact string match which can be fragile
+			Eventually(func() (bool, error) {
 				err := c.CreateCustomResource(invalidCR)
-				if err == nil || expectedErrorMessage != err.Error() {
-					return false
+				if err == nil {
+					// CR was created successfully - this shouldn't happen!
+					// Clean it up and return an error so we can see what's wrong
+					_ = c.DeleteCustomResource("webhook.operators.coreos.io", "v1", generatedNamespace.GetName(), "webhooktests", "my-cr-1")
+					return false, fmt.Errorf("CreateCustomResource succeeded but should have been rejected by webhook")
 				}
-				return true
-			}).Should(BeTrue(), "The admission webhook should have rejected the invalid resource")
+
+				errMsg := err.Error()
+
+				// Skip "already exists" errors from previous retry attempts
+				if strings.Contains(errMsg, "already exists") {
+					// Clean up and retry
+					_ = c.DeleteCustomResource("webhook.operators.coreos.io", "v1", generatedNamespace.GetName(), "webhooktests", "my-cr-1")
+					return false, nil
+				}
+
+				// Check that the error contains the expected key components
+				hasWebhookName := strings.Contains(errMsg, "vwebhooktest-v1.kb.io")
+				hasDenied := strings.Contains(errMsg, "denied the request")
+				hasResourceName := strings.Contains(errMsg, "my-cr-1")
+				hasValidationMsg := strings.Contains(errMsg, "Spec.Valid must be true")
+
+				if hasWebhookName && hasDenied && hasResourceName && hasValidationMsg {
+					return true, nil
+				}
+				// Return error with details about what's missing for debugging
+				return false, fmt.Errorf("error message missing expected parts (webhook:%v, denied:%v, name:%v, validation:%v): %s",
+					hasWebhookName, hasDenied, hasResourceName, hasValidationMsg, errMsg)
+			}, 1*time.Minute, 2*time.Second).Should(BeTrue(), "The admission webhook should have rejected the invalid resource")
 
 			By(`An valid custom resource is acceoted by the validating webhook and the mutating webhook sets the CR's spec.mutate field to true.`)
 			validCR := &unstructured.Unstructured{

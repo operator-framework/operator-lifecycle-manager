@@ -4,7 +4,6 @@ set -o pipefail
 set -o nounset
 set -o errexit
 
-: "${KUBECONFIG:?}"
 : "${TEST_NAMESPACE:?}"
 : "${TEST_ARTIFACTS_DIR:?}"
 : "${KUBECTL:=kubectl}"
