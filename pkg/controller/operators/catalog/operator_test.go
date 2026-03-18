@@ -1869,37 +1869,43 @@ func TestValidateV1Beta1CRDCompatibility(t *testing.T) {
 			want:   validationError{fmt.Errorf("error validating hive.openshift.io/v1, Kind=MachinePool \"test\": updated validation is too restrictive: [[].spec.clusterDeploymentRef: Invalid value: \"null\": spec.clusterDeploymentRef in body must be of type object: \"null\", [].spec.name: Required value, [].spec.platform: Required value]")},
 		},
 		{
+			// Use storage version (v2) for the CR since that's how CRs are actually stored in Kubernetes.
+			// When a CRD has storage version v2, all CRs are stored in v2 format regardless of which
+			// apiVersion they were created with.
 			name: "backwards incompatible change",
 			existingObjects: []runtime.Object{
-				unstructuredForFile("testdata/apiextensionsv1beta1/cr.yaml"),
+				unstructuredForFile("testdata/apiextensionsv1beta1/cr.v2.invalid.yaml"),
 			},
 			gvr: schema.GroupVersionResource{
 				Group:    "cluster.com",
-				Version:  "v1alpha1",
-				Resource: "testcrd",
+				Version:  "v2",
+				Resource: "testcrds",
 			},
 			oldCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.old.yaml"),
 			newCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.yaml"),
-			want:   validationError{fmt.Errorf("error validating cluster.com/v1alpha1, Kind=testcrd \"my-cr-1\": updated validation is too restrictive: [].spec.scalar: Invalid value: 2: spec.scalar in body should be greater than or equal to 3")},
+			want:   validationError{fmt.Errorf("error validating cluster.com/v2, Kind=testcrd \"my-cr-1\": updated validation is too restrictive: [].spec.scalar: Invalid value: 2: spec.scalar in body should be greater than or equal to 3")},
 		},
 		{
+			// Test that CRs are validated against the storage version schema even when
+			// other versions become unserved. Since storage version is v2, CRs are
+			// stored in v2 format and validated against v2 schema.
 			name: "unserved version",
 			existingObjects: []runtime.Object{
-				unstructuredForFile("testdata/apiextensionsv1beta1/cr.yaml"),
 				unstructuredForFile("testdata/apiextensionsv1beta1/cr.v2.yaml"),
 			},
 			gvr: schema.GroupVersionResource{
 				Group:    "cluster.com",
-				Version:  "v1alpha1",
-				Resource: "testcrd",
+				Version:  "v2",
+				Resource: "testcrds",
 			},
 			oldCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.old.yaml"),
 			newCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.unserved.yaml"),
 		},
 		{
+			// Test that CRs stored in storage version (v2) are validated correctly
+			// when the old CRD had v1alpha1 unserved.
 			name: "cr not validated against currently unserved version",
 			existingObjects: []runtime.Object{
-				unstructuredForFile("testdata/apiextensionsv1beta1/cr.yaml"),
 				unstructuredForFile("testdata/apiextensionsv1beta1/cr.v2.yaml"),
 			},
 			oldCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.unserved.yaml"),
