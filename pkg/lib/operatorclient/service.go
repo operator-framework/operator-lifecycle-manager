@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	acv1 "k8s.io/client-go/applyconfigurations/core/v1"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // ApplyService applies the Service.
