@@ -442,6 +442,141 @@ func TestIncompatibleOperators(t *testing.T) {
 				},
 			},
 		},
+		// OCP 4.23 and OCP 5.0 represent the same release
+		{
+			description: "OCP4.22",
+			version:     "4.22.0",
+			in: skews{
+				{
+					name:                "almond",
+					namespace:           "default",
+					maxOpenShiftVersion: "4.23",
+				},
+				{
+					name:                "beech",
+					namespace:           "default",
+					maxOpenShiftVersion: "5.0",
+				},
+				{
+					name:                "chestnut",
+					namespace:           "default",
+					maxOpenShiftVersion: "5.1",
+				},
+			},
+			expect: expect{
+				incompatible: nil,
+			},
+		},
+		{
+			description: "OCP4.23",
+			version:     "4.23.0",
+			in: skews{
+				{
+					name:                "almond",
+					namespace:           "default",
+					maxOpenShiftVersion: "4.23",
+				},
+				{
+					name:                "beech",
+					namespace:           "default",
+					maxOpenShiftVersion: "5.0",
+				},
+				{
+					name:                "chestnut",
+					namespace:           "default",
+					maxOpenShiftVersion: "5.1",
+				},
+			},
+			expect: expect{
+				incompatible: skews{
+					{
+						name:                "almond",
+						namespace:           "default",
+						maxOpenShiftVersion: "4.23",
+					},
+					{
+						name:                "beech",
+						namespace:           "default",
+						maxOpenShiftVersion: "5.0",
+					},
+				},
+			},
+		},
+		{
+			description: "OCP5.0",
+			version:     "5.0.0",
+			in: skews{
+				{
+					name:                "almond",
+					namespace:           "default",
+					maxOpenShiftVersion: "4.23",
+				},
+				{
+					name:                "beech",
+					namespace:           "default",
+					maxOpenShiftVersion: "5.0",
+				},
+				{
+					name:                "chestnut",
+					namespace:           "default",
+					maxOpenShiftVersion: "5.1",
+				},
+			},
+			expect: expect{
+				incompatible: skews{
+					{
+						name:                "almond",
+						namespace:           "default",
+						maxOpenShiftVersion: "4.23",
+					},
+					{
+						name:                "beech",
+						namespace:           "default",
+						maxOpenShiftVersion: "5.0",
+					},
+				},
+			},
+		},
+		{
+			description: "OCP5.1",
+			version:     "5.1.0",
+			in: skews{
+				{
+					name:                "almond",
+					namespace:           "default",
+					maxOpenShiftVersion: "4.23",
+				},
+				{
+					name:                "beech",
+					namespace:           "default",
+					maxOpenShiftVersion: "5.0",
+				},
+				{
+					name:                "chestnut",
+					namespace:           "default",
+					maxOpenShiftVersion: "5.1",
+				},
+			},
+			expect: expect{
+				incompatible: skews{
+					{
+						name:                "almond",
+						namespace:           "default",
+						maxOpenShiftVersion: "4.23",
+					},
+					{
+						name:                "beech",
+						namespace:           "default",
+						maxOpenShiftVersion: "5.0",
+					},
+					{
+						name:                "chestnut",
+						namespace:           "default",
+						maxOpenShiftVersion: "5.1",
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tt.description, func(t *testing.T) {
 			objs := []client.Object{}
@@ -620,10 +755,63 @@ func TestOCPVersionNextY(t *testing.T) {
 			inVersion:       semver.MustParse("4.16.0-rc1"),
 			expectedVersion: semver.MustParse("4.17.0"),
 		},
+		{
+			description:     "Version: 4.23.0. Expected output: 4.24",
+			inVersion:       semver.MustParse("4.23.0"),
+			expectedVersion: semver.MustParse("4.24.0"),
+		},
+		{
+			description:     "Version: 5.0.0. Expected output: 5.1",
+			inVersion:       semver.MustParse("5.0.0"),
+			expectedVersion: semver.MustParse("5.1.0"),
+		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			outVersion := nextY(tc.inVersion)
 			require.Equal(t, outVersion, tc.expectedVersion)
+		})
+	}
+}
+
+func TestNormalizeOCPVersion(t *testing.T) {
+	for _, tc := range []struct {
+		description string
+		in          semver.Version
+		expected    semver.Version
+	}{
+		{
+			description: "4.22 stays 4.22",
+			in:          semver.MustParse("4.22.0"),
+			expected:    semver.Version{Major: 4, Minor: 22},
+		},
+		{
+			description: "4.22.0-rc1 normalizes to 4.22",
+			in:          semver.MustParse("4.22.0-rc1"),
+			expected:    semver.Version{Major: 4, Minor: 22},
+		},
+		{
+			description: "4.23 normalizes to 5.0",
+			in:          semver.MustParse("4.23.0"),
+			expected:    semver.Version{Major: 5, Minor: 0},
+		},
+		{
+			description: "5.0 stays 5.0",
+			in:          semver.MustParse("5.0.0"),
+			expected:    semver.Version{Major: 5, Minor: 0},
+		},
+		{
+			description: "5.1 stays 5.1",
+			in:          semver.MustParse("5.1.0"),
+			expected:    semver.Version{Major: 5, Minor: 1},
+		},
+		{
+			description: "4.23.0-rc1 normalizes to 5.0",
+			in:          semver.MustParse("4.23.0-rc1"),
+			expected:    semver.Version{Major: 5, Minor: 0},
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			require.Equal(t, tc.expected, normalizeOCPVersion(tc.in))
 		})
 	}
 }
