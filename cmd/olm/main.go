@@ -16,7 +16,7 @@ import (
 	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/metadata"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -93,6 +93,12 @@ func main() {
 	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
 	klog.InitFlags(klogFlags)
 
+	// Opt into the new klog behavior where -stderrthreshold is honored even
+	// when -logtostderr=true (see kubernetes/klog#212, kubernetes/klog#432).
+	klogFlags.Set("legacy_stderr_threshold_behavior", "false") //nolint:errcheck
+	klogFlags.Set("stderrthreshold", "INFO")                   //nolint:errcheck
+
+	pflag.CommandLine.AddGoFlagSet(klogFlags)
 	pflag.Parse()
 
 	// Parse the command-line flags.
