@@ -233,7 +233,7 @@ func validateAnnotations(mediaType string, fileAnnotations *AnnotationMetadata) 
 
 // Validate the dependencies file
 func validateDependencies(dependenciesFile *registry.DependenciesFile) []error {
-	var validationErrors []error
+	validationErrors := make([]error, 0, len(dependenciesFile.Dependencies))
 
 	// Validate dependencies if exists
 	for _, d := range dependenciesFile.Dependencies {

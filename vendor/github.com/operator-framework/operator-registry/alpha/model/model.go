@@ -337,7 +337,7 @@ type Bundle struct {
 
 func (b *Bundle) VersionString() string {
 	if len(b.Release.Pre) > 0 {
-		pres := []string{}
+		pres := make([]string, 0, len(b.Release.Pre))
 		for _, pre := range b.Release.Pre {
 			pres = append(pres, pre.String())
 		}

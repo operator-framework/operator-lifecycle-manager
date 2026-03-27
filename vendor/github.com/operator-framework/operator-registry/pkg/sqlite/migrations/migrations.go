@@ -25,7 +25,7 @@ var migrations MigrationSet = make(map[int]*Migration)
 
 // From returns a set of migrations, starting at key
 func (m MigrationSet) From(key int) Migrations {
-	keys := make([]int, 0)
+	keys := make([]int, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
@@ -42,7 +42,7 @@ func (m MigrationSet) From(key int) Migrations {
 
 // To returns a set of migrations, up to and including key
 func (m MigrationSet) To(key int) Migrations {
-	keys := make([]int, 0)
+	keys := make([]int, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
