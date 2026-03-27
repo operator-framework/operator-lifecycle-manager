@@ -704,7 +704,7 @@ func (s *SQLQuerier) GetApisForEntry(ctx context.Context, entryID int64) ([]*api
 	}
 
 	argsFor := func(s map[string]struct{}) string {
-		l := []string{}
+		l := make([]string, 0, len(s))
 		for v := range s {
 			l = append(l, "\""+v+"\"")
 		}

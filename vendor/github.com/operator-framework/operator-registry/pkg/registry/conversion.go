@@ -12,7 +12,7 @@ import (
 )
 
 func PackageManifestToAPIPackage(manifest *PackageManifest) *api.Package {
-	channels := []*api.Channel{}
+	channels := make([]*api.Channel, 0, len(manifest.Channels))
 	for _, c := range manifest.Channels {
 		channels = append(channels, PackageChannelToAPIChannel(&c))
 	}
