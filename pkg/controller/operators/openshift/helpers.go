@@ -136,6 +136,10 @@ func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error
 		return nil, &transientError{fmt.Errorf("failed to list ClusterServiceVersions: %w", err)}
 	}
 
+	// Normalize the current cluster version: OCP 4.23 and 5.0 represent the same release.
+	normalizedCurrent := normalizeOCPVersion(*current)
+	nextMinor := nextY(normalizedCurrent)
+
 	var incompatible skews
 	for _, csv := range csvList.Items {
 		if csv.IsCopied() {
@@ -153,7 +157,13 @@ func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error
 			continue
 		}
 
-		if max == nil || max.GTE(nextY(*current)) {
+		if max == nil {
+			continue
+		}
+
+		// Normalize the operator's maxOpenShiftVersion: 4.23 and 5.0 are equivalent.
+		normalizedMax := normalizeOCPVersion(*max)
+		if normalizedMax.GTE(nextMinor) {
 			continue
 		}
 
@@ -221,6 +231,15 @@ func getCurrentRelease() (*semver.Version, error) {
 
 func nextY(v semver.Version) semver.Version {
 	return semver.Version{Major: v.Major, Minor: v.Minor + 1} // Sets Y=Y+1
+}
+
+// normalizeOCPVersion maps OCP 4.23 to 5.0, since they represent the same release.
+// All other versions are returned with only the major and minor components.
+func normalizeOCPVersion(v semver.Version) semver.Version {
+	if v.Major == 4 && v.Minor == 23 {
+		return semver.Version{Major: 5, Minor: 0}
+	}
+	return semver.Version{Major: v.Major, Minor: v.Minor}
 }
 
 const (
