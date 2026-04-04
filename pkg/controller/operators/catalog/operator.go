@@ -2177,80 +2177,119 @@ func transitionInstallPlanState(log logrus.FieldLogger, transitioner installPlan
 	}
 }
 
-// Validate all existing served versions against new CRD's validation (if changed)
+// Validate existing CRs against the new CRD's validation schema for the storage version.
+// When a CRD has multiple versions with conversion.strategy=None, CRs are stored in the
+// storage version format. We should only validate CRs against the storage version's schema,
+// not against all served versions, because without a conversion webhook the CR data won't
+// be converted to match other versions' schemas.
 func validateV1CRDCompatibility(dynamicClient dynamic.Interface, oldCRD *apiextensionsv1.CustomResourceDefinition, newCRD *apiextensionsv1.CustomResourceDefinition) error {
 	logrus.Debugf("Comparing %#v to %#v", oldCRD.Spec.Versions, newCRD.Spec.Versions)
 
-	oldVersionSet := sets.New[string]()
-	for _, oldVersion := range oldCRD.Spec.Versions {
-		if !oldVersionSet.Has(oldVersion.Name) && oldVersion.Served {
-			oldVersionSet.Insert(oldVersion.Name)
+	// Find the storage version from the old CRD - this is the version CRs are actually stored in
+	var oldStorageVersion string
+	for _, v := range oldCRD.Spec.Versions {
+		if v.Storage {
+			oldStorageVersion = v.Name
+			break
 		}
 	}
 
+	if oldStorageVersion == "" {
+		return fmt.Errorf("no storage version found in old CRD %s", oldCRD.Name)
+	}
+
+	// Only validate existing CRs against the new CRD's schema for the old storage version.
+	// This is the correct behavior because:
+	// 1. All existing CRs are stored in the old storage version format
+	// 2. When conversion.strategy is "None", Kubernetes doesn't convert CR data between versions
+	// 3. Validating CRs against other versions' schemas would incorrectly fail when those
+	//    versions have different required fields
 	validationsMap := make(map[string]*apiextensions.CustomResourceValidation, 0)
 	for _, newVersion := range newCRD.Spec.Versions {
-		if oldVersionSet.Has(newVersion.Name) && newVersion.Served {
-			// If the new CRD's version is present in the cluster and still
-			// served then fill the map entry with the new validation
+		if newVersion.Name == oldStorageVersion && newVersion.Served {
 			convertedValidation := &apiextensions.CustomResourceValidation{}
 			if err := apiextensionsv1.Convert_v1_CustomResourceValidation_To_apiextensions_CustomResourceValidation(newVersion.Schema, convertedValidation, nil); err != nil {
 				return err
 			}
 			validationsMap[newVersion.Name] = convertedValidation
+			break
 		}
 	}
+
+	// If the old storage version is no longer served in the new CRD, skip validation.
+	// This scenario should be caught by SafeStorageVersionUpgrade check.
+	if len(validationsMap) == 0 {
+		logrus.Debugf("Old storage version %s not found or not served in new CRD %s, skipping CR validation", oldStorageVersion, newCRD.Name)
+		return nil
+	}
+
 	return validateExistingCRs(dynamicClient, schema.GroupResource{Group: newCRD.Spec.Group, Resource: newCRD.Spec.Names.Plural}, validationsMap)
 }
 
-// Validate all existing served versions against new CRD's validation (if changed)
+// Validate existing CRs against the new CRD's validation schema for the storage version.
+// See validateV1CRDCompatibility for detailed explanation.
 func validateV1Beta1CRDCompatibility(dynamicClient dynamic.Interface, oldCRD *apiextensionsv1beta1.CustomResourceDefinition, newCRD *apiextensionsv1beta1.CustomResourceDefinition) error {
 	logrus.Debugf("Comparing %#v to %#v", oldCRD.Spec.Validation, newCRD.Spec.Validation)
-	oldVersionSet := sets.New[string]()
+
+	// Find the storage version from the old CRD
+	var oldStorageVersion string
 	if len(oldCRD.Spec.Versions) == 0 {
-		// apiextensionsv1beta1 special case: if spec.Versions is empty, use the global version and validation
-		oldVersionSet.Insert(oldCRD.Spec.Version)
-	}
-	for _, oldVersion := range oldCRD.Spec.Versions {
-		// collect served versions from spec.Versions if the list is present
-		if !oldVersionSet.Has(oldVersion.Name) && oldVersion.Served {
-			oldVersionSet.Insert(oldVersion.Name)
+		// apiextensionsv1beta1 special case: if spec.Versions is empty, use the global version
+		oldStorageVersion = oldCRD.Spec.Version
+	} else {
+		for _, v := range oldCRD.Spec.Versions {
+			if v.Storage {
+				oldStorageVersion = v.Name
+				break
+			}
 		}
+	}
+
+	if oldStorageVersion == "" {
+		return fmt.Errorf("no storage version found in old CRD %s", oldCRD.Name)
 	}
 
 	validationsMap := make(map[string]*apiextensions.CustomResourceValidation, 0)
 	gr := schema.GroupResource{Group: newCRD.Spec.Group, Resource: newCRD.Spec.Names.Plural}
+
 	if len(newCRD.Spec.Versions) == 0 {
 		// apiextensionsv1beta1 special case: if spec.Versions of newCRD is empty, use the global version and validation
-		if oldVersionSet.Has(newCRD.Spec.Version) {
+		if newCRD.Spec.Version == oldStorageVersion {
 			convertedValidation := &apiextensions.CustomResourceValidation{}
 			if err := apiextensionsv1beta1.Convert_v1beta1_CustomResourceValidation_To_apiextensions_CustomResourceValidation(newCRD.Spec.Validation, convertedValidation, nil); err != nil {
 				return err
 			}
 			validationsMap[newCRD.Spec.Version] = convertedValidation
 		}
-	}
-	for _, newVersion := range newCRD.Spec.Versions {
-		if oldVersionSet.Has(newVersion.Name) && newVersion.Served {
-			// If the new CRD's version is present in the cluster and still
-			// served then fill the map entry with the new validation
-			if newCRD.Spec.Validation != nil {
-				// apiextensionsv1beta1 special case: spec.Validation and spec.Versions[].Schema are mutually exclusive;
-				// if spec.Versions is non-empty and spec.Validation is set then we can validate once against any
-				// single existing version.
-				convertedValidation := &apiextensions.CustomResourceValidation{}
-				if err := apiextensionsv1beta1.Convert_v1beta1_CustomResourceValidation_To_apiextensions_CustomResourceValidation(newCRD.Spec.Validation, convertedValidation, nil); err != nil {
-					return err
+	} else {
+		// Only validate against the old storage version's schema in the new CRD
+		for _, newVersion := range newCRD.Spec.Versions {
+			if newVersion.Name == oldStorageVersion && newVersion.Served {
+				if newCRD.Spec.Validation != nil {
+					// apiextensionsv1beta1 special case: spec.Validation and spec.Versions[].Schema are mutually exclusive
+					convertedValidation := &apiextensions.CustomResourceValidation{}
+					if err := apiextensionsv1beta1.Convert_v1beta1_CustomResourceValidation_To_apiextensions_CustomResourceValidation(newCRD.Spec.Validation, convertedValidation, nil); err != nil {
+						return err
+					}
+					validationsMap[newVersion.Name] = convertedValidation
+				} else {
+					convertedValidation := &apiextensions.CustomResourceValidation{}
+					if err := apiextensionsv1beta1.Convert_v1beta1_CustomResourceValidation_To_apiextensions_CustomResourceValidation(newVersion.Schema, convertedValidation, nil); err != nil {
+						return err
+					}
+					validationsMap[newVersion.Name] = convertedValidation
 				}
-				return validateExistingCRs(dynamicClient, gr, map[string]*apiextensions.CustomResourceValidation{newVersion.Name: convertedValidation})
+				break
 			}
-			convertedValidation := &apiextensions.CustomResourceValidation{}
-			if err := apiextensionsv1beta1.Convert_v1beta1_CustomResourceValidation_To_apiextensions_CustomResourceValidation(newVersion.Schema, convertedValidation, nil); err != nil {
-				return err
-			}
-			validationsMap[newVersion.Name] = convertedValidation
 		}
 	}
+
+	// If the old storage version is no longer served in the new CRD, skip validation
+	if len(validationsMap) == 0 {
+		logrus.Debugf("Old storage version %s not found or not served in new CRD %s, skipping CR validation", oldStorageVersion, newCRD.Name)
+		return nil
+	}
+
 	return validateExistingCRs(dynamicClient, gr, validationsMap)
 }
 
