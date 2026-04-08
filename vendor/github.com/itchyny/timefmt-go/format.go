@@ -85,12 +85,20 @@ func AppendFormat(buf []byte, t time.Time, format string) []byte {
 			case 'Y':
 				buf = appendInt(buf, year, or(width, 4), padding)
 			case 'y':
-				buf = appendInt(buf, year%100, max(width, 2), padding)
+				buf = appendInt(buf, abs(year%100), max(width, 2), padding)
 			case 'C':
-				buf = appendInt(buf, year/100, max(width, 2), padding)
+				c := year / 100
+				z := year < 0 && c == 0
+				if z {
+					c = -1
+				}
+				buf = appendInt(buf, c, max(width, 2), padding)
+				if z {
+					buf[len(buf)-1] = '0'
+				}
 			case 'g':
 				year, _ := t.ISOWeek()
-				buf = appendInt(buf, year%100, max(width, 2), padding)
+				buf = appendInt(buf, abs(year%100), max(width, 2), padding)
 			case 'G':
 				year, _ := t.ISOWeek()
 				buf = appendInt(buf, year, or(width, 4), padding)
@@ -161,7 +169,7 @@ func AppendFormat(buf []byte, t time.Time, format string) []byte {
 				if padding < ^paddingMask {
 					padding = ' '
 				}
-				buf = appendInt(buf, int(t.Unix()), width, padding)
+				buf = appendInt64(buf, t.Unix(), width, padding)
 			case 'f':
 				buf = appendInt(buf, t.Nanosecond()/1000, or(width, 6), padding)
 			case 'Z', 'z':
@@ -237,13 +245,24 @@ func AppendFormat(buf []byte, t time.Time, format string) []byte {
 				buf = appendString(buf, "\n", width, padding, false, false)
 			case '%':
 				buf = appendString(buf, "%", width, padding, false, false)
+			case 'c':
+				pending, swap = "a b e H:M:S Y", false
+			case '+':
+				pending, swap = "a b e H:M:S Z Y", false
+			case 'v':
+				pending, swap = "e-b-Y", false
+			case 'r':
+				pending, swap = "I:M:S p", false
+			case 'F':
+				pending = "Y-m-d"
+			case 'D', 'x':
+				pending = "m/d/y"
+			case 'T', 'X':
+				pending = "H:M:S"
+			case 'R':
+				pending = "H:M"
 			default:
 				if pending == "" {
-					var ok bool
-					if pending, ok = compositions[b]; ok {
-						swap = false
-						break
-					}
 					buf = appendLast(buf, format[:i], width-1, padding)
 				}
 				buf = append(buf, b)
@@ -261,73 +280,79 @@ K:
 	return appendLast(buf, format, width, padding)
 }
 
+const smalls = "" +
+	"00010203040506070809" +
+	"10111213141516171819" +
+	"20212223242526272829" +
+	"30313233343536373839" +
+	"40414243444546474849" +
+	"50515253545556575859" +
+	"60616263646566676869" +
+	"70717273747576777879" +
+	"80818283848586878889" +
+	"90919293949596979899"
+
 func appendInt(buf []byte, num, width int, padding byte) []byte {
+	var digits int
+	switch {
+	default:
+		fallthrough
+	case num < 0:
+		return appendInt64(buf, int64(num), width, padding)
+	case num < 100 && width == 2 && padding == '0':
+		return append(buf, smalls[num*2:num*2+2]...)
+	case num < 10:
+		digits = 1
+	case num < 100:
+		digits = 2
+	case num < 1000:
+		digits = 3
+	case num < 10000:
+		digits = 4
+	}
 	if padding != ^paddingMask {
 		padding &= paddingMask
-		switch width {
-		case 2:
-			if num < 10 {
-				buf = append(buf, padding)
-				goto L1
-			} else if num < 100 {
-				goto L2
-			} else if num < 1000 {
-				goto L3
-			} else if num < 10000 {
-				goto L4
-			}
-		case 4:
-			if num < 1000 {
-				buf = append(buf, padding)
-				if num < 100 {
-					buf = append(buf, padding)
-					if num < 10 {
-						buf = append(buf, padding)
-						goto L1
-					}
-					goto L2
-				}
-				goto L3
-			} else if num < 10000 {
-				goto L4
-			}
-		default:
-			i := len(buf)
-			for ; width > 1; width-- {
-				buf = append(buf, padding)
-			}
-			j := len(buf)
-			buf = strconv.AppendInt(buf, int64(num), 10)
-			if k := min(len(buf)-j-1, j-i); k > 0 {
-				copy(buf[j-k:], buf[j:])
-				buf = buf[:len(buf)-k]
-			}
-			return buf
+		for ; width > digits; width-- {
+			buf = append(buf, padding)
 		}
 	}
-	if num < 100 {
-		if num < 10 {
-			goto L1
-		}
-		goto L2
-	} else if num < 10000 {
-		if num < 1000 {
-			goto L3
-		}
-		goto L4
+	switch digits {
+	case 4:
+		buf = append(buf, byte(num/1000)|'0')
+		num %= 1000
+		fallthrough
+	case 3:
+		buf = append(buf, byte(num/100)|'0')
+		num %= 100
+		fallthrough
+	case 2:
+		buf = append(buf, byte(num/10)|'0')
+		num %= 10
+		fallthrough
+	default:
+		return append(buf, byte(num)|'0')
 	}
-	return strconv.AppendInt(buf, int64(num), 10)
-L4:
-	buf = append(buf, byte(num/1000)|'0')
-	num %= 1000
-L3:
-	buf = append(buf, byte(num/100)|'0')
-	num %= 100
-L2:
-	buf = append(buf, byte(num/10)|'0')
-	num %= 10
-L1:
-	return append(buf, byte(num)|'0')
+}
+
+func appendInt64(buf []byte, num int64, width int, padding byte) []byte {
+	if padding == ^paddingMask {
+		return strconv.AppendInt(buf, num, 10)
+	}
+	padding &= paddingMask
+	i := len(buf)
+	for ; width > 1; width-- {
+		buf = append(buf, padding)
+	}
+	j := len(buf)
+	buf = strconv.AppendInt(buf, num, 10)
+	if k := min(len(buf)-j-1, j-i); k > 0 {
+		copy(buf[j-k:], buf[j:])
+		buf = buf[:len(buf)-k]
+		if j -= k; buf[i] == '0' && buf[j] == '-' {
+			buf[i], buf[j] = '-', '0'
+		}
+	}
+	return buf
 }
 
 func appendString(buf []byte, str string, width int, padding byte, upper, swap bool) []byte {
@@ -375,6 +400,13 @@ func or(x, y int) int {
 		return x
 	}
 	return y
+}
+
+func abs(x int) int {
+	if x >= 0 {
+		return x
+	}
+	return -x
 }
 
 const paddingMask byte = 0x7F
@@ -427,17 +459,4 @@ var shortWeekNames = []string{
 	"Thu",
 	"Fri",
 	"Sat",
-}
-
-var compositions = map[byte]string{
-	'c': "a b e H:M:S Y",
-	'+': "a b e H:M:S Z Y",
-	'F': "Y-m-d",
-	'D': "m/d/y",
-	'x': "m/d/y",
-	'v': "e-b-Y",
-	'T': "H:M:S",
-	'X': "H:M:S",
-	'r': "I:M:S p",
-	'R': "H:M",
 }

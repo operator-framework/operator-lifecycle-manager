@@ -1,4 +1,12 @@
 # Changelog
+## [v0.1.8](https://github.com/itchyny/timefmt-go/compare/v0.1.7..v0.1.8) (2026-04-01)
+* fix parsing negative year and Unix time (`%Y`, `%G`, `%s`)
+* fix formatting negative year, century, Unix time (`%Y`, `%G`, `%C`, `%y`, `%g`, `%s`)
+* fix `%g` parsing to use the same two-digit year threshold 69 as `%y`
+* fix `%s` formatting and parsing on 32-bit platforms
+* support parsing time zone offset with `%:::z`
+* improve performance of parsing/formatting compound directives
+
 ## [v0.1.7](https://github.com/itchyny/timefmt-go/compare/v0.1.6..v0.1.7) (2025-10-01)
 * refactor code using built-in `min` and `max` functions
 
