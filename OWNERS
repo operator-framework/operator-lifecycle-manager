@@ -1,7 +1,6 @@
 
 # approval == this is a good idea /approve
 approvers:
-  - anik120
   - dtfranz
   - grokspawn
   - joelanford
@@ -13,7 +12,6 @@ approvers:
 
 # review == this code is good /lgtm
 reviewers:
-  - anik120
   - ankitathomas
   - camilamacedo86
   - dtfranz
