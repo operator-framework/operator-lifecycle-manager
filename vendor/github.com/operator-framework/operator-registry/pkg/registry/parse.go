@@ -209,13 +209,6 @@ func (b *bundleParser) derivedProperties(bundle *Bundle) ([]Property, error) {
 		if err != nil {
 			return nil, err
 		}
-		if release == "" && csv.GetSubstitutesFor() != "" {
-			version, release, err = extractReleaseVersionFromBuildMetadata(version)
-			if err != nil {
-				return nil, fmt.Errorf("bundle %q error: %v", bundle.Name, err)
-			}
-		}
-
 		value, err := json.Marshal(PackageProperty{
 			PackageName: pkg,
 			Version:     version,
@@ -265,22 +258,4 @@ func propertySet(properties []Property) []Property {
 	}
 
 	return set
-}
-
-func extractReleaseVersionFromBuildMetadata(substitutesFor string) (string, string, error) {
-	var version, release string
-	// if the bundle expresses no release version, but
-	// includes the substitutesFor annotation, then we
-	// interpret any build metadata in the version as
-	// the release version.
-	// failure to parse build metadata under these conditions is fatal,
-	// though validation is later
-	parts := strings.SplitN(substitutesFor, "+", 2)
-	if len(parts) == 2 {
-		version = parts[0]
-		release = parts[1]
-	} else {
-		return "", "", fmt.Errorf("no release version expressed as build metadata: %q", substitutesFor)
-	}
-	return version, release, nil
 }
