@@ -2498,7 +2498,10 @@ var _ = Describe("Subscription", Label("Subscription"), func() {
 					},
 					5*time.Minute,
 					interval,
-				).Should(ContainSubstring("bundle unpacking failed. Reason: DeadlineExceeded"))
+				).Should(And(
+					ContainSubstring("Bundle unpacking failed"),
+					ContainSubstring("DeadlineExceeded"),
+				))
 
 				By("waiting for the subscription to maintain the example-operator.v0.1.0 status.currentCSV")
 				Consistently(subscriptionCurrentCSVGetter(crc, generatedNamespace.GetName(), subName)).Should(Equal("example-operator.v0.1.0"))
