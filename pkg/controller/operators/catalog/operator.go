@@ -1398,36 +1398,131 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		// with a condition indicating the failure.
 		isFailed, cond := hasBundleLookupFailureCondition(bundleLookups)
 		if isFailed {
-			err := fmt.Errorf("bundle unpacking failed. Reason: %v, and Message: %v", cond.Reason, cond.Message)
-			logger.Infof("%v", err)
+			// Check if any subscription is transitioning to failed state (not already failed)
+			// to avoid scheduling redundant delayed requeues on every reconcile
+			isNewFailure := false
+			for _, sub := range subs {
+				existingCond := sub.Status.GetCondition(v1alpha1.SubscriptionBundleUnpackFailed)
+				if existingCond.Status != corev1.ConditionTrue {
+					isNewFailure = true
+					break
+				}
+			}
 
-			_, updateErr := o.updateSubscriptionStatuses(
-				o.setSubsCond(subs, v1alpha1.SubscriptionCondition{
-					Type:    v1alpha1.SubscriptionBundleUnpackFailed,
-					Reason:  "BundleUnpackFailed",
-					Message: err.Error(),
-					Status:  corev1.ConditionTrue,
-				}))
+			// Keep the condition message concise to avoid bloating etcd
+			conditionMessage := fmt.Sprintf("Bundle unpacking failed - %v: %v", cond.Reason, cond.Message)
+
+			// Detailed troubleshooting guidance (only append if not already in underlying condition)
+			guidance := "Auto-retry in ~5 min after job cleanup (TTL). " +
+				"Common causes: Missing ICSP (ppc64le/s390x/arm64), auth failure, invalid image. " +
+				"Manual retry: in the CatalogSource namespace, run `kubectl get jobs -l operatorframework.io/bundle-unpack-ref` and delete the specific failing job."
+
+			// Only append guidance if not already present to avoid duplication
+			if !strings.Contains(cond.Message, "Auto-retry") && !strings.Contains(cond.Message, "Common causes") {
+				conditionMessage = fmt.Sprintf("%s. %s", conditionMessage, guidance)
+			}
+
+			logger.Infof("bundle unpacking failed. Reason: %v, Message: %v", cond.Reason, cond.Message)
+
+			// Set BundleUnpackFailed=True and remove BundleUnpacking to avoid contradictory states
+			updatedSubs = o.setSubsCond(subs, v1alpha1.SubscriptionCondition{
+				Type:    v1alpha1.SubscriptionBundleUnpackFailed,
+				Reason:  "BundleUnpackFailed",
+				Message: conditionMessage,
+				Status:  corev1.ConditionTrue,
+			})
+
+			// Emit detailed troubleshooting event for each affected subscription
+			// to reduce etcd payload while keeping full context available
+			detailedEventMessage := fmt.Sprintf("Bundle unpacking failed - %v: %v. %s",
+				cond.Reason, cond.Message, guidance)
+			for _, sub := range subs {
+				go o.recorder.Event(sub, corev1.EventTypeWarning, "BundleUnpackFailed", detailedEventMessage)
+			}
+			// Remove BundleUnpacking condition entirely from all affected subscriptions and
+			// make sure every changed subscription is included in the update list, even if
+			// the BundleUnpackFailed condition was already present and unchanged.
+			subscriptionsToUpdate := make([]*v1alpha1.Subscription, 0, len(subs))
+			seenSubs := make(map[string]struct{}, len(subs))
+			for _, sub := range updatedSubs {
+				sub.Status.RemoveConditions(v1alpha1.SubscriptionBundleUnpacking)
+				key := sub.GetNamespace() + "/" + sub.GetName()
+				if _, ok := seenSubs[key]; ok {
+					continue
+				}
+				seenSubs[key] = struct{}{}
+				subscriptionsToUpdate = append(subscriptionsToUpdate, sub)
+			}
+			for _, sub := range subs {
+				unpackingCond := sub.Status.GetCondition(v1alpha1.SubscriptionBundleUnpacking)
+				// if status is ConditionUnknown, the condition doesn't exist
+				if unpackingCond.Status != corev1.ConditionUnknown {
+					sub.Status.RemoveConditions(v1alpha1.SubscriptionBundleUnpacking)
+					key := sub.GetNamespace() + "/" + sub.GetName()
+					if _, ok := seenSubs[key]; ok {
+						continue
+					}
+					seenSubs[key] = struct{}{}
+					subscriptionsToUpdate = append(subscriptionsToUpdate, sub)
+				}
+			}
+			_, updateErr := o.updateSubscriptionStatuses(subscriptionsToUpdate)
 			if updateErr != nil {
 				logger.WithError(updateErr).Debug("failed to update subs conditions")
 				return updateErr
 			}
-			// Since this is likely requires intervention we do not want to
-			// requeue too often. We return no error here and rely on a
-			// periodic resync which will help to automatically resolve
-			// some issues such as unreachable bundle images caused by
-			// bad catalog updates.
+
+			// Only schedule a delayed requeue on new failures to prevent queue churn
+			// from repeated AddAfter calls on every reconcile for persistent failures
+			if isNewFailure {
+				logger.Info("scheduling delayed requeue for bundle unpack retry after job cleanup (TTL)")
+				// Requeue after 5 minutes to retry after job cleanup (TTL).
+				// This helps automatically resolve some issues such as unreachable
+				// bundle images caused by bad catalog updates.
+				o.nsResolveQueue.AddAfter(types.NamespacedName{Name: namespace}, 5*time.Minute)
+			}
 			return nil
 		}
 
 		// This means that the unpack job is still running (most likely) or
 		// there was some issue which we did not handle above.
 		if !unpacked {
+			// Extract pending reason from bundleLookups to provide immediate,
+			// concise feedback about image pull failures or other unpacking issues
+			pendingMessage := ""
+			for _, lookup := range bundleLookups {
+				for _, cond := range lookup.Conditions {
+					if cond.Type == v1alpha1.BundleLookupPending &&
+						cond.Status == corev1.ConditionTrue &&
+						cond.Reason != "" {
+						// Check if this is an image pull error using exact reason comparison
+						// to avoid matching unintended substring values
+						if cond.Reason == bundle.JobIncompleteReason && cond.Message != "" {
+							// Extract just the error reason (ImagePullBackOff, ErrImagePull, etc.)
+							// from the verbose pod error message
+							if strings.Contains(cond.Message, "ImagePullBackOff") ||
+								strings.Contains(cond.Message, "ErrImagePull") {
+								// Create a concise, helpful message
+								pendingMessage = "Bundle image pull failed. " +
+									"Common causes: Missing ICSP (ppc64le/s390x/arm64), auth failure, invalid image. " +
+									"Job will retry until timeout (~10 min), then auto-cleanup and retry in ~5 min. " +
+									"Manual retry: in the CatalogSource namespace, run `kubectl get jobs -l operatorframework.io/bundle-unpack-ref` and delete the specific failing job."
+								break
+							}
+						}
+					}
+				}
+				if pendingMessage != "" {
+					break
+				}
+			}
+
 			_, updateErr := o.updateSubscriptionStatuses(
 				o.setSubsCond(subs, v1alpha1.SubscriptionCondition{
-					Type:   v1alpha1.SubscriptionBundleUnpacking,
-					Reason: "UnpackingInProgress",
-					Status: corev1.ConditionTrue,
+					Type:    v1alpha1.SubscriptionBundleUnpacking,
+					Reason:  "UnpackingInProgress",
+					Status:  corev1.ConditionTrue,
+					Message: pendingMessage,
 				}))
 			if updateErr != nil {
 				logger.WithError(updateErr).Debug("failed to update subs conditions")

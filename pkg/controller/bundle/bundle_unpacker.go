@@ -102,7 +102,10 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 			},
 		},
 		Spec: batchv1.JobSpec{
-			//ttlSecondsAfterFinished: 0 // can use in the future to not have to clean up job
+			// Auto-cleanup failed/completed jobs after 5 minutes to allow automatic retry when root cause is fixed
+			// 5 minutes provides balance between fast recovery and preventing job churn on permanent failures
+			// See: https://kubernetes.io/docs/concepts/workloads/controllers/job/#ttl-mechanism-for-finished-jobs
+			TTLSecondsAfterFinished: ptr.To[int32](300),
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: cmRef.Name,
@@ -114,8 +117,8 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 				Spec: corev1.PodSpec{
 					// With restartPolicy = "OnFailure" when the spec.backoffLimit is reached, the job controller will delete all
 					// the job's pods to stop them from crashlooping forever.
-					// By setting restartPolicy = "Never" the pods don't get cleaned up since they're not running after a failure.
-					// Keeping the pods around after failures helps in inspecting the logs of a failed bundle unpack job.
+					// By setting restartPolicy = "Never" the pods are kept after a failure for log inspection.
+					// Note: Pods and logs are only available until TTL cleanup (5 minutes after job completion/failure).
 					// See: https://kubernetes.io/docs/concepts/workloads/controllers/job/#pod-backoff-failure-policy
 					RestartPolicy:      corev1.RestartPolicyNever,
 					ServiceAccountName: cmRef.Name,
@@ -593,6 +596,16 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup,
 
 		if pendingContainerStatusMsgs != "" {
 			pendingMessage = pendingMessage + ": " + pendingContainerStatusMsgs
+
+			// Add helpful troubleshooting guidance for common error patterns
+			if strings.Contains(pendingContainerStatusMsgs, "ImagePullBackOff") ||
+				strings.Contains(pendingContainerStatusMsgs, "ErrImagePull") ||
+				strings.Contains(pendingContainerStatusMsgs, "manifest unknown") ||
+				strings.Contains(pendingContainerStatusMsgs, "unauthorized") {
+				pendingMessage += ". Common causes: Missing ICSP (ppc64le/s390x/arm64), auth failure, invalid image. " +
+					"Job will retry until timeout (~10 min), then auto-cleanup and retry in ~5 min. " +
+					"Manual retry: in the CatalogSource namespace, run `kubectl get jobs -l operatorframework.io/bundle-unpack-ref` and delete the specific failing job."
+			}
 		}
 
 		// Update BundleLookupPending condition if there are any changes
