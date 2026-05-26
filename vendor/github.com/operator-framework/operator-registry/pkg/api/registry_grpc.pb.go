@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -574,6 +575,123 @@ var Registry_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "ListBundles",
 			Handler:       _Registry_ListBundles_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "registry.proto",
+}
+
+const (
+	ExperimentalRegistry_ExperimentalListPackageCustomSchemas_FullMethodName = "/api.ExperimentalRegistry/ExperimentalListPackageCustomSchemas"
+)
+
+// ExperimentalRegistryClient is the client API for ExperimentalRegistry service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type ExperimentalRegistryClient interface {
+	ExperimentalListPackageCustomSchemas(ctx context.Context, in *ExperimentalListPackageCustomSchemasRequest, opts ...grpc.CallOption) (ExperimentalRegistry_ExperimentalListPackageCustomSchemasClient, error)
+}
+
+type experimentalRegistryClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewExperimentalRegistryClient(cc grpc.ClientConnInterface) ExperimentalRegistryClient {
+	return &experimentalRegistryClient{cc}
+}
+
+func (c *experimentalRegistryClient) ExperimentalListPackageCustomSchemas(ctx context.Context, in *ExperimentalListPackageCustomSchemasRequest, opts ...grpc.CallOption) (ExperimentalRegistry_ExperimentalListPackageCustomSchemasClient, error) {
+	stream, err := c.cc.NewStream(ctx, &ExperimentalRegistry_ServiceDesc.Streams[0], ExperimentalRegistry_ExperimentalListPackageCustomSchemas_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &experimentalRegistryExperimentalListPackageCustomSchemasClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type ExperimentalRegistry_ExperimentalListPackageCustomSchemasClient interface {
+	Recv() (*structpb.Struct, error)
+	grpc.ClientStream
+}
+
+type experimentalRegistryExperimentalListPackageCustomSchemasClient struct {
+	grpc.ClientStream
+}
+
+func (x *experimentalRegistryExperimentalListPackageCustomSchemasClient) Recv() (*structpb.Struct, error) {
+	m := new(structpb.Struct)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// ExperimentalRegistryServer is the server API for ExperimentalRegistry service.
+// All implementations must embed UnimplementedExperimentalRegistryServer
+// for forward compatibility
+type ExperimentalRegistryServer interface {
+	ExperimentalListPackageCustomSchemas(*ExperimentalListPackageCustomSchemasRequest, ExperimentalRegistry_ExperimentalListPackageCustomSchemasServer) error
+	mustEmbedUnimplementedExperimentalRegistryServer()
+}
+
+// UnimplementedExperimentalRegistryServer must be embedded to have forward compatible implementations.
+type UnimplementedExperimentalRegistryServer struct {
+}
+
+func (UnimplementedExperimentalRegistryServer) ExperimentalListPackageCustomSchemas(*ExperimentalListPackageCustomSchemasRequest, ExperimentalRegistry_ExperimentalListPackageCustomSchemasServer) error {
+	return status.Errorf(codes.Unimplemented, "method ExperimentalListPackageCustomSchemas not implemented")
+}
+func (UnimplementedExperimentalRegistryServer) mustEmbedUnimplementedExperimentalRegistryServer() {}
+
+// UnsafeExperimentalRegistryServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ExperimentalRegistryServer will
+// result in compilation errors.
+type UnsafeExperimentalRegistryServer interface {
+	mustEmbedUnimplementedExperimentalRegistryServer()
+}
+
+func RegisterExperimentalRegistryServer(s grpc.ServiceRegistrar, srv ExperimentalRegistryServer) {
+	s.RegisterService(&ExperimentalRegistry_ServiceDesc, srv)
+}
+
+func _ExperimentalRegistry_ExperimentalListPackageCustomSchemas_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ExperimentalListPackageCustomSchemasRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ExperimentalRegistryServer).ExperimentalListPackageCustomSchemas(m, &experimentalRegistryExperimentalListPackageCustomSchemasServer{stream})
+}
+
+type ExperimentalRegistry_ExperimentalListPackageCustomSchemasServer interface {
+	Send(*structpb.Struct) error
+	grpc.ServerStream
+}
+
+type experimentalRegistryExperimentalListPackageCustomSchemasServer struct {
+	grpc.ServerStream
+}
+
+func (x *experimentalRegistryExperimentalListPackageCustomSchemasServer) Send(m *structpb.Struct) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+// ExperimentalRegistry_ServiceDesc is the grpc.ServiceDesc for ExperimentalRegistry service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ExperimentalRegistry_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "api.ExperimentalRegistry",
+	HandlerType: (*ExperimentalRegistryServer)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "ExperimentalListPackageCustomSchemas",
+			Handler:       _ExperimentalRegistry_ExperimentalListPackageCustomSchemas_Handler,
 			ServerStreams: true,
 		},
 	},

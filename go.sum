@@ -49,8 +49,8 @@ github.com/containerd/errdefs/pkg v0.3.0 h1:9IKJ06FvyNlexW690DXuQNx2KA2cUJXx151X
 github.com/containerd/errdefs/pkg v0.3.0/go.mod h1:NJw6s9HwNuRhnjJhM7pylWwMyAkmCQvQ4GpJHEqRLVk=
 github.com/containerd/log v0.1.0 h1:TCJt7ioM2cr/tfR8GPbGf9/VRAX8D2B4PjzCpfX540I=
 github.com/containerd/log v0.1.0/go.mod h1:VRRf09a7mHDIRezVKTRCrOq78v577GXq3bSa3EhrzVo=
-github.com/containerd/platforms v0.2.1 h1:zvwtM3rz2YHPQsF2CHYM8+KtB5dvhISiXh5ZpSBQv6A=
-github.com/containerd/platforms v0.2.1/go.mod h1:XHCb+2/hzowdiut9rkudds9bE5yJ7npe7dG/wG+uFPw=
+github.com/containerd/platforms v1.0.0-rc.4 h1:M42JrUT4zfZTqtkUwkr0GzmUWbfyO5VO0Q5b3op97T4=
+github.com/containerd/platforms v1.0.0-rc.4/go.mod h1:lKlMXyLybmBedS/JJm11uDofzI8L2v0J2ZbYvNsbq1A=
 github.com/containerd/ttrpc v1.2.7 h1:qIrroQvuOL9HQ1X6KHe2ohc7p+HP/0VE6XPU7elJRqQ=
 github.com/containerd/ttrpc v1.2.7/go.mod h1:YCXHsb32f+Sq5/72xHubdiJRQY9inL4a4ZQrAbN1q9o=
 github.com/containerd/typeurl/v2 v2.2.3 h1:yNA/94zxWdvYACdYO8zofhrTVuQY73fFU1y++dYSw40=
@@ -76,8 +76,8 @@ github.com/distribution/distribution/v3 v3.1.1 h1:KUbk7C8CfaLXy8kbf/hGq9cad/wCoL
 github.com/distribution/distribution/v3 v3.1.1/go.mod h1:d7lXwZpph0bVcOj4Aqn0nMrWHIwRQGdiV5TLeI+/w6Y=
 github.com/distribution/reference v0.6.0 h1:0IXCQ5g4/QMHHkarYzh5l+u8T3t73zM5QvfrDyIgxBk=
 github.com/distribution/reference v0.6.0/go.mod h1:BbU0aIcezP1/5jX/8MP0YiH4SdvB5Y4f/wlDRiLyi3E=
-github.com/docker/cli v29.5.1+incompatible h1:NiufLAJoRcPauFoBNYthfuM4REFwM8H2h9xnLABNHGs=
-github.com/docker/cli v29.5.1+incompatible/go.mod h1:JLrzqnKDaYBop7H2jaqPtU4hHvMKP+vjCwu2uszcLI8=
+github.com/docker/cli v29.5.2+incompatible h1:ubykJ1Y8LmNRGJ2BuMQ0kHOt/RO1YzGNswqWMJgivuQ=
+github.com/docker/cli v29.5.2+incompatible/go.mod h1:JLrzqnKDaYBop7H2jaqPtU4hHvMKP+vjCwu2uszcLI8=
 github.com/docker/distribution v2.8.3+incompatible h1:AtKxIZ36LoNK51+Z6RpzLpddBirtxJnzDrHLEKxTAYk=
 github.com/docker/distribution v2.8.3+incompatible/go.mod h1:J2gT2udsDAN96Uj4KfcMRqY0/ypR+oyYUYmja8H+y+w=
 github.com/docker/docker-credential-helpers v0.9.7 h1:jaPIxEIDz5bQeghNAdzz0ETwMMnM4vzjZlxz3pWP4JA=
@@ -341,8 +341,8 @@ github.com/openshift/library-go v0.0.0-20260204111611-b7d4fa0e292a h1:YLnZtVfqGU
 github.com/openshift/library-go v0.0.0-20260204111611-b7d4fa0e292a/go.mod h1:DCRz1EgdayEmr9b6KXKDL+DWBN0rGHu/VYADeHzPoOk=
 github.com/operator-framework/api v0.42.0 h1:rkc5V3zW8RxZMjePAe12jdL7Co/hwsYo1pLnkkhuR7s=
 github.com/operator-framework/api v0.42.0/go.mod h1:bMEj+wl/8tGqcGNtxt38cLUYagu9chNsbYzb/5HQaUQ=
-github.com/operator-framework/operator-registry v1.68.0 h1:hsWR4o2a508xrc3DAalY4D/JGg7wnv6wjX+BTqXxSLI=
-github.com/operator-framework/operator-registry v1.68.0/go.mod h1:QuIAkmWIo0Kc03iVjybiI148AEQhBPdnrnAzFcDDR3Q=
+github.com/operator-framework/operator-registry v1.69.0 h1:kLCZPrXfSzYySBvWUh8cbpVD84aFREgLGUlTPkRD/zo=
+github.com/operator-framework/operator-registry v1.69.0/go.mod h1:90iev4bttNFMYL+Pp3L7VSpIsdVuJdYDA6wVG3BsJ8w=
 github.com/otiai10/copy v1.14.1 h1:5/7E6qsUMBaH5AnQ0sSLzzTg1oTECmcCmT6lvF45Na8=
 github.com/otiai10/copy v1.14.1/go.mod h1:oQwrEDDOci3IM8dJF0d8+jnbfPDllW6vUjNc3DoZm9I=
 github.com/otiai10/mint v1.6.3 h1:87qsV/aw1F5as1eH1zS/yqHY85ANKVMgkDrf9rcxbQs=
@@ -496,8 +496,8 @@ go.opentelemetry.io/otel/trace v1.43.0 h1:BkNrHpup+4k4w+ZZ86CZoHHEkohws8AY+WTX09
 go.opentelemetry.io/otel/trace v1.43.0/go.mod h1:/QJhyVBUUswCphDVxq+8mld+AvhXZLhe+8WVFxiFff0=
 go.opentelemetry.io/proto/otlp v1.10.0 h1:IQRWgT5srOCYfiWnpqUYz9CVmbO8bFmKcwYxpuCSL2g=
 go.opentelemetry.io/proto/otlp v1.10.0/go.mod h1:/CV4QoCR/S9yaPj8utp3lvQPoqMtxXdzn7ozvvozVqk=
-go.podman.io/common v0.67.1 h1:HddYLJfkfFUmFJ0V3PVoewguFM9eHkqk0g+fOc2B9R4=
-go.podman.io/common v0.67.1/go.mod h1:XVmSLtnhJwGb+ImYn6BXiozxVE3mYZJgiiBuDOiOquk=
+go.podman.io/common v0.68.0 h1:6V8nZS33vLTPC047RfSGxARgS/Ui6CQtgdZXLo18qAc=
+go.podman.io/common v0.68.0/go.mod h1:zVzufHkRpLueF6NW6N+fAs1C2METdzYcfD9zuw+oJKA=
 go.podman.io/image/v5 v5.40.0 h1:gNQvj343Eb4juCitUBkuDz1T82Zpp6nhgMEXzNfCges=
 go.podman.io/image/v5 v5.40.0/go.mod h1:qgXf1abXJ+2l01pL8+CljaMKryeo6ahaHO7H51ooKIc=
 go.podman.io/storage v1.63.0 h1:bj/pAWFhChbuBmejzno0iQLhU7FevGVXepRXm5pFGeA=
