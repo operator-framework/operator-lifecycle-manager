@@ -36,9 +36,15 @@ func run(ctx context.Context, ref string) error {
 		return fmt.Errorf("error parsing image reference %q: %w", ref, err)
 	}
 
+	emptyDir, err := os.MkdirTemp("", "image-canonical-ref-*")
+	if err != nil {
+		return fmt.Errorf("error creating temp dir: %w", err)
+	}
+	defer os.RemoveAll(emptyDir)
+
 	sysCtx := &types.SystemContext{
 		SystemRegistriesConfPath:    os.DevNull,
-		SystemRegistriesConfDirPath: "/nonexistent",
+		SystemRegistriesConfDirPath: emptyDir,
 	}
 	canonicalRef, err := resolveCanonicalRef(ctx, imgRef, sysCtx)
 	if err != nil {
