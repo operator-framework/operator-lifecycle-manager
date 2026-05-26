@@ -36,7 +36,18 @@ func run(ctx context.Context, ref string) error {
 		return fmt.Errorf("error parsing image reference %q: %w", ref, err)
 	}
 
-	sysCtx := &types.SystemContext{}
+	// Bypass host registries.conf: go.podman.io/image/v5 v5.40.0+ hard-errors on v1-format configs,
+	// and CI runners may ship with one. This tool only needs direct registry access for digest resolution.
+	emptyDir, err := os.MkdirTemp("", "image-canonical-ref-*")
+	if err != nil {
+		return fmt.Errorf("error creating temp dir: %w", err)
+	}
+	defer os.RemoveAll(emptyDir)
+
+	sysCtx := &types.SystemContext{
+		SystemRegistriesConfPath:    os.DevNull,
+		SystemRegistriesConfDirPath: emptyDir,
+	}
 	canonicalRef, err := resolveCanonicalRef(ctx, imgRef, sysCtx)
 	if err != nil {
 		return fmt.Errorf("error resolving canonical reference: %w", err)
