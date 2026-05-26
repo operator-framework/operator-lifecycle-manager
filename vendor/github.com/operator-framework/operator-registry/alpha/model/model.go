@@ -404,6 +404,11 @@ func (b *Bundle) Validate() error {
 			result.subErrors = append(result.subErrors, fmt.Errorf("skip[%d] is empty", i))
 		}
 	}
+	if b.SkipRange != "" {
+		if _, err := semver.ParseRange(b.SkipRange); err != nil {
+			result.subErrors = append(result.subErrors, fmt.Errorf("invalid skipRange %q: %v", b.SkipRange, err))
+		}
+	}
 	// TODO(joelanford): Validate related images? It looks like some
 	//   CSVs in production databases use incorrect fields ([name,value]
 	//   instead of [name,image]), which results in empty image values.

@@ -52,6 +52,12 @@ github.com/Microsoft/hcsshim/pkg/ociwclayer
 # github.com/NYTimes/gziphandler v1.1.1
 ## explicit; go 1.11
 github.com/NYTimes/gziphandler
+# github.com/akrylysov/pogreb v0.10.2
+## explicit; go 1.12
+github.com/akrylysov/pogreb
+github.com/akrylysov/pogreb/fs
+github.com/akrylysov/pogreb/internal/errors
+github.com/akrylysov/pogreb/internal/hash
 # github.com/antlr4-go/antlr/v4 v4.13.1
 ## explicit; go 1.22
 github.com/antlr4-go/antlr/v4
@@ -129,8 +135,8 @@ github.com/containerd/errdefs/pkg/internal/types
 # github.com/containerd/log v0.1.0
 ## explicit; go 1.20
 github.com/containerd/log
-# github.com/containerd/platforms v0.2.1
-## explicit; go 1.20
+# github.com/containerd/platforms v1.0.0-rc.4
+## explicit; go 1.24
 github.com/containerd/platforms
 # github.com/containerd/ttrpc v1.2.7
 ## explicit; go 1.19
@@ -157,7 +163,7 @@ github.com/davecgh/go-spew/spew
 # github.com/distribution/reference v0.6.0
 ## explicit; go 1.20
 github.com/distribution/reference
-# github.com/docker/cli v29.5.1+incompatible
+# github.com/docker/cli v29.5.2+incompatible
 ## explicit
 github.com/docker/cli/cli/config
 github.com/docker/cli/cli/config/configfile
@@ -213,6 +219,21 @@ github.com/go-air/gini/inter
 github.com/go-air/gini/internal/xo
 github.com/go-air/gini/logic
 github.com/go-air/gini/z
+# github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376
+## explicit; go 1.13
+github.com/go-git/gcfg
+github.com/go-git/gcfg/scanner
+github.com/go-git/gcfg/token
+github.com/go-git/gcfg/types
+# github.com/go-git/go-billy/v5 v5.7.0
+## explicit; go 1.23.0
+github.com/go-git/go-billy/v5
+# github.com/go-git/go-git/v5 v5.16.4
+## explicit; go 1.23.0
+github.com/go-git/go-git/v5/internal/path_util
+github.com/go-git/go-git/v5/plumbing/format/config
+github.com/go-git/go-git/v5/plumbing/format/gitignore
+github.com/go-git/go-git/v5/utils/ioutil
 # github.com/go-logr/logr v1.4.3
 ## explicit; go 1.18
 github.com/go-logr/logr
@@ -370,6 +391,12 @@ github.com/itchyny/gojq
 # github.com/itchyny/timefmt-go v0.1.8
 ## explicit; go 1.24
 github.com/itchyny/timefmt-go
+# github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99
+## explicit
+github.com/jbenet/go-context/io
+# github.com/joelanford/ignore v0.1.1
+## explicit; go 1.21
+github.com/joelanford/ignore
 # github.com/json-iterator/go v1.1.12
 ## explicit; go 1.12
 github.com/json-iterator/go
@@ -538,11 +565,13 @@ github.com/operator-framework/api/pkg/validation
 github.com/operator-framework/api/pkg/validation/errors
 github.com/operator-framework/api/pkg/validation/interfaces
 github.com/operator-framework/api/pkg/validation/internal
-# github.com/operator-framework/operator-registry v1.68.0
+# github.com/operator-framework/operator-registry v1.69.0
 ## explicit; go 1.25.7
+github.com/operator-framework/operator-registry/alpha/declcfg
 github.com/operator-framework/operator-registry/alpha/model
 github.com/operator-framework/operator-registry/alpha/property
 github.com/operator-framework/operator-registry/pkg/api
+github.com/operator-framework/operator-registry/pkg/cache
 github.com/operator-framework/operator-registry/pkg/client
 github.com/operator-framework/operator-registry/pkg/configmap
 github.com/operator-framework/operator-registry/pkg/containertools
@@ -551,6 +580,7 @@ github.com/operator-framework/operator-registry/pkg/image/containerdregistry
 github.com/operator-framework/operator-registry/pkg/image/execregistry
 github.com/operator-framework/operator-registry/pkg/lib/bundle
 github.com/operator-framework/operator-registry/pkg/lib/encoding
+github.com/operator-framework/operator-registry/pkg/lib/log
 github.com/operator-framework/operator-registry/pkg/lib/semver
 github.com/operator-framework/operator-registry/pkg/lib/validation
 github.com/operator-framework/operator-registry/pkg/prettyunmarshaler
@@ -610,6 +640,9 @@ github.com/spf13/pflag
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/assert/yaml
 github.com/stretchr/testify/require
+# github.com/tidwall/btree v1.8.1
+## explicit; go 1.20
+github.com/tidwall/btree
 # github.com/x448/float16 v0.8.4
 ## explicit; go 1.11
 github.com/x448/float16
@@ -726,8 +759,8 @@ go.opentelemetry.io/proto/otlp/collector/trace/v1
 go.opentelemetry.io/proto/otlp/common/v1
 go.opentelemetry.io/proto/otlp/resource/v1
 go.opentelemetry.io/proto/otlp/trace/v1
-# go.podman.io/common v0.67.1
-## explicit; go 1.24.2
+# go.podman.io/common v0.68.0
+## explicit; go 1.25.6
 go.podman.io/common/pkg/auth
 go.podman.io/common/pkg/capabilities
 go.podman.io/common/pkg/completion
@@ -1063,6 +1096,9 @@ gopkg.in/inf.v0
 # gopkg.in/natefinch/lumberjack.v2 v2.2.1
 ## explicit; go 1.13
 gopkg.in/natefinch/lumberjack.v2
+# gopkg.in/warnings.v0 v0.1.2
+## explicit
+gopkg.in/warnings.v0
 # gopkg.in/yaml.v2 v2.4.0
 ## explicit; go 1.15
 gopkg.in/yaml.v2
