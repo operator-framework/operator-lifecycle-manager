@@ -36,7 +36,9 @@ func run(ctx context.Context, ref string) error {
 		return fmt.Errorf("error parsing image reference %q: %w", ref, err)
 	}
 
-	sysCtx := &types.SystemContext{}
+	sysCtx := &types.SystemContext{
+		SystemRegistriesConfPath: "/dev/null",
+	}
 	canonicalRef, err := resolveCanonicalRef(ctx, imgRef, sysCtx)
 	if err != nil {
 		return fmt.Errorf("error resolving canonical reference: %w", err)
