@@ -37,7 +37,8 @@ func run(ctx context.Context, ref string) error {
 	}
 
 	sysCtx := &types.SystemContext{
-		SystemRegistriesConfPath: "/dev/null",
+		SystemRegistriesConfPath:    os.DevNull,
+		SystemRegistriesConfDirPath: "/nonexistent",
 	}
 	canonicalRef, err := resolveCanonicalRef(ctx, imgRef, sysCtx)
 	if err != nil {
