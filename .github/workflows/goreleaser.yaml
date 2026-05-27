@@ -57,13 +57,12 @@ jobs:
         run: make release RELEASE_VERSION=${{ env.IMAGE_TAG }} IMAGE_REPO=quay.io/operator-framework/olm
 
       - name: Update release artifacts with rendered Kubernetes release manifests
-        uses: softprops/action-gh-release@v3
         if: startsWith(github.ref, 'refs/tags')
-        with:
-          name: ${{ env.IMAGE_TAG }}
-          files: |
-            deploy/upstream/quickstart/crds.yaml
-            deploy/upstream/quickstart/olm.yaml
-            deploy/upstream/quickstart/install.sh
-          draft: true
-          token: ${{ github.token }}
+        run: |
+          gh release upload "${{ env.IMAGE_TAG }}" \
+            deploy/upstream/quickstart/crds.yaml \
+            deploy/upstream/quickstart/olm.yaml \
+            deploy/upstream/quickstart/install.sh \
+            --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
