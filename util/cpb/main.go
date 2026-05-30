@@ -8,7 +8,7 @@ import (
 	"github.com/operator-framework/operator-registry/pkg/lib/bundle"
 	"github.com/otiai10/copy"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 func main() {
@@ -138,7 +138,6 @@ func getMetadata() (m *metadata, err error) {
 		// Skip the remainder of files in the directory
 		return filepath.SkipDir
 	})
-
 	if err != nil {
 		m = nil
 	}
