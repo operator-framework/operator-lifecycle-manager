@@ -19,6 +19,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/rest"
 )
 
@@ -243,13 +244,13 @@ func TestHTTPClientHasTLSConfig(t *testing.T) {
 	// Verify that the client has a transport configured
 	require.NotNil(t, httpClient.Transport, "HTTP client transport should be configured")
 
-	// Check if it's an http.Transport with TLS config
-	transport, ok := httpClient.Transport.(*http.Transport)
-	require.True(t, ok, "Transport should be *http.Transport")
-	require.NotNil(t, transport.TLSClientConfig, "TLS config should be set")
+	// Extract TLS config, unwrapping any transport wrappers (e.g. trackedTransport)
+	tlsConfig, err := utilnet.TLSClientConfig(httpClient.Transport)
+	require.NoError(t, err, "Should be able to extract TLS config from transport")
+	require.NotNil(t, tlsConfig, "TLS config should be set")
 
 	// Verify that RootCAs is configured (this proves CA cert is loaded)
-	assert.NotNil(t, transport.TLSClientConfig.RootCAs, "RootCAs should be configured from kubeConfig")
+	assert.NotNil(t, tlsConfig.RootCAs, "RootCAs should be configured from kubeConfig")
 
 	// Verify timeout is set
 	assert.Equal(t, 30*time.Second, httpClient.Timeout, "Timeout should match kubeConfig")
@@ -519,20 +520,13 @@ func TestRootCAsConfiguration(t *testing.T) {
 	client, err := rest.HTTPClientFor(config)
 	require.NoError(t, err)
 
-	// Verify transport has TLS config
-	transport, ok := client.Transport.(*http.Transport)
-	require.True(t, ok)
-	require.NotNil(t, transport.TLSClientConfig)
+	// Extract TLS config, unwrapping any transport wrappers (e.g. trackedTransport)
+	tlsConfig, err := utilnet.TLSClientConfig(client.Transport)
+	require.NoError(t, err, "Should be able to extract TLS config from transport")
+	require.NotNil(t, tlsConfig, "TLS config should be set")
 
 	// The RootCAs should be configured
-	if transport.TLSClientConfig.RootCAs != nil {
-		// Success - RootCAs are configured
-		assert.NotNil(t, transport.TLSClientConfig.RootCAs)
-	} else {
-		// On some systems, if CAData is invalid, RootCAs might be nil
-		// but the important thing is no error was returned
-		t.Log("RootCAs is nil - this might be due to invalid test certificate")
-	}
+	assert.NotNil(t, tlsConfig.RootCAs, "RootCAs should be configured from kubeConfig CA data")
 }
 
 // TestHTTPClientTimeout verifies timeout configuration
