@@ -221,7 +221,7 @@ func ConvertToModel(cfg DeclarativeConfig) (model.Model, error) {
 
 		for j, entry := range deprecation.Entries {
 			if entry.Reference.Schema == "" {
-				return nil, fmt.Errorf("schema must be set for deprecation entry [%v] for package %q", deprecation.Package, j)
+				return nil, fmt.Errorf("schema must be set for deprecation entry [%d] for package %q", j, deprecation.Package)
 			}
 
 			if references.Has(entry.Reference) {
