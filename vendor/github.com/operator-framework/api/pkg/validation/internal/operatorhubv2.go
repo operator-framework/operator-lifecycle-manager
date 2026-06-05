@@ -33,12 +33,12 @@ func validateOperatorHubV2(objs ...interface{}) (results []errors.ManifestResult
 }
 
 func validateBundleOperatorHubV2(bundle *manifests.Bundle, k8sVersion string) errors.ManifestResult {
-	result := errors.ManifestResult{Name: bundle.Name}
-
+	result := errors.ManifestResult{}
 	if bundle == nil {
 		result.Add(errors.ErrInvalidBundle("Bundle is nil", nil))
 		return result
 	}
+	result.Name = bundle.Name
 
 	if bundle.CSV == nil {
 		result.Add(errors.ErrInvalidBundle("Bundle csv is nil", bundle.Name))

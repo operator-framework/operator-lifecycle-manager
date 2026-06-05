@@ -69,11 +69,12 @@ type CommunityOperatorChecks struct {
 
 // validateCommunityBundle will check the bundle against the community-operator criterias
 func validateCommunityBundle(bundle *manifests.Bundle, indexImagePath string) errors.ManifestResult {
-	result := errors.ManifestResult{Name: bundle.Name}
+	result := errors.ManifestResult{}
 	if bundle == nil {
 		result.Add(errors.ErrInvalidBundle("Bundle is nil", nil))
 		return result
 	}
+	result.Name = bundle.Name
 
 	if bundle.CSV == nil {
 		result.Add(errors.ErrInvalidBundle("Bundle csv is nil", bundle.Name))

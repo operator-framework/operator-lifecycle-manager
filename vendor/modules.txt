@@ -163,7 +163,7 @@ github.com/davecgh/go-spew/spew
 # github.com/distribution/reference v0.6.0
 ## explicit; go 1.20
 github.com/distribution/reference
-# github.com/docker/cli v29.5.2+incompatible
+# github.com/docker/cli v29.5.3+incompatible
 ## explicit
 github.com/docker/cli/cli/config
 github.com/docker/cli/cli/config/configfile
@@ -316,7 +316,7 @@ github.com/golang/protobuf/proto
 # github.com/google/btree v1.1.3
 ## explicit; go 1.18
 github.com/google/btree
-# github.com/google/cel-go v0.27.0
+# github.com/google/cel-go v0.28.1
 ## explicit; go 1.23.0
 github.com/google/cel-go/cel
 github.com/google/cel-go/checker
@@ -546,8 +546,8 @@ github.com/openshift/client-go/config/listers/config/v1alpha2
 # github.com/openshift/library-go v0.0.0-20260204111611-b7d4fa0e292a
 ## explicit; go 1.24.0
 github.com/openshift/library-go/pkg/crypto
-# github.com/operator-framework/api v0.42.0
-## explicit; go 1.25.7
+# github.com/operator-framework/api v0.43.0
+## explicit; go 1.26.3
 github.com/operator-framework/api/crds
 github.com/operator-framework/api/pkg/constraints
 github.com/operator-framework/api/pkg/encoding
@@ -565,8 +565,8 @@ github.com/operator-framework/api/pkg/validation
 github.com/operator-framework/api/pkg/validation/errors
 github.com/operator-framework/api/pkg/validation/interfaces
 github.com/operator-framework/api/pkg/validation/internal
-# github.com/operator-framework/operator-registry v1.69.0
-## explicit; go 1.25.7
+# github.com/operator-framework/operator-registry v1.71.0
+## explicit; go 1.26.3
 github.com/operator-framework/operator-registry/alpha/declcfg
 github.com/operator-framework/operator-registry/alpha/model
 github.com/operator-framework/operator-registry/alpha/property
