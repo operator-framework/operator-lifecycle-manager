@@ -44,7 +44,9 @@ func (c fakeStatusWriter) Patch(ctx context.Context, obj k8scontrollerclient.Obj
 		subResourceOpts := make([]k8scontrollerclient.SubResourcePatchOption, 0, len(opts))
 		for _, opt := range opts {
 			// Skip ForceOwnership options by checking if they would apply it
-			if subOpt, ok := opt.(interface{ ApplyToPatch(*k8scontrollerclient.PatchOptions) }); ok {
+			if subOpt, ok := opt.(interface {
+				ApplyToPatch(*k8scontrollerclient.PatchOptions)
+			}); ok {
 				testOpts := &k8scontrollerclient.PatchOptions{}
 				subOpt.ApplyToPatch(testOpts)
 				// If Force is set, this is ForceOwnership, skip it
