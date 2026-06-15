@@ -67,6 +67,14 @@ spec:
           verbs:
           - get
           - list
+        - apiGroups:
+          - "config.openshift.io"
+          resources:
+          - apiservers
+          resourceNames:
+          - cluster
+          verbs:
+          - get
       deployments:
       - name: packageserver
         {{- include "packageserver.deployment-spec" . | nindent 8 }}
