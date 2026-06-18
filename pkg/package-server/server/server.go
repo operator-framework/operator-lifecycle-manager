@@ -23,13 +23,18 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 
+	configv1client "github.com/openshift/client-go/config/clientset/versioned"
+	libcrypto "github.com/openshift/library-go/pkg/crypto"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	olminformers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	olmapiserver "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/apiserver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/openshiftconfig"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver"
 	genericpackageserver "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver/generic"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/provider"
+	apidiscovery "k8s.io/client-go/discovery"
 )
 
 const DefaultWakeupInterval = 12 * time.Hour
@@ -202,19 +207,13 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 		string(genericfeatures.UnauthenticatedHTTP2DOSMitigation): true,
 	})
 
-	// Grab the config for the API server
-	config, err := o.Config(ctx)
-	if err != nil {
-		return err
-	}
-	config.GenericConfig.EnableMetrics = true
-
-	// Set up the client config
+	// Set up the client config before calling Config() so it can be used to
+	// apply the cluster TLS security profile to the serving options.
 	var clientConfig *rest.Config
+	var err error
 	if len(o.Kubeconfig) > 0 {
 		loadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: o.Kubeconfig}
 		loader := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{})
-
 		clientConfig, err = loader.ClientConfig()
 	} else {
 		clientConfig, err = rest.InClusterConfig()
@@ -222,6 +221,23 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("unable to construct lister client config: %v", err)
 	}
+
+	// If --tls-min-version was not supplied (e.g. no PSM-injected flags yet), fall
+	// back to a direct GET of the cluster APIServer CR so the packageserver still
+	// honours the cluster TLS security profile on first boot or during upgrades.
+	if o.SecureServing.MinTLSVersion == "" {
+		if err := applyClusterTLSProfile(ctx, clientConfig, o.SecureServing); err != nil {
+			return fmt.Errorf("failed to apply cluster TLS profile to serving options: %w", err)
+		}
+	}
+
+	// Grab the config for the API server
+	var config *apiserver.Config
+	config, err = o.Config(ctx)
+	if err != nil {
+		return err
+	}
+	config.GenericConfig.EnableMetrics = true
 
 	kubeClient, err := kubernetes.NewForConfig(clientConfig)
 	if err != nil {
@@ -324,5 +340,60 @@ func (op *Operator) syncOLMConfig(obj interface{}) error {
 		}
 	}
 
+	return nil
+}
+
+// applyClusterTLSProfile fetches the cluster-wide APIServer TLS security profile
+// and applies it to the SecureServingOptions. It is a no-op on non-OpenShift clusters.
+// This is the fallback path used when --tls-min-version is not provided via flags
+// (i.e. before the PSM has had a chance to inject them).
+func applyClusterTLSProfile(ctx context.Context, config *rest.Config, serving *genericoptions.SecureServingOptionsWithLoopback) error {
+	const lookupTimeout = 30 * time.Second
+	profileCtx, cancel := context.WithTimeout(ctx, lookupTimeout)
+	defer cancel()
+
+	profileConfig := rest.CopyConfig(config)
+	if profileConfig.Timeout == 0 || profileConfig.Timeout > lookupTimeout {
+		profileConfig.Timeout = lookupTimeout
+	}
+
+	kubeClient, err := kubernetes.NewForConfig(profileConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+	cfgClient, err := configv1client.NewForConfig(profileConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create config client: %w", err)
+	}
+	return applyClusterTLSProfileWithClients(profileCtx, kubeClient.Discovery(), cfgClient, serving)
+}
+
+// applyClusterTLSProfileWithClients is the testable core of applyClusterTLSProfile.
+// It applies the cluster-wide APIServer TLS security profile to the SecureServingOptions,
+// but only for fields not already set by explicit flags (--tls-min-version / --tls-cipher-suites).
+// It is a no-op on non-OpenShift clusters.
+func applyClusterTLSProfileWithClients(ctx context.Context, discovery apidiscovery.DiscoveryInterface, cfgClient configv1client.Interface, serving *genericoptions.SecureServingOptionsWithLoopback) error {
+	available, err := openshiftconfig.IsAPIAvailable(discovery)
+	if err != nil {
+		return fmt.Errorf("failed to check OpenShift config API: %w", err)
+	}
+	if !available {
+		return nil
+	}
+
+	apiServer, err := cfgClient.ConfigV1().APIServers().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get APIServer config: %w", err)
+	}
+
+	minVersion, cipherSuites := olmapiserver.GetSecurityProfileConfig(apiServer.Spec.TLSSecurityProfile)
+	// Only override fields not already set by explicit flags.
+	if serving.MinTLSVersion == "" {
+		serving.MinTLSVersion = libcrypto.TLSVersionToNameOrDie(minVersion)
+	}
+	if len(serving.CipherSuites) == 0 {
+		serving.CipherSuites = libcrypto.CipherSuitesToNamesOrDie(cipherSuites)
+	}
+	log.Infof("Applying cluster TLS security profile: minVersion=%s cipherSuites=%v", serving.MinTLSVersion, serving.CipherSuites)
 	return nil
 }
