@@ -3,7 +3,7 @@ package comparison
 import (
 	// "fmt"
 
-	"github.com/mitchellh/hashstructure"
+	"github.com/mitchellh/hashstructure/v2"
 )
 
 // Equalitor describes an algorithm for equivalence between two data structures.
@@ -25,12 +25,12 @@ func (e EqualFunc) Equal(a, b interface{}) bool {
 // This function panics if an error is encountered generating a hash for either argument.
 func NewHashEqualitor() EqualFunc {
 	return func(a, b interface{}) bool {
-		hashA, err := hashstructure.Hash(a, nil)
+		hashA, err := hashstructure.Hash(a, hashstructure.FormatV2, nil)
 		if err != nil {
 			panic(err.Error())
 		}
 
-		hashB, err := hashstructure.Hash(b, nil)
+		hashB, err := hashstructure.Hash(b, hashstructure.FormatV2, nil)
 		if err != nil {
 			panic(err.Error())
 		}
