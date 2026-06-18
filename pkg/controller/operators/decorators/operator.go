@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/itchyny/gojq"
 	"github.com/go-viper/mapstructure/v2"
+	"github.com/itchyny/gojq"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
