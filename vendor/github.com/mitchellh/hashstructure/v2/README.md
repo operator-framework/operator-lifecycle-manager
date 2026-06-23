@@ -30,8 +30,17 @@ sending data across the network, caching values locally (de-dup), and so on.
 Standard `go get`:
 
 ```
-$ go get github.com/mitchellh/hashstructure
+$ go get github.com/mitchellh/hashstructure/v2
 ```
+
+**Note on v2:** It is highly recommended you use the "v2" release since this
+fixes some significant hash collisions issues from v1. In practice, we used
+v1 for many years in real projects at HashiCorp and never had issues, but it
+is highly dependent on the shape of the data you're hashing and how you use
+those hashes.
+
+When using v2+, you can still generate weaker v1 hashes by using the
+`FormatV1` format when calling `Hash`.
 
 ## Usage & Example
 
@@ -56,7 +65,7 @@ v := ComplexStruct{
     },
 }
 
-hash, err := hashstructure.Hash(v, nil)
+hash, err := hashstructure.Hash(v, hashstructure.FormatV2, nil)
 if err != nil {
     panic(err)
 }

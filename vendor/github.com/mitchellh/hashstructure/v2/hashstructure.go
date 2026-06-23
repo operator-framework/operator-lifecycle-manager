@@ -9,16 +9,6 @@ import (
 	"time"
 )
 
-// ErrNotStringer is returned when there's an error with hash:"string"
-type ErrNotStringer struct {
-	Field string
-}
-
-// Error implements error for ErrNotStringer
-func (ens *ErrNotStringer) Error() string {
-	return fmt.Sprintf("hashstructure: %s has hash:\"string\" set, but does not implement fmt.Stringer", ens.Field)
-}
-
 // HashOptions are options that are available for hashing.
 type HashOptions struct {
 	// Hasher is the hash function to use. If this isn't set, it will
@@ -41,13 +31,32 @@ type HashOptions struct {
 	// Default is false (in which case the tag is used instead)
 	SlicesAsSets bool
 
-	// UseStringer will attempt to use fmt.Stringer aways. If the struct
+	// UseStringer will attempt to use fmt.Stringer always. If the struct
 	// doesn't implement fmt.Stringer, it'll fall back to trying usual tricks.
 	// If this is true, and the "string" tag is also set, the tag takes
-	// precedense (meaning that if the type doesn't implement fmt.Stringer, we
+	// precedence (meaning that if the type doesn't implement fmt.Stringer, we
 	// panic)
 	UseStringer bool
 }
+
+// Format specifies the hashing process used. Different formats typically
+// generate different hashes for the same value and have different properties.
+type Format uint
+
+const (
+	// To disallow the zero value
+	formatInvalid Format = iota
+
+	// FormatV1 is the format used in v1.x of this library. This has the
+	// downsides noted in issue #18 but allows simultaneous v1/v2 usage.
+	FormatV1
+
+	// FormatV2 is the current recommended format and fixes the issues
+	// noted in FormatV1.
+	FormatV2
+
+	formatMax // so we can easily find the end
+)
 
 // Hash returns the hash value of an arbitrary value.
 //
@@ -55,6 +64,11 @@ type HashOptions struct {
 // for the default values. The same *HashOptions value cannot be used
 // concurrently. None of the values within a *HashOptions struct are
 // safe to read/write while hashing is being done.
+//
+// The "format" is required and must be one of the format values defined
+// by this library. You should probably just use "FormatV2". This allows
+// generated hashes uses alternate logic to maintain compatibility with
+// older versions.
 //
 // Notes on the value:
 //
@@ -81,7 +95,12 @@ type HashOptions struct {
 //   * "string" - The field will be hashed as a string, only works when the
 //                field implements fmt.Stringer
 //
-func Hash(v interface{}, opts *HashOptions) (uint64, error) {
+func Hash(v interface{}, format Format, opts *HashOptions) (uint64, error) {
+	// Validate our format
+	if format <= formatInvalid || format >= formatMax {
+		return 0, &ErrFormat{}
+	}
+
 	// Create default options
 	if opts == nil {
 		opts = &HashOptions{}
@@ -98,6 +117,7 @@ func Hash(v interface{}, opts *HashOptions) (uint64, error) {
 
 	// Create our walker and walk the structure
 	w := &walker{
+		format:          format,
 		h:               opts.Hasher,
 		tag:             opts.TagName,
 		zeronil:         opts.ZeroNil,
@@ -109,6 +129,7 @@ func Hash(v interface{}, opts *HashOptions) (uint64, error) {
 }
 
 type walker struct {
+	format          Format
 	h               hash.Hash64
 	tag             string
 	zeronil         bool
@@ -247,6 +268,11 @@ func (w *walker) visit(v reflect.Value, opts *visitOpts) (uint64, error) {
 			h = hashUpdateUnordered(h, fieldHash)
 		}
 
+		if w.format != FormatV1 {
+			// Important: read the docs for hashFinishUnordered
+			h = hashFinishUnordered(w.h, h)
+		}
+
 		return h, nil
 
 	case reflect.Struct:
@@ -283,7 +309,6 @@ func (w *walker) visit(v reflect.Value, opts *visitOpts) (uint64, error) {
 		l := v.NumField()
 		for i := 0; i < l; i++ {
 			if innerV := v.Field(i); v.CanSet() || t.Field(i).Name != "_" {
-
 				var f visitFlag
 				fieldType := t.Field(i)
 				if fieldType.PkgPath != "" {
@@ -298,8 +323,7 @@ func (w *walker) visit(v reflect.Value, opts *visitOpts) (uint64, error) {
 				}
 
 				if w.ignorezerovalue {
-					zeroVal := reflect.Zero(reflect.TypeOf(innerV.Interface())).Interface()
-					if innerV.Interface() == zeroVal {
+					if innerV.IsZero() {
 						continue
 					}
 				}
@@ -350,6 +374,11 @@ func (w *walker) visit(v reflect.Value, opts *visitOpts) (uint64, error) {
 				fieldHash := hashUpdateOrdered(w.h, kh, vh)
 				h = hashUpdateUnordered(h, fieldHash)
 			}
+
+			if w.format != FormatV1 {
+				// Important: read the docs for hashFinishUnordered
+				h = hashFinishUnordered(w.h, h)
+			}
 		}
 
 		return h, nil
@@ -375,6 +404,11 @@ func (w *walker) visit(v reflect.Value, opts *visitOpts) (uint64, error) {
 			} else {
 				h = hashUpdateOrdered(w.h, h, current)
 			}
+		}
+
+		if set && w.format != FormatV1 {
+			// Important: read the docs for hashFinishUnordered
+			h = hashFinishUnordered(w.h, h)
 		}
 
 		return h, nil
@@ -411,6 +445,32 @@ func hashUpdateOrdered(h hash.Hash64, a, b uint64) uint64 {
 
 func hashUpdateUnordered(a, b uint64) uint64 {
 	return a ^ b
+}
+
+// After mixing a group of unique hashes with hashUpdateUnordered, it's always
+// necessary to call hashFinishUnordered. Why? Because hashUpdateUnordered
+// is a simple XOR, and calling hashUpdateUnordered on hashes produced by
+// hashUpdateUnordered can effectively cancel out a previous change to the hash
+// result if the same hash value appears later on. For example, consider:
+//
+//   hashUpdateUnordered(hashUpdateUnordered("A", "B"), hashUpdateUnordered("A", "C")) =
+//   H("A") ^ H("B")) ^ (H("A") ^ H("C")) =
+//   (H("A") ^ H("A")) ^ (H("B") ^ H(C)) =
+//   H(B) ^ H(C) =
+//   hashUpdateUnordered(hashUpdateUnordered("Z", "B"), hashUpdateUnordered("Z", "C"))
+//
+// hashFinishUnordered "hardens" the result, so that encountering partially
+// overlapping input data later on in a different context won't cancel out.
+func hashFinishUnordered(h hash.Hash64, a uint64) uint64 {
+	h.Reset()
+
+	// We just panic if the writes fail
+	e1 := binary.Write(h, binary.LittleEndian, a)
+	if e1 != nil {
+		panic(e1)
+	}
+
+	return h.Sum64()
 }
 
 // visitFlag is used as a bitmask for affecting visit behavior
