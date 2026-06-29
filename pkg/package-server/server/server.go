@@ -226,8 +226,12 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 	// back to a direct GET of the cluster APIServer CR so the packageserver still
 	// honours the cluster TLS security profile on first boot or during upgrades.
 	if o.SecureServing.MinTLSVersion == "" {
+		// Warn and continue on failure: the API server may not be reachable
+		// during initial startup (e.g. cluster bootstrap). Packageserver starts
+		// with secure TLS defaults; operators can supply --tls-min-version and
+		// --tls-cipher-suites flags to override the profile on a later restart.
 		if err := applyClusterTLSProfile(ctx, clientConfig, o.SecureServing); err != nil {
-			return fmt.Errorf("failed to apply cluster TLS profile to serving options: %w", err)
+			log.WithError(err).Warn("Failed to apply cluster TLS profile to serving options, using defaults")
 		}
 	}
 

@@ -119,7 +119,7 @@ func TestApplyClusterTLSProfileWithClients_FlagsTakePrecedence(t *testing.T) {
 }
 
 // TestApplyClusterTLSProfileWithClients_MissingAPIServerCR verifies that a
-// missing singleton APIServer CR propagates as an error (fail-closed).
+// missing singleton APIServer CR propagates as an error.
 func TestApplyClusterTLSProfileWithClients_MissingAPIServerCR(t *testing.T) {
 	// config client advertises the API group but has no APIServer object
 	cfgClient := configfake.NewSimpleClientset()
@@ -128,5 +128,30 @@ func TestApplyClusterTLSProfileWithClients_MissingAPIServerCR(t *testing.T) {
 	err := applyClusterTLSProfileWithClients(context.Background(), cfgClient.Discovery(), cfgClient, serving)
 	if err == nil {
 		t.Fatal("expected an error when the APIServer CR is missing, got nil")
+	}
+}
+
+// TestApplyClusterTLSProfileWithClients_ErrorLeavesServingUnchanged is a
+// regression test for the warn-and-continue startup behavior introduced to
+// prevent crash-loops when the API server is not yet reachable.
+//
+// It verifies that when applyClusterTLSProfileWithClients returns an error the
+// SecureServingOptions are left in their original state, so the caller can
+// safely ignore the error and start with secure TLS defaults.
+func TestApplyClusterTLSProfileWithClients_ErrorLeavesServingUnchanged(t *testing.T) {
+	cfgClient := configfake.NewSimpleClientset() // no APIServer CR → returns error
+	serving := newServing()
+
+	err := applyClusterTLSProfileWithClients(context.Background(), cfgClient.Discovery(), cfgClient, serving)
+	if err == nil {
+		t.Fatal("expected an error to simulate API unavailability, got nil")
+	}
+
+	// Serving options must be unchanged so that starting with defaults is safe.
+	if serving.MinTLSVersion != "" {
+		t.Errorf("MinTLSVersion should be unset after error, got %q", serving.MinTLSVersion)
+	}
+	if len(serving.CipherSuites) != 0 {
+		t.Errorf("CipherSuites should be unset after error, got %v", serving.CipherSuites)
 	}
 }
