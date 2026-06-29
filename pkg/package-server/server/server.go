@@ -227,7 +227,8 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 	// honours the cluster TLS security profile on first boot or during upgrades.
 	if o.SecureServing.MinTLSVersion == "" {
 		if err := applyClusterTLSProfile(ctx, clientConfig, o.SecureServing); err != nil {
-			return fmt.Errorf("failed to apply cluster TLS profile to serving options: %w", err)
+			log.WithError(err).Warn("Failed to apply cluster TLS profile to serving options, continuing with defaults. " +
+				"PSM will inject the correct TLS flags on next reconciliation.")
 		}
 	}
 
@@ -348,7 +349,7 @@ func (op *Operator) syncOLMConfig(obj interface{}) error {
 // This is the fallback path used when --tls-min-version is not provided via flags
 // (i.e. before the PSM has had a chance to inject them).
 func applyClusterTLSProfile(ctx context.Context, config *rest.Config, serving *genericoptions.SecureServingOptionsWithLoopback) error {
-	const lookupTimeout = 30 * time.Second
+	const lookupTimeout = 10 * time.Second
 	profileCtx, cancel := context.WithTimeout(ctx, lookupTimeout)
 	defer cancel()
 
