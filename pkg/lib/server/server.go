@@ -127,36 +127,66 @@ func (sc serverConfig) getListenAndServeFunc() (func() error, error) {
 
 	// Set up authenticated metrics endpoint if kubeConfig is provided
 	if sc.kubeConfig != nil && tlsEnabled {
-		sc.logger.Info("Setting up authenticated metrics endpoint")
-		// Create HTTP client with proper TLS configuration from kubeConfig
-		// This is necessary for TokenReview/SubjectAccessReview API calls to verify API server certificates
-		httpClient, err := rest.HTTPClientFor(sc.kubeConfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create http client for authentication: %w", err)
-		}
-		// Create authentication filter using controller-runtime
-		filter, err := filters.WithAuthenticationAndAuthorization(sc.kubeConfig, httpClient)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create authentication filter: %w", err)
-		}
-		// Create authenticated metrics handler
-		logger := log.FromContext(context.Background())
-		authenticatedMetricsHandler, err := filter(logger, promhttp.Handler())
-		if err != nil {
-			return nil, fmt.Errorf("failed to wrap metrics handler with authentication: %w", err)
-		}
-		// Add request logging for debugging if debug mode is enabled
-		if sc.debug {
-			debugAuthHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				sc.logger.Infof("Metrics request from %s, Auth header present: %v, User-Agent: %s",
-					r.RemoteAddr, r.Header.Get("Authorization") != "", r.Header.Get("User-Agent"))
-				authenticatedMetricsHandler.ServeHTTP(w, r)
-			})
-			mux.Handle("/metrics", debugAuthHandler)
-		} else {
-			mux.Handle("/metrics", authenticatedMetricsHandler)
-		}
-		sc.logger.Info("Metrics endpoint configured with authentication and authorization")
+		sc.logger.Info("Setting up authenticated metrics endpoint with client cert and bearer token support")
+
+		// Create metrics handler that supports BOTH:
+		// 1. Bearer token auth (for standalone OCP where Prometheus uses bearer tokens)
+		// 2. Client cert auth (for HCP where Prometheus uses client certificates)
+		//
+		// HCP ServiceMonitors configure client certificates (tlsConfig.cert/keySecret)
+		// while standalone OCP uses bearerTokenFile. The TLS layer (--client-ca)
+		// already verifies client certs; we just need to accept them as authenticated.
+
+		metricsHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Check if client presented a verified certificate (HCP)
+			if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+				// Client cert was verified by TLS layer via --client-ca
+				// Accept it as authenticated and serve metrics
+				if sc.debug {
+					sc.logger.Infof("Metrics request authenticated via client certificate from %s, CN: %s",
+						r.RemoteAddr, r.TLS.PeerCertificates[0].Subject.CommonName)
+				}
+				promhttp.Handler().ServeHTTP(w, r)
+				return
+			}
+
+			// No client cert - try bearer token auth (standalone OCP)
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				sc.logger.Warnf("Metrics request rejected: no client cert and no bearer token from %s", r.RemoteAddr)
+				http.Error(w, "Unauthorized: client certificate or bearer token required", http.StatusUnauthorized)
+				return
+			}
+
+			// Validate bearer token via controller-runtime
+			httpClient, err := rest.HTTPClientFor(sc.kubeConfig)
+			if err != nil {
+				sc.logger.WithError(err).Error("Failed to create HTTP client for bearer token auth")
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+
+			filter, err := filters.WithAuthenticationAndAuthorization(sc.kubeConfig, httpClient)
+			if err != nil {
+				sc.logger.WithError(err).Error("Failed to create auth filter for bearer token")
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+
+			logger := log.FromContext(r.Context())
+			authenticatedHandler, err := filter(logger, promhttp.Handler())
+			if err != nil {
+				sc.logger.WithError(err).Error("Failed to wrap metrics handler")
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+
+			// Let controller-runtime's filter handle bearer token validation
+			authenticatedHandler.ServeHTTP(w, r)
+		})
+
+		mux.Handle("/metrics", metricsHandler)
+		sc.logger.Info("Metrics endpoint configured with dual authentication (client cert + bearer token)")
 	} else {
 		// Fallback to unprotected metrics (for development/testing)
 		mux.Handle("/metrics", promhttp.Handler())
