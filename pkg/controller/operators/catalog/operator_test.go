@@ -2279,7 +2279,7 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 			return nil, err
 		}
 		applier := controllerclient.NewFakeApplier(s, "testowner")
-		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now, applier, 1001, "", "")
+		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now, applier, 1001, "")
 	}
 
 	op.RunInformers(ctx)
@@ -2447,7 +2447,7 @@ func pod(t *testing.T, s v1alpha1.CatalogSource) *corev1.Pod {
 			Name:      s.GetName(),
 		},
 	}
-	pod, err := reconciler.Pod(&s, "registry-server", "central-opm", "central-util", s.Spec.Image, serviceAccount, s.GetLabels(), s.GetAnnotations(), 5, 10, 1001, v1alpha1.Legacy)
+	pod, err := reconciler.Pod(&s, "registry-server", "central-opm", s.Spec.Image, serviceAccount, s.GetLabels(), s.GetAnnotations(), 5, 10, 1001, v1alpha1.Legacy)
 	if err != nil {
 		t.Fatal(err)
 	}

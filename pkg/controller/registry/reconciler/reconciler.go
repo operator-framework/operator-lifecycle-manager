@@ -32,6 +32,9 @@ const (
 	PodHashLabelKey = "olm.pod-spec-hash"
 	//ClusterAutoscalingAnnotationKey is the annotation that enables the cluster autoscaler to evict catalog pods
 	ClusterAutoscalingAnnotationKey string = "cluster-autoscaler.kubernetes.io/safe-to-evict"
+
+	opmVolumeName = "opm"
+	opmMountPath  = "/opm"
 )
 
 // RegistryEnsurer describes methods for ensuring a registry exists.
@@ -66,7 +69,6 @@ type registryReconcilerFactory struct {
 	SSAClient            *controllerclient.ServerSideApplier
 	createPodAsUser      int64
 	opmImage             string
-	utilImage            string
 }
 
 // ReconcilerForSource returns a RegistryReconciler based on the configuration of the given CatalogSource.
@@ -90,7 +92,6 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *operatorsv1alpha
 				SSAClient:       r.SSAClient,
 				createPodAsUser: r.createPodAsUser,
 				opmImage:        r.opmImage,
-				utilImage:       r.utilImage,
 			}
 		} else if source.Spec.Address != "" {
 			return &GrpcAddressRegistryReconciler{
@@ -102,7 +103,7 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *operatorsv1alpha
 }
 
 // NewRegistryReconcilerFactory returns an initialized RegistryReconcilerFactory.
-func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string, now nowFunc, ssaClient *controllerclient.ServerSideApplier, createPodAsUser int64, opmImage, utilImage string) RegistryReconcilerFactory {
+func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string, now nowFunc, ssaClient *controllerclient.ServerSideApplier, createPodAsUser int64, opmImage string) RegistryReconcilerFactory {
 	return &registryReconcilerFactory{
 		now:                  now,
 		Lister:               lister,
@@ -111,11 +112,10 @@ func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient
 		SSAClient:            ssaClient,
 		createPodAsUser:      createPodAsUser,
 		opmImage:             opmImage,
-		utilImage:            utilImage,
 	}
 }
 
-func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img string, serviceAccount *corev1.ServiceAccount, labels, annotations map[string]string, readinessDelay, livenessDelay int32, runAsUser int64, defaultSecurityConfig operatorsv1alpha1.SecurityConfig) (*corev1.Pod, error) {
+func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, img string, serviceAccount *corev1.ServiceAccount, labels, annotations map[string]string, readinessDelay, livenessDelay int32, runAsUser int64, defaultSecurityConfig operatorsv1alpha1.SecurityConfig) (*corev1.Pod, error) {
 	// make a copy of the labels and annotations to avoid mutating the input parameters
 	podLabels := make(map[string]string)
 	podAnnotations := make(map[string]string)
@@ -252,92 +252,44 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 			})
 		}
 
-		// Reconfigure pod to extract content
+		// Mount the OLM-defined opm binary via image volume
 		if grpcPodConfig.ExtractContent != nil {
 			pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
-				Name: "utilities",
+				Name: opmVolumeName,
 				VolumeSource: corev1.VolumeSource{
-					EmptyDir: &corev1.EmptyDirVolumeSource{},
-				},
-			}, corev1.Volume{
-				Name: "catalog-content",
-				VolumeSource: corev1.VolumeSource{
-					EmptyDir: &corev1.EmptyDirVolumeSource{},
-				},
-			})
-			const utilitiesPath = "/utilities"
-			utilitiesVolumeMount := corev1.VolumeMount{
-				Name:      "utilities",
-				MountPath: utilitiesPath,
-			}
-			const catalogPath = "/extracted-catalog"
-			contentVolumeMount := corev1.VolumeMount{
-				Name:      "catalog-content",
-				MountPath: catalogPath,
-			}
-			// init container to copy catalog info.
-			// ExtractContent.CatalogDir is mandatory when ExtractContent is provided
-			// ExtractContent.CacheDir is optional, so we only add it if it is set
-			var extractArgs = []string{
-				"--catalog.from=" + grpcPodConfig.ExtractContent.CatalogDir,
-				"--catalog.to=" + fmt.Sprintf("%s/catalog", catalogPath),
-			}
-			if grpcPodConfig.ExtractContent.CacheDir != "" {
-				extractArgs = append(extractArgs, "--cache.from="+grpcPodConfig.ExtractContent.CacheDir)
-				extractArgs = append(extractArgs, "--cache.to="+fmt.Sprintf("%s/cache", catalogPath))
-			}
-			pod.Spec.InitContainers = append(pod.Spec.InitContainers, corev1.Container{
-				Name:                     "extract-utilities",
-				Image:                    utilImage,
-				Command:                  []string{"cp"},
-				Args:                     []string{"/bin/copy-content", fmt.Sprintf("%s/copy-content", utilitiesPath)},
-				VolumeMounts:             []corev1.VolumeMount{utilitiesVolumeMount},
-				TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
-				SecurityContext: &corev1.SecurityContext{
-					ReadOnlyRootFilesystem: ptr.To(true),
-				},
-			}, corev1.Container{
-				Name:                     "extract-content",
-				Image:                    img,
-				ImagePullPolicy:          image.InferImagePullPolicy(img),
-				Command:                  []string{utilitiesPath + "/copy-content"},
-				Args:                     extractArgs,
-				VolumeMounts:             []corev1.VolumeMount{utilitiesVolumeMount, contentVolumeMount},
-				TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
-				SecurityContext: &corev1.SecurityContext{
-					ReadOnlyRootFilesystem: ptr.To(true),
+					Image: &corev1.ImageVolumeSource{
+						Reference:  opmImg,
+						PullPolicy: image.InferImagePullPolicy(opmImg),
+					},
 				},
 			})
 
-			pod.Spec.Containers[0].SecurityContext.ReadOnlyRootFilesystem = ptr.To(true)
-			pod.Spec.Containers[0].Image = opmImg
-			pod.Spec.Containers[0].Command = []string{"/bin/opm"}
-			pod.Spec.Containers[0].ImagePullPolicy = image.InferImagePullPolicy(opmImg)
-			var containerArgs = []string{
+			pod.Spec.Containers[0].Command = []string{filepath.Join(opmMountPath, "bin", "opm")}
+			pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+				Name:      opmVolumeName,
+				MountPath: opmMountPath,
+			})
+
+			containerArgs := []string{
 				"serve",
-				filepath.Join(catalogPath, "catalog"),
+				grpcPodConfig.ExtractContent.CatalogDir,
 			}
 			if grpcPodConfig.ExtractContent.CacheDir != "" {
-				containerArgs = append(containerArgs, "--cache-dir="+filepath.Join(catalogPath, "cache"))
+				containerArgs = append(containerArgs, "--cache-dir="+grpcPodConfig.ExtractContent.CacheDir)
 			} else {
-				// opm serve does not allow us to specify an empty cache directory, which means that it will
-				// only create new caches in /tmp/, so we need to provide adequate write access there
 				const tmpdirName = "tmpdir"
-				tmpdirVolumeMount := corev1.VolumeMount{
-					Name:      tmpdirName,
-					MountPath: "/tmp/",
-				}
 				pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
 					Name: tmpdirName,
 					VolumeSource: corev1.VolumeSource{
 						EmptyDir: &corev1.EmptyDirVolumeSource{},
 					},
 				})
-
-				pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, tmpdirVolumeMount)
+				pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+					Name:      tmpdirName,
+					MountPath: "/tmp/",
+				})
 			}
 			pod.Spec.Containers[0].Args = containerArgs
-			pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, contentVolumeMount)
 		}
 	}
 
