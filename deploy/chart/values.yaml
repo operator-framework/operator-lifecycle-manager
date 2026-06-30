@@ -104,6 +104,7 @@ serviceCa:
     secretName: ""
 
 networkPolicy:
+  enabled: true
   dns:
     ports:
       - protocol: TCP
