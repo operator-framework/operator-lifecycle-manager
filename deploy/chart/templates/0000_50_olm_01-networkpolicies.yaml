@@ -87,11 +87,17 @@ spec:
     - { }
 ---
 # Complements per-CatalogSource NPs from the controller; covers the bootstrapping window before reconciliation.
+# Effective only when catalog_namespace == namespace (the default). When they differ, no OLM-managed
+# deny-all exists in catalog_namespace, so this rule has no effect; adding one there is unsafe since
+# OLM does not exclusively own that namespace.
+# No 'from:' restriction is intentional, matching current dynamic NP behavior. If the controller ever
+# restricts ingress sources, this Helm-owned NP (which the controller cannot delete) will silently
+# override that — treat as a permanent design constraint.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: catalog-source-grpc-server
-  namespace: {{ .Values.namespace }}
+  name: olm-catalog-grpc-ingress
+  namespace: {{ .Values.catalog_namespace }}
 spec:
   podSelector:
     matchExpressions:
@@ -105,11 +111,12 @@ spec:
         port: {{ .Values.catalogGrpcPodPort }}
 ---
 # Wildcard egress; API server port omitted intentionally — it is implementation-defined and not statically knowable.
+# Carries the same split-namespace limitation as olm-catalog-grpc-ingress above.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: bundle-unpack-egress
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Values.catalog_namespace }}
 spec:
   podSelector:
     matchExpressions:
