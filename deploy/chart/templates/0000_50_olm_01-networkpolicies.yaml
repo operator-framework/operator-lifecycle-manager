@@ -85,3 +85,41 @@ spec:
     - { }
   egress:
     - { }
+---
+# Complements per-CatalogSource NPs from the controller; covers the bootstrapping window before reconciliation.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: catalog-source-grpc-server
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchExpressions:
+      - key: olm.catalogSource
+        operator: Exists
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+      - protocol: TCP
+        port: {{ .Values.catalogGrpcPodPort }}
+---
+# Wildcard egress; API server port omitted intentionally — it is implementation-defined and not statically knowable.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bundle-unpack-egress
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchExpressions:
+      - key: operatorframework.io/bundle-unpack-ref
+        operator: Exists
+      - key: olm.managed
+        operator: In
+        values:
+          - "true"
+  policyTypes:
+    - Egress
+  egress:
+    - { }
