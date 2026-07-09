@@ -16,7 +16,7 @@ func TestMetricsHandler_ClientCertAuthentication(t *testing.T) {
 	// Create a test handler that mimics our dual auth logic
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check for client cert (HCP path)
-		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+		if r.TLS != nil && len(r.TLS.VerifiedChains) > 0 {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("# metrics"))
 			return
@@ -37,7 +37,10 @@ func TestMetricsHandler_ClientCertAuthentication(t *testing.T) {
 	req := httptest.NewRequest("GET", "/metrics", nil)
 	req.TLS = &tls.ConnectionState{
 		PeerCertificates: []*x509.Certificate{
-			{}, // Just need a non-nil cert for the test
+			&x509.Certificate{}, // Just need a non-nil cert for the test
+		},
+		VerifiedChains: [][]*x509.Certificate{
+			{&x509.Certificate{}}, // Verified chain indicates cert was validated
 		},
 	}
 	rec := httptest.NewRecorder()
@@ -52,7 +55,7 @@ func TestMetricsHandler_ClientCertAuthentication(t *testing.T) {
 func TestMetricsHandler_BearerTokenPath(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// No client cert
-		if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+		if r.TLS == nil || len(r.TLS.VerifiedChains) == 0 {
 			// Check for bearer token
 			if r.Header.Get("Authorization") != "" {
 				// In real code, this validates the token
@@ -80,7 +83,7 @@ func TestMetricsHandler_BearerTokenPath(t *testing.T) {
 func TestMetricsHandler_NoAuthentication(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// No client cert and no bearer token
-		if (r.TLS == nil || len(r.TLS.PeerCertificates) == 0) && r.Header.Get("Authorization") == "" {
+		if (r.TLS == nil || len(r.TLS.VerifiedChains) == 0) && r.Header.Get("Authorization") == "" {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -105,7 +108,7 @@ func TestMetricsHandler_ClientCertTakesPrecedence(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check client cert first (HCP)
-		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+		if r.TLS != nil && len(r.TLS.VerifiedChains) > 0 {
 			clientCertUsed = true
 			w.WriteHeader(http.StatusOK)
 			return
@@ -125,7 +128,10 @@ func TestMetricsHandler_ClientCertTakesPrecedence(t *testing.T) {
 	req := httptest.NewRequest("GET", "/metrics", nil)
 	req.TLS = &tls.ConnectionState{
 		PeerCertificates: []*x509.Certificate{
-			{}, // Just need a non-nil cert for the test
+			&x509.Certificate{}, // Just need a non-nil cert for the test
+		},
+		VerifiedChains: [][]*x509.Certificate{
+			{&x509.Certificate{}}, // Verified chain indicates cert was validated
 		},
 	}
 	req.Header.Set("Authorization", "Bearer test-token")
