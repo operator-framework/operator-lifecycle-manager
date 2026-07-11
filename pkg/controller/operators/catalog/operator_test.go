@@ -22,8 +22,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 	"golang.org/x/time/rate"
-	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -219,7 +219,8 @@ func TestTransitionInstallPlan(t *testing.T) {
 
 func TestSyncInstallPlanUnhappy(t *testing.T) {
 	namespace := "ns"
-	ipWithSteps := withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+	ipWithSteps := withSteps(
+		installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
 		[]*v1alpha1.Step{
 			{
 				Resource: v1alpha1.StepResource{
@@ -421,7 +422,8 @@ func TestExecutePlan(t *testing.T) {
 		},
 		{
 			testName: "MultipleSteps",
-			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+			in: withSteps(
+				installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
 				[]*v1alpha1.Step{
 					{
 						Resource: v1alpha1.StepResource{
@@ -454,7 +456,8 @@ func TestExecutePlan(t *testing.T) {
 		},
 		{
 			testName: "CreateServiceAccount",
-			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+			in: withSteps(
+				installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
 				[]*v1alpha1.Step{
 					{
 						Resource: v1alpha1.StepResource{
@@ -476,7 +479,8 @@ func TestExecutePlan(t *testing.T) {
 		},
 		{
 			testName: "CreateConfigMap",
-			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+			in: withSteps(
+				installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
 				[]*v1alpha1.Step{
 					{
 						Resource: v1alpha1.StepResource{
@@ -497,7 +501,8 @@ func TestExecutePlan(t *testing.T) {
 		},
 		{
 			testName: "CreateSecretFromBundle",
-			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+			in: withSteps(
+				installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
 				[]*v1alpha1.Step{
 					{
 						Resource: v1alpha1.StepResource{
@@ -518,7 +523,8 @@ func TestExecutePlan(t *testing.T) {
 		},
 		{
 			testName: "DoesNotCreateSecretNotFromBundle",
-			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+			in: withSteps(
+				installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
 				[]*v1alpha1.Step{
 					{
 						Resource: v1alpha1.StepResource{
@@ -539,7 +545,8 @@ func TestExecutePlan(t *testing.T) {
 		},
 		{
 			testName: "UpdateServiceAccountWithSameFields",
-			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+			in: withSteps(
+				installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
 				[]*v1alpha1.Step{
 					{
 						Resource: v1alpha1.StepResource{
@@ -573,7 +580,8 @@ func TestExecutePlan(t *testing.T) {
 		},
 		{
 			testName: "UpdateServiceAccountWithDiffFields",
-			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+			in: withSteps(
+				installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
 				[]*v1alpha1.Step{
 					{
 						Resource: v1alpha1.StepResource{
@@ -607,7 +615,8 @@ func TestExecutePlan(t *testing.T) {
 		},
 		{
 			testName: "DynamicResourcesAreOwnerReferencedToCSV",
-			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+			in: withSteps(
+				installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
 				[]*v1alpha1.Step{
 					{
 						Resolving: "csv",
@@ -640,7 +649,8 @@ func TestExecutePlan(t *testing.T) {
 			extObjs: []runtime.Object{decodeFile(t, "./testdata/prometheusrule.crd.yaml", &apiextensionsv1beta1.CustomResourceDefinition{})},
 			want: []runtime.Object{
 				csv("csv", namespace, nil, nil),
-				modify(t, decodeFile(t, "./testdata/prometheusrule.cr.yaml", &unstructured.Unstructured{}),
+				modify(
+					t, decodeFile(t, "./testdata/prometheusrule.cr.yaml", &unstructured.Unstructured{}),
 					withNamespace(namespace),
 					withOwner(csv("csv", namespace, nil, nil)),
 					modifyMeta(func(m metav1.Object) {
@@ -809,7 +819,8 @@ func TestExecutePlanDynamicResources(t *testing.T) {
 	}{
 		{
 			testName: "UnsupportedObject",
-			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+			in: withSteps(
+				installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
 				[]*v1alpha1.Step{
 					{
 						Resource: v1alpha1.StepResource{
@@ -2212,7 +2223,8 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 	configMapInformer := factory.Core().V1().ConfigMaps()
 	networkPolicyInformer := factory.Networking().V1().NetworkPolicies()
 
-	sharedInformers = append(sharedInformers,
+	sharedInformers = append(
+		sharedInformers,
 		roleInformer.Informer(),
 		roleBindingInformer.Informer(),
 		serviceAccountInformer.Informer(),
@@ -2257,7 +2269,8 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 			),
 			workqueue.TypedRateLimitingQueueConfig[types.NamespacedName]{
 				Name: "resolver",
-			}),
+			},
+		),
 		resolver:              config.resolver,
 		reconciler:            config.reconciler,
 		recorder:              config.recorder,
@@ -2294,6 +2307,7 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 
 	return op, nil
 }
+
 func installPlan(name, namespace string, phase v1alpha1.InstallPlanPhase, names ...string) *v1alpha1.InstallPlan {
 	return &v1alpha1.InstallPlan{
 		ObjectMeta: metav1.ObjectMeta{
@@ -2415,6 +2429,7 @@ func configMap(name, namespace string) *corev1.ConfigMap {
 func grpcServerNetworkPolicy(catSrc *v1alpha1.CatalogSource, matchLabels map[string]string) *networkingv1.NetworkPolicy {
 	return reconciler.DesiredGRPCServerNetworkPolicy(catSrc, matchLabels)
 }
+
 func unpackBundlesNetworkPolicy(catSrc *v1alpha1.CatalogSource) *networkingv1.NetworkPolicy {
 	return reconciler.DesiredUnpackBundlesNetworkPolicy(catSrc)
 }

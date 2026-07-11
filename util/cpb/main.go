@@ -8,7 +8,7 @@ import (
 	"github.com/operator-framework/operator-registry/pkg/lib/bundle"
 	"github.com/otiai10/copy"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 func main() {
