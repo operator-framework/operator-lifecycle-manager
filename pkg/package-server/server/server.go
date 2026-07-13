@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"slices"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -23,7 +24,9 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 
+	apiconfigv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
+	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	libcrypto "github.com/openshift/library-go/pkg/crypto"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
@@ -41,8 +44,16 @@ const DefaultWakeupInterval = 12 * time.Hour
 
 type Operator struct {
 	queueinformer.Operator
-	olmConfigQueue workqueue.TypedRateLimitingInterface[types.NamespacedName]
-	options        *PackageServerOptions
+	olmConfigQueue    workqueue.TypedRateLimitingInterface[types.NamespacedName]
+	apiServerTLSQueue workqueue.TypedRateLimitingInterface[types.NamespacedName]
+	options           *PackageServerOptions
+	// appliedTLSMinVersion and appliedTLSCipherSuites hold the raw values from
+	// GetSecurityProfileConfig that were applied at startup. Storing uint16 values
+	// avoids ToNameOrDie / panic paths in the watch handler.
+	appliedTLSMinVersion   uint16
+	appliedTLSCipherSuites []uint16
+	// exitFunc is called to terminate the process; injectable for testing.
+	exitFunc func(int)
 }
 
 // NewCommandStartPackageServer provides a CLI handler for 'start master' command
@@ -222,18 +233,27 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 		return fmt.Errorf("unable to construct lister client config: %v", err)
 	}
 
-	// If --tls-min-version was not supplied (e.g. no PSM-injected flags yet), fall
-	// back to a direct GET of the cluster APIServer CR so the packageserver still
-	// honours the cluster TLS security profile on first boot or during upgrades.
-	if o.SecureServing.MinTLSVersion == "" {
-		// Warn and continue on failure: the API server may not be reachable
-		// during initial startup (e.g. cluster bootstrap). Packageserver starts
-		// with secure TLS defaults; operators can supply --tls-min-version and
-		// --tls-cipher-suites flags to override the profile on a later restart.
+	// Apply the cluster TLS profile for any field not already supplied via flags,
+	// so a partial flag configuration (e.g. --tls-cipher-suites only) still gets
+	// the cluster default for the unset field.
+	// Warn and continue on failure: the API server may not be reachable during
+	// initial startup (e.g. cluster bootstrap). Packageserver starts with secure
+	// TLS defaults; operators can supply --tls-min-version and --tls-cipher-suites
+	// flags to override the profile on a later restart.
+	minVersionWasEmpty := o.SecureServing.MinTLSVersion == ""
+	cipherSuitesWasEmpty := len(o.SecureServing.CipherSuites) == 0
+	if minVersionWasEmpty || cipherSuitesWasEmpty {
 		if err := applyClusterTLSProfile(ctx, clientConfig, o.SecureServing); err != nil {
 			log.WithError(err).Warn("Failed to apply cluster TLS profile to serving options, using defaults")
 		}
 	}
+
+	// The APIServer watch is only registered when *neither* TLS flag was originally
+	// supplied and the CR lookup succeeded. When flags are externally injected (e.g.
+	// by PSM), the watch is skipped; the external manager is responsible for
+	// triggering restarts on profile changes.
+	selfApplied := minVersionWasEmpty && cipherSuitesWasEmpty &&
+		o.SecureServing.MinTLSVersion != "" && len(o.SecureServing.CipherSuites) > 0
 
 	// Grab the config for the API server
 	var config *apiserver.Config
@@ -265,7 +285,13 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 			workqueue.TypedRateLimitingQueueConfig[types.NamespacedName]{
 				Name: "olmConfig",
 			}),
-		options: o,
+		apiServerTLSQueue: workqueue.NewTypedRateLimitingQueueWithConfig[types.NamespacedName](
+			workqueue.DefaultTypedControllerRateLimiter[types.NamespacedName](),
+			workqueue.TypedRateLimitingQueueConfig[types.NamespacedName]{
+				Name: "apiServerTLS",
+			}),
+		options:  o,
+		exitFunc: os.Exit,
 	}
 
 	olmConfigInformer := olminformers.NewSharedInformerFactoryWithOptions(crClient, 0).Operators().V1().OLMConfigs()
@@ -281,6 +307,42 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 	}
 	if err := op.RegisterQueueInformer(olmConfigQueueInformer); err != nil {
 		return err
+	}
+
+	// If the TLS profile was self-applied at startup (neither TLS flag was set),
+	// capture the applied uint16 values and watch APIServer for changes so the
+	// process can restart when the cluster profile is updated.
+	// When flags are externally injected (e.g. by PSM), this watch is skipped;
+	// the external manager is responsible for triggering restarts on profile changes.
+	if selfApplied {
+		// Derive the comparison baseline from o.SecureServing, which was already
+		// populated by applyClusterTLSProfile. Using a second GET would introduce
+		// a race window: if the profile changes between the two calls, the snapshot
+		// would reflect the new profile while the server is still running with the
+		// old one, causing the watch to incorrectly skip the restart.
+		if v, verErr := libcrypto.TLSVersion(o.SecureServing.MinTLSVersion); verErr == nil {
+			op.appliedTLSMinVersion = v
+		}
+		op.appliedTLSCipherSuites = olmapiserver.CipherNamesToIDs(o.SecureServing.CipherSuites)
+
+		cfgClient, cfgErr := configv1client.NewForConfig(clientConfig)
+		if cfgErr != nil {
+			log.WithError(cfgErr).Warn("Failed to create config client for APIServer TLS watch")
+		} else {
+			apiServerInformer := configinformers.NewSharedInformerFactory(cfgClient, 0).Config().V1().APIServers()
+			apiServerQueueInformer, qiErr := queueinformer.NewQueueInformer(
+				ctx,
+				queueinformer.WithInformer(apiServerInformer.Informer()),
+				queueinformer.WithQueue(op.apiServerTLSQueue),
+				queueinformer.WithIndexer(apiServerInformer.Informer().GetIndexer()),
+				queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncAPIServerTLSProfile).ToSyncer()),
+			)
+			if qiErr != nil {
+				log.WithError(qiErr).Warn("Failed to create APIServer TLS queue informer")
+			} else if err := op.RegisterQueueInformer(apiServerQueueInformer); err != nil {
+				log.WithError(err).Warn("Failed to register APIServer TLS queue informer")
+			}
+		}
 	}
 
 	// Use the interval from the CLI as default
@@ -344,6 +406,40 @@ func (op *Operator) syncOLMConfig(obj interface{}) error {
 		}
 	}
 
+	return nil
+}
+
+// syncAPIServerTLSProfile is called by the APIServer informer whenever the
+// cluster singleton APIServer object changes. If the TLS profile differs from
+// the one applied at startup the process exits so it can be restarted with the
+// updated profile. This watch is only active when neither --tls-min-version nor
+// --tls-cipher-suites was supplied via flags; when flags are externally managed
+// (e.g. by PSM) this handler is never registered.
+func (op *Operator) syncAPIServerTLSProfile(obj interface{}) error {
+	apiServer, ok := obj.(*apiconfigv1.APIServer)
+	if !ok {
+		return fmt.Errorf("expected *apiconfigv1.APIServer, got %T", obj)
+	}
+
+	newMinVersion, newCipherSuites := olmapiserver.GetSecurityProfileConfig(apiServer.Spec.TLSSecurityProfile)
+
+	// Compare uint16 values directly. This avoids TLSVersionToNameOrDie and
+	// CipherSuitesToNamesOrDie which panic on unrecognised inputs. Sort cipher
+	// slices before comparing so ordering differences do not cause restart loops.
+	newSortedCiphers := slices.Clone(newCipherSuites)
+	slices.Sort(newSortedCiphers)
+	currentSortedCiphers := slices.Clone(op.appliedTLSCipherSuites)
+	slices.Sort(currentSortedCiphers)
+
+	if newMinVersion == op.appliedTLSMinVersion && slices.Equal(newSortedCiphers, currentSortedCiphers) {
+		return nil
+	}
+
+	// Log raw numeric values to avoid TLSVersionToNameOrDie / CipherSuitesToNamesOrDie
+	// which can panic on unrecognised inputs. The handler must always exit cleanly.
+	log.Warnf("APIServer TLS profile changed (minVersion: %#x → %#x, ciphers: %v → %v), restarting to apply new profile",
+		op.appliedTLSMinVersion, newMinVersion, currentSortedCiphers, newSortedCiphers)
+	op.exitFunc(0)
 	return nil
 }
 

@@ -272,6 +272,13 @@ spec:
           - cluster
           verbs:
           - get
+        - apiGroups:
+          - "config.openshift.io"
+          resources:
+          - apiservers
+          verbs:
+          - list
+          - watch
       deployments:
       - name: packageserver
         spec:

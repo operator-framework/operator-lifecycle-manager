@@ -6,10 +6,13 @@ import (
 
 	apiconfigv1 "github.com/openshift/api/config/v1"
 	configfake "github.com/openshift/client-go/config/clientset/versioned/fake"
+	olmapiserver "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/apiserver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/util/workqueue"
 )
 
 // clusterAPIServer returns a minimal APIServer singleton with the given TLS profile.
@@ -153,5 +156,82 @@ func TestApplyClusterTLSProfileWithClients_ErrorLeavesServingUnchanged(t *testin
 	}
 	if len(serving.CipherSuites) != 0 {
 		t.Errorf("CipherSuites should be unset after error, got %v", serving.CipherSuites)
+	}
+}
+
+// newTestOperator builds a minimal Operator with an injected exitFunc and the
+// applied uint16 TLS profile for use in syncAPIServerTLSProfile tests.
+func newTestOperator(minVersion uint16, cipherSuites []uint16, exited *bool) *Operator {
+	return &Operator{
+		apiServerTLSQueue: workqueue.NewTypedRateLimitingQueueWithConfig[types.NamespacedName](
+			workqueue.DefaultTypedControllerRateLimiter[types.NamespacedName](),
+			workqueue.TypedRateLimitingQueueConfig[types.NamespacedName]{Name: "test"},
+		),
+		options:                &PackageServerOptions{SecureServing: newServing()},
+		appliedTLSMinVersion:   minVersion,
+		appliedTLSCipherSuites: cipherSuites,
+		exitFunc:               func(int) { *exited = true },
+	}
+}
+
+// TestSyncAPIServerTLSProfile_NoRestartWhenUnchanged verifies that the handler
+// does not trigger a restart when the APIServer CR's TLS profile matches the
+// profile that was applied at startup.
+func TestSyncAPIServerTLSProfile_NoRestartWhenUnchanged(t *testing.T) {
+	profile := &apiconfigv1.TLSSecurityProfile{Type: apiconfigv1.TLSProfileIntermediateType}
+	apiServer := clusterAPIServer(profile)
+	minVersion, cipherSuites := olmapiserver.GetSecurityProfileConfig(profile)
+
+	exited := false
+	op := newTestOperator(minVersion, cipherSuites, &exited)
+
+	if err := op.syncAPIServerTLSProfile(apiServer); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exited {
+		t.Error("expected no restart when TLS profile is unchanged")
+	}
+}
+
+// TestSyncAPIServerTLSProfile_RestartWhenMinVersionChanges verifies that the
+// handler triggers a restart when minTLSVersion changes.
+func TestSyncAPIServerTLSProfile_RestartWhenMinVersionChanges(t *testing.T) {
+	intermediateProfile := &apiconfigv1.TLSSecurityProfile{Type: apiconfigv1.TLSProfileIntermediateType}
+	minVersion, cipherSuites := olmapiserver.GetSecurityProfileConfig(intermediateProfile)
+
+	exited := false
+	op := newTestOperator(minVersion, cipherSuites, &exited)
+
+	// Present a Modern profile (TLS 1.3) — minVersion differs from Intermediate.
+	modernServer := clusterAPIServer(&apiconfigv1.TLSSecurityProfile{Type: apiconfigv1.TLSProfileModernType})
+	if err := op.syncAPIServerTLSProfile(modernServer); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !exited {
+		t.Error("expected restart when minTLSVersion changes")
+	}
+}
+
+// TestSyncAPIServerTLSProfile_NoRestartOnCipherReorder verifies that cipher
+// suite reordering does not cause a spurious restart / restart loop.
+func TestSyncAPIServerTLSProfile_NoRestartOnCipherReorder(t *testing.T) {
+	profile := &apiconfigv1.TLSSecurityProfile{Type: apiconfigv1.TLSProfileIntermediateType}
+	apiServer := clusterAPIServer(profile)
+	minVersion, cipherSuites := olmapiserver.GetSecurityProfileConfig(profile)
+
+	// Reverse the cipher slice to simulate an ordering difference.
+	reversed := make([]uint16, len(cipherSuites))
+	for i, c := range cipherSuites {
+		reversed[len(cipherSuites)-1-i] = c
+	}
+
+	exited := false
+	op := newTestOperator(minVersion, reversed, &exited)
+
+	if err := op.syncAPIServerTLSProfile(apiServer); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exited {
+		t.Error("expected no restart when cipher suites are reordered but otherwise equal")
 	}
 }
