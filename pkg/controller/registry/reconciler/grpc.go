@@ -340,11 +340,11 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, cata
 		return pkgerrors.Wrapf(err, "error ensuring pod: %s", pod.GetName())
 	}
 	if err := c.ensureUpdatePod(logger, sa, defaultPodSecurityConfig, source); err != nil {
-		logger.WithError(err).Error("error ensuring registry server: could not ensure update pod")
 		if _, ok := err.(UpdateNotReadyErr); ok {
-			logger.WithError(err).Error("error ensuring registry server: ensure update pod error is not of type UpdateNotReadyErr")
+			logger.WithError(err).Debug("error ensuring registry server: update pod not yet ready")
 			return err
 		}
+		logger.WithError(err).Error("error ensuring registry server: could not ensure update pod")
 		return pkgerrors.Wrapf(err, "error ensuring updated catalog source pod: %s", pod.GetName())
 	}
 

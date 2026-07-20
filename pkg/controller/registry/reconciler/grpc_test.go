@@ -64,6 +64,16 @@ func grpcCatalogSourceWithAnnotations(annotations map[string]string) *v1alpha1.C
 	return catsrc
 }
 
+func grpcCatalogSourceWithPolling() *v1alpha1.CatalogSource {
+	catsrc := validGrpcCatalogSource("image", "")
+	catsrc.Spec.UpdateStrategy = &v1alpha1.UpdateStrategy{
+		RegistryPoll: &v1alpha1.RegistryPoll{
+			Interval: &metav1.Duration{Duration: 1 * time.Minute},
+		},
+	}
+	return catsrc
+}
+
 func grpcCatalogSourceWithName(name string) *v1alpha1.CatalogSource {
 	catsrc := validGrpcCatalogSource("image", "")
 	catsrc.SetName(name)
@@ -385,6 +395,28 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 					ServiceNamespace: testNamespace,
 					Port:             "50051",
 				},
+			},
+		},
+		{
+			testName: "Grpc/PollingEnabled/UpdatePodNotReady/ReturnsUpdateNotReadyErr",
+			in: in{
+				cluster: cluster{
+					k8sObjs: append(
+						objectsForCatalogSource(t, grpcCatalogSourceWithPolling()),
+						&corev1.Pod{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "update-pod",
+								Namespace: testNamespace,
+								Labels:    map[string]string{CatalogSourceUpdateKey: "img-catalog"},
+							},
+							Status: corev1.PodStatus{Phase: corev1.PodRunning},
+						},
+					),
+				},
+				catsrc: grpcCatalogSourceWithPolling(),
+			},
+			out: out{
+				err: UpdateNotReadyErr{catalogName: "img-catalog", podName: "update-pod"},
 			},
 		},
 	}
