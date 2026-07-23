@@ -1,6 +1,7 @@
 package bundle
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -8,7 +9,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v3"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -315,12 +316,17 @@ func GenerateAnnotations(mediaType, manifests, metadata, packageName, channels, 
 		annotations.Annotations[ChannelDefaultLabel] = channelDefault
 	}
 
-	afile, err := yaml.Marshal(annotations)
-	if err != nil {
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2)
+	if err := encoder.Encode(annotations); err != nil {
+		return nil, err
+	}
+	if err := encoder.Close(); err != nil {
 		return nil, err
 	}
 
-	return afile, nil
+	return buf.Bytes(), nil
 }
 
 // GenerateDockerfile builds Dockerfile with mediatype, manifests &

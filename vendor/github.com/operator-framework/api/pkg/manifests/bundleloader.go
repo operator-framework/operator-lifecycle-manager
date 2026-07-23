@@ -122,6 +122,9 @@ func collectWalkErrs(walk filepath.WalkFunc, errs *[]error) filepath.WalkFunc {
 }
 
 func (b *bundleLoader) LoadBundleWalkFunc(path string, f os.FileInfo, err error) error {
+	if err != nil {
+		return err
+	}
 	if f == nil {
 		return fmt.Errorf("invalid file: %v", f)
 	}
