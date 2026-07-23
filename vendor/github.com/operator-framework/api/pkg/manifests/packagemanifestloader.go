@@ -42,6 +42,9 @@ func (p *packageManifestLoader) LoadPackage() error {
 // LoadPackagesWalkFunc attempts to unmarshal the file at the given path into a PackageManifest resource.
 // If unmarshaling is successful, the PackageManifest is added to the loader's store.
 func (p *packageManifestLoader) LoadPackagesWalkFunc(path string, f os.FileInfo, err error) error {
+	if err != nil {
+		return err
+	}
 	if f == nil {
 		return fmt.Errorf("invalid file: %v", f)
 	}
@@ -85,6 +88,9 @@ func (p *packageManifestLoader) LoadPackagesWalkFunc(path string, f os.FileInfo,
 }
 
 func (p *packageManifestLoader) LoadBundleWalkFunc(path string, f os.FileInfo, err error) error {
+	if err != nil {
+		return err
+	}
 	if f == nil {
 		return fmt.Errorf("invalid file: %v", f)
 	}

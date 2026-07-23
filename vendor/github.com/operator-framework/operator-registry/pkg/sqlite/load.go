@@ -162,6 +162,18 @@ func (s *sqlLoader) addOperatorBundle(tx *sql.Tx, bundle *registry.Bundle) error
 	return s.addAPIs(tx, bundle)
 }
 
+// markSeen records name in seen, erroring if it was already there. It guards
+// the substitutesFor chain walks below against cyclic references (e.g. a
+// bundle substituting for itself), which would otherwise loop until the
+// process runs out of memory (OCPBUGS-37284).
+func markSeen(seen map[string]struct{}, name string) error {
+	if _, ok := seen[name]; ok {
+		return fmt.Errorf("cyclic substitutesFor chain detected involving %q", name)
+	}
+	seen[name] = struct{}{}
+	return nil
+}
+
 func (s *sqlLoader) addSubstitutesFor(tx *sql.Tx, bundle *registry.Bundle) error {
 	updateBundleReplaces, err := tx.Prepare("update operatorbundle set replaces = ? where replaces = ?")
 	if err != nil {
@@ -217,11 +229,15 @@ func (s *sqlLoader) addSubstitutesFor(tx *sql.Tx, bundle *registry.Bundle) error
 		if err != nil {
 			return err
 		}
+		otherSeen := map[string]struct{}{csvName: {}}
 		for len(otherSubstitutions) > 0 {
 			// consume the slice of substitutions
 			otherSubstitution := otherSubstitutions[0]
 			otherSubstitutions = otherSubstitutions[1:]
 			if otherSubstitution != csvName {
+				if err := markSeen(otherSeen, otherSubstitution); err != nil {
+					return err
+				}
 				// Another bundle is substituting for that same bundle
 				// Get other bundle's version
 				_, _, rawVersion, err := s.getBundleSkipsReplacesVersion(tx, otherSubstitution)
@@ -288,7 +304,11 @@ func (s *sqlLoader) addSubstitutesFor(tx *sql.Tx, bundle *registry.Bundle) error
 
 	// If the substituted-for of the current bundle substitutes for another bundle
 	// it should also be added to the skips of the substitutesFor bundle
+	seen := map[string]struct{}{csvName: {}}
 	for substitutesFor != "" {
+		if err := markSeen(seen, substitutesFor); err != nil {
+			return err
+		}
 		skips = append(skips, substitutesFor)
 		substitutesFor, err = s.getBundleSubstitution(tx, substitutesFor)
 		if err != nil {
@@ -305,7 +325,11 @@ func (s *sqlLoader) addSubstitutesFor(tx *sql.Tx, bundle *registry.Bundle) error
 	if err != nil || len(substitutesFors) > 1 {
 		return err
 	}
+	seen = map[string]struct{}{csvName: {}}
 	for len(substitutesFors) > 0 {
+		if err := markSeen(seen, substitutesFors[0]); err != nil {
+			return err
+		}
 		err = s.appendSkips(tx, append(skips, csvName), substitutesFors[0])
 		if err != nil {
 			return err
@@ -318,6 +342,7 @@ func (s *sqlLoader) addSubstitutesFor(tx *sql.Tx, bundle *registry.Bundle) error
 
 	// Bundles that skip a bundle that is substituted for
 	// should also skip the substituted-for bundle
+	// nolint:nestif
 	if len(skips) != 0 {
 		// ensure slice of skips doesn't contain duplicates
 		substitutesSkips := make(map[string]struct{})
@@ -328,12 +353,16 @@ func (s *sqlLoader) addSubstitutesFor(tx *sql.Tx, bundle *registry.Bundle) error
 			if err != nil || len(substitutesFors) > 1 {
 				return err
 			}
+			seen = map[string]struct{}{skip: {}}
 			for len(substitutesFors) > 0 {
 				// consume the slice of substitutions
 				substitutesFor = substitutesFors[0]
 				substitutesFors = substitutesFors[1:]
 				// shouldn't skip yourself
 				if substitutesFor != csvName {
+					if err := markSeen(seen, substitutesFor); err != nil {
+						return err
+					}
 					substitutesSkips[substitutesFor] = struct{}{}
 					substitutesFors, err = s.getBundlesThatSubstitutesFor(tx, substitutesFor)
 					if err != nil || len(substitutesFors) > 1 {
@@ -356,9 +385,13 @@ func (s *sqlLoader) addSubstitutesFor(tx *sql.Tx, bundle *registry.Bundle) error
 		if err != nil {
 			return err
 		}
+		seen = map[string]struct{}{replaces: {}}
 		for len(substitutesFors) > 0 {
 			// update the replaces to a newer substitution
 			replaces = substitutesFors[0]
+			if err := markSeen(seen, replaces); err != nil {
+				return err
+			}
 			// try to get the substitution of the substitution
 			substitutesFors, err = s.getBundlesThatSubstitutesFor(tx, replaces)
 			if err != nil || len(substitutesFors) > 1 {

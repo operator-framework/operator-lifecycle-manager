@@ -1,17 +1,15 @@
+version: "2"
 run:
   timeout: 5m
 linters:
-  disable-all: true
+  default: none
   enable:
     - govet
     - errcheck
     - staticcheck
     - unused
-    - gosimple
-    - structcheck
-    - varcheck
     - ineffassign
-    - deadcode
-    - typecheck
-    - gofmt
     - goconst
+formatters:
+  enable:
+    - gofmt

@@ -51,7 +51,7 @@ func loadPatterns(root fs.FS, path string) ([]gitignore.Pattern, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	patterns := []gitignore.Pattern{}
 	scanner := bufio.NewScanner(f)
