@@ -199,18 +199,28 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 	// Install owned APIServices and update strategy with serving cert data
 	updatedStrategy, err := i.installCertRequirements(strategy)
 	if err != nil {
-		return err
+		return classifyInstallError(err)
 	}
 
 	if err := i.installDeployments(updatedStrategy.DeploymentSpecs); err != nil {
-		if apierrors.IsForbidden(err) {
-			return StrategyError{Reason: StrategyErrInsufficientPermissions, Message: fmt.Sprintf("install strategy failed: %s", err)}
-		}
-		return err
+		return classifyInstallError(err)
 	}
 
 	// Clean up orphaned deployments
 	return i.cleanupOrphanedDeployments(updatedStrategy.DeploymentSpecs)
+}
+
+// classifyInstallError maps errors encountered while creating or updating strategy
+// components to a StrategyError so callers can distinguish unrecoverable failures
+// (e.g. a permanently malformed or forbidden component) from ones worth retrying.
+func classifyInstallError(err error) error {
+	if apierrors.IsForbidden(err) {
+		return StrategyError{Reason: StrategyErrInsufficientPermissions, Message: fmt.Sprintf("install strategy failed: %s", err)}
+	}
+	if apierrors.IsInvalid(err) {
+		return StrategyError{Reason: StrategyErrReasonComponentInvalid, Message: fmt.Sprintf("install strategy failed: %s", err)}
+	}
+	return err
 }
 
 // CheckInstalled can return nil (installed), or errors

@@ -10,6 +10,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 
@@ -395,6 +396,30 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInstallStrategyDeploymentInstallInvalidDeployment(t *testing.T) {
+	namespace := "olm-test-deployment"
+	mockOwner := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "clusterserviceversion-owner",
+			Namespace: namespace,
+		},
+	}
+
+	fakeClient := new(clientfakes.FakeInstallStrategyDeploymentInterface)
+	fakeClient.CreateOrUpdateDeploymentReturns(nil, apierrors.NewInvalid(appsv1.SchemeGroupVersion.WithKind("Deployment").GroupKind(), "Bad_Deployment_Name", nil))
+
+	installer := NewStrategyDeploymentInstaller(fakeClient, nil, &mockOwner, nil, nil, nil, nil)
+
+	err := installer.Install(strategy(1, namespace, &mockOwner))
+	require.Error(t, err)
+	require.Equal(t, StrategyErrReasonComponentInvalid, ReasonForError(err))
+	require.True(t, IsErrorUnrecoverable(err), "an invalid deployment spec should be treated as an unrecoverable install error")
 }
 
 func TestInstallStrategyDeploymentCleanupDeployments(t *testing.T) {
