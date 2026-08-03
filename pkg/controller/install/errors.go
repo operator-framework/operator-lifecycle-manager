@@ -9,7 +9,7 @@ const (
 	StrategyErrReasonUnknown            = "Unknown"
 	StrategyErrBadPatch                 = "PatchUnsuccessful"
 	StrategyErrDeploymentUpdated        = "DeploymentUpdated"
-	StrategyErrInsufficientPermissions  = "InsufficentPermissions"
+	StrategyErrInsufficientPermissions  = "InsufficientPermissions"
 	StrategyErrReasonComponentInvalid   = "ComponentInvalid"
 )
 
