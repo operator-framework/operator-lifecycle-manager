@@ -158,8 +158,8 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 					},
 					ReadinessProbe: &corev1.Probe{
 						ProbeHandler: corev1.ProbeHandler{
-							Exec: &corev1.ExecAction{
-								Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+							GRPC: &corev1.GRPCAction{
+								Port: 50051,
 							},
 						},
 						InitialDelaySeconds: readinessDelay,
@@ -167,8 +167,8 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 					},
 					LivenessProbe: &corev1.Probe{
 						ProbeHandler: corev1.ProbeHandler{
-							Exec: &corev1.ExecAction{
-								Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+							GRPC: &corev1.GRPCAction{
+								Port: 50051,
 							},
 						},
 						InitialDelaySeconds: livenessDelay,
@@ -176,8 +176,8 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 					},
 					StartupProbe: &corev1.Probe{
 						ProbeHandler: corev1.ProbeHandler{
-							Exec: &corev1.ExecAction{
-								Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+							GRPC: &corev1.GRPCAction{
+								Port: 50051,
 							},
 						},
 						FailureThreshold: 10,
