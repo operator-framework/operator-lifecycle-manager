@@ -67,8 +67,7 @@ operator-lifecycle-manager/
 ├── cmd/                          # Entry point binaries
 │   ├── catalog/                  # Catalog Operator main
 │   ├── olm/                      # OLM Operator main
-│   ├── package-server/           # Package API server
-│   └── copy-content/             # Content copy utility
+│   └── package-server/           # Package API server
 │
 ├── pkg/                          # Core implementation
 │   ├── api/                      # API client and wrappers

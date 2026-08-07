@@ -39,7 +39,6 @@ type grpcCatalogSourceDecorator struct {
 	*v1alpha1.CatalogSource
 	createPodAsUser int64
 	opmImage        string
-	utilImage       string
 }
 
 type UpdateNotReadyErr struct {
@@ -144,7 +143,7 @@ func (s *grpcCatalogSourceDecorator) ServiceAccount() *corev1.ServiceAccount {
 }
 
 func (s *grpcCatalogSourceDecorator) Pod(serviceAccount *corev1.ServiceAccount, defaultPodSecurityConfig v1alpha1.SecurityConfig) (*corev1.Pod, error) {
-	pod, err := Pod(s.CatalogSource, "registry-server", s.opmImage, s.utilImage, s.Spec.Image, serviceAccount, s.Labels(), s.Annotations(), 5, 10, s.createPodAsUser, defaultPodSecurityConfig)
+	pod, err := Pod(s.CatalogSource, "registry-server", s.opmImage, s.Spec.Image, serviceAccount, s.Labels(), s.Annotations(), 5, 10, s.createPodAsUser, defaultPodSecurityConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +158,6 @@ type GrpcRegistryReconciler struct {
 	SSAClient       *controllerclient.ServerSideApplier
 	createPodAsUser int64
 	opmImage        string
-	utilImage       string
 }
 
 var _ RegistryReconciler = &GrpcRegistryReconciler{}
@@ -262,23 +260,26 @@ func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(logger *logr
 }
 
 func correctImages(source grpcCatalogSourceDecorator, pod *corev1.Pod) bool {
-	if source.CatalogSource.Spec.GrpcPodConfig != nil && source.CatalogSource.Spec.GrpcPodConfig.ExtractContent != nil {
-		if len(pod.Spec.InitContainers) != 2 {
-			return false
-		}
-		if len(pod.Spec.Containers) != 1 {
-			return false
-		}
-		return pod.Spec.InitContainers[0].Image == source.utilImage &&
-			pod.Spec.InitContainers[1].Image == source.CatalogSource.Spec.Image &&
-			pod.Spec.Containers[0].Image == source.opmImage
+	if len(pod.Spec.InitContainers) != 0 || len(pod.Spec.Containers) != 1 {
+		return false
 	}
-	return pod.Spec.Containers[0].Image == source.CatalogSource.Spec.Image
+	if pod.Spec.Containers[0].Image != source.CatalogSource.Spec.Image {
+		return false
+	}
+	if source.CatalogSource.Spec.GrpcPodConfig != nil && source.CatalogSource.Spec.GrpcPodConfig.ExtractContent != nil {
+		if len(pod.Spec.Volumes) == 0 {
+			return false
+		}
+		return pod.Spec.Volumes[0].Name == opmVolumeName &&
+			pod.Spec.Volumes[0].VolumeSource.Image != nil &&
+			pod.Spec.Volumes[0].VolumeSource.Image.Reference == source.opmImage
+	}
+	return true
 }
 
 // EnsureRegistryServer ensures that all components of registry server are up to date.
 func (c *GrpcRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, catalogSource *v1alpha1.CatalogSource) error {
-	source := grpcCatalogSourceDecorator{CatalogSource: catalogSource, createPodAsUser: c.createPodAsUser, opmImage: c.opmImage, utilImage: c.utilImage}
+	source := grpcCatalogSourceDecorator{CatalogSource: catalogSource, createPodAsUser: c.createPodAsUser, opmImage: c.opmImage}
 
 	// if service status is nil, we force create every object to ensure they're created the first time
 	valid, err := isRegistryServiceStatusValid(&source)
@@ -618,21 +619,16 @@ func isPodDead(pod *corev1.Pod) bool {
 	return false
 }
 
-// imageID returns the ImageID of the primary catalog source container or an empty string if the image ID isn't available yet.
+// imageID returns the ImageID of the catalog source container or an empty string if the image ID isn't available yet.
 // Note: the pod must be running and the container in a ready status to return a valid ImageID.
 func imageID(pod *corev1.Pod) string {
-	if len(pod.Status.InitContainerStatuses) == 2 && len(pod.Status.ContainerStatuses) == 1 {
-		// spec.grpcPodConfig.extractContent mode was used for this pod
-		return pod.Status.InitContainerStatuses[1].ImageID
-	}
-	if len(pod.Status.InitContainerStatuses) == 0 && len(pod.Status.ContainerStatuses) == 1 {
-		// spec.grpcPodConfig.extractContent mode was NOT used for this pod (i.e. we're just running the catalog image directly)
+	if len(pod.Status.ContainerStatuses) == 1 {
 		return pod.Status.ContainerStatuses[0].ImageID
 	}
-	if len(pod.Status.InitContainerStatuses) == 0 && len(pod.Status.ContainerStatuses) == 0 {
-		logrus.WithField("CatalogSource", pod.GetName()).Warn("pod status unknown; pod has not yet populated initContainer and container status")
+	if len(pod.Status.ContainerStatuses) == 0 {
+		logrus.WithField("CatalogSource", pod.GetName()).Warn("pod status unknown; pod has not yet populated container status")
 	} else {
-		logrus.WithField("CatalogSource", pod.GetName()).Warn("pod status unknown; pod contains unexpected initContainer and container configuration")
+		logrus.WithField("CatalogSource", pod.GetName()).Warn("pod status unknown; pod contains unexpected container configuration")
 	}
 	return ""
 }
@@ -648,7 +644,7 @@ func (c *GrpcRegistryReconciler) removePods(pods []*corev1.Pod, namespace string
 
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
 func (c *GrpcRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, catalogSource *v1alpha1.CatalogSource) (bool, error) {
-	source := grpcCatalogSourceDecorator{CatalogSource: catalogSource, createPodAsUser: c.createPodAsUser, opmImage: c.opmImage, utilImage: c.utilImage}
+	source := grpcCatalogSourceDecorator{CatalogSource: catalogSource, createPodAsUser: c.createPodAsUser, opmImage: c.opmImage}
 
 	// The CheckRegistryServer function is called by the CatalogSoruce controller before the registry resources are created,
 	// returning a IsNotFound error will cause the controller to exit and never create the resources, so we should

@@ -722,25 +722,12 @@ func TestGetPodImageID(t *testing.T) {
 		result      string
 	}{
 		{
-			description: "default pod has status: return status",
+			description: "pod has single container status: return imageID",
 			pod:         &corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{{ImageID: "xyz123"}}}},
 			result:      "xyz123",
 		},
 		{
-			description: "extractConfig pod has status: return status",
-			pod: &corev1.Pod{Status: corev1.PodStatus{
-				InitContainerStatuses: []corev1.ContainerStatus{
-					{ImageID: "xyz123"},
-					{ImageID: "abc456"},
-				},
-				ContainerStatuses: []corev1.ContainerStatus{
-					{ImageID: "xyz123"},
-				},
-			}},
-			result: "abc456",
-		},
-		{
-			description: "pod has unexpected container config",
+			description: "pod has unexpected multiple container statuses",
 			pod: &corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{
 				{ImageID: "xyz123"},
 				{ImageID: "abc456"},

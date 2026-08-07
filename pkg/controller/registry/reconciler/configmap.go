@@ -113,7 +113,7 @@ func (s *configMapCatalogSourceDecorator) Service() (*corev1.Service, error) {
 }
 
 func (s *configMapCatalogSourceDecorator) Pod(image string, defaultPodSecurityConfig v1alpha1.SecurityConfig) (*corev1.Pod, error) {
-	pod, err := Pod(s.CatalogSource, "configmap-registry-server", "", "", image, nil, s.Labels(), s.Annotations(), 5, 5, s.runAsUser, defaultPodSecurityConfig)
+	pod, err := Pod(s.CatalogSource, "configmap-registry-server", "", image, nil, s.Labels(), s.Annotations(), 5, 5, s.runAsUser, defaultPodSecurityConfig)
 	if err != nil {
 		return nil, err
 	}
