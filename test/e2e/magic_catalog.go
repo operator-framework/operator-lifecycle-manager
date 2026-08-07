@@ -293,8 +293,8 @@ func (c *MagicCatalog) makeCatalogSourcePod() *corev1.Pod {
 					},
 					ReadinessProbe: &corev1.Probe{
 						ProbeHandler: corev1.ProbeHandler{
-							Exec: &corev1.ExecAction{
-								Command: []string{"grpc_health_probe", "-addr=:50051"},
+							GRPC: &corev1.GRPCAction{
+								Port: 50051,
 							},
 						},
 						InitialDelaySeconds: readinessDelay,
@@ -302,8 +302,8 @@ func (c *MagicCatalog) makeCatalogSourcePod() *corev1.Pod {
 					},
 					LivenessProbe: &corev1.Probe{
 						ProbeHandler: corev1.ProbeHandler{
-							Exec: &corev1.ExecAction{
-								Command: []string{"grpc_health_probe", "-addr=:50051"},
+							GRPC: &corev1.GRPCAction{
+								Port: 50051,
 							},
 						},
 						InitialDelaySeconds: livenessDelay,

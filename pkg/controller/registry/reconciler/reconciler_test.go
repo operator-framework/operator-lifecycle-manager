@@ -38,7 +38,7 @@ func TestPodMemoryTarget(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "KpDeU9UesY5GlqG7ZUg9deo8Jp7mEGdpBhGJn", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "b5nr2RkG6B45bx5Cn63j7B5ybVGjvneXC0AGu7", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -49,8 +49,8 @@ func TestPodMemoryTarget(t *testing.T) {
 							Ports: []corev1.ContainerPort{{Name: "grpc", ContainerPort: 50051}},
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								InitialDelaySeconds: 0,
@@ -58,8 +58,8 @@ func TestPodMemoryTarget(t *testing.T) {
 							},
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								InitialDelaySeconds: 0,
@@ -67,8 +67,8 @@ func TestPodMemoryTarget(t *testing.T) {
 							},
 							StartupProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								FailureThreshold: 10,
@@ -110,7 +110,7 @@ func TestPodMemoryTarget(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "1Cl0FkZ1FdtjQ91Ojcj7pM0MphZFlOuLPtz2Cu", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "62b6r57eNVnmLZo0glbfT9JJHn98HcJzBhZN94", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -122,8 +122,8 @@ func TestPodMemoryTarget(t *testing.T) {
 							Env:   []corev1.EnvVar{{Name: "GOMEMLIMIT", Value: "5MiB"}},
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								InitialDelaySeconds: 0,
@@ -131,8 +131,8 @@ func TestPodMemoryTarget(t *testing.T) {
 							},
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								InitialDelaySeconds: 0,
@@ -140,8 +140,8 @@ func TestPodMemoryTarget(t *testing.T) {
 							},
 							StartupProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								FailureThreshold: 10,
@@ -209,7 +209,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "KpDeU9UesY5GlqG7ZUg9deo8Jp7mEGdpBhGJn", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "b5nr2RkG6B45bx5Cn63j7B5ybVGjvneXC0AGu7", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -220,8 +220,8 @@ func TestPodExtractContent(t *testing.T) {
 							Ports: []corev1.ContainerPort{{Name: "grpc", ContainerPort: 50051}},
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								InitialDelaySeconds: 0,
@@ -229,8 +229,8 @@ func TestPodExtractContent(t *testing.T) {
 							},
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								InitialDelaySeconds: 0,
@@ -238,8 +238,8 @@ func TestPodExtractContent(t *testing.T) {
 							},
 							StartupProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								FailureThreshold: 10,
@@ -285,7 +285,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "9SbEBzbV5JmBIA6zza29T4lIo0ESVJ8SN6slOY", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "7RONLG0R9WhWbcfGQvcwjexvGmZhN0Hyl16mHH", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -341,8 +341,8 @@ func TestPodExtractContent(t *testing.T) {
 							Ports:   []corev1.ContainerPort{{Name: "grpc", ContainerPort: 50051}},
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								InitialDelaySeconds: 0,
@@ -350,8 +350,8 @@ func TestPodExtractContent(t *testing.T) {
 							},
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								InitialDelaySeconds: 0,
@@ -359,8 +359,8 @@ func TestPodExtractContent(t *testing.T) {
 							},
 							StartupProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								FailureThreshold: 10,
@@ -406,7 +406,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "1B9AFU7EIoI0CgRaHbyBL3EnGzwrkBq968SSps", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "8GtO2FTxu9llB1icRoWQIinKIVmNcrtivDihGG", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -464,8 +464,8 @@ func TestPodExtractContent(t *testing.T) {
 							Ports:   []corev1.ContainerPort{{Name: "grpc", ContainerPort: 50051}},
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								InitialDelaySeconds: 0,
@@ -473,8 +473,8 @@ func TestPodExtractContent(t *testing.T) {
 							},
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								InitialDelaySeconds: 0,
@@ -482,8 +482,8 @@ func TestPodExtractContent(t *testing.T) {
 							},
 							StartupProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								FailureThreshold: 10,
@@ -522,7 +522,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "8qB6OcFt60v8HdhXnPkB1cjF39t7RkFx9K0JxW", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "8MrvWgiEdqXHHX9wiYJTEe8NgdSQYTVQtOnqml", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -533,8 +533,8 @@ func TestPodExtractContent(t *testing.T) {
 							Ports: []corev1.ContainerPort{{Name: "grpc", ContainerPort: 50051}},
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								InitialDelaySeconds: 0,
@@ -542,8 +542,8 @@ func TestPodExtractContent(t *testing.T) {
 							},
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								InitialDelaySeconds: 0,
@@ -551,8 +551,8 @@ func TestPodExtractContent(t *testing.T) {
 							},
 							StartupProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								FailureThreshold: 10,
@@ -605,7 +605,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "3xuLPXGJ2pzekw21PFU68XUKOYc7PTuW45M521", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "30zwNEAtF3RcZ94bM4MzA64LwQ8ikpEyrQHTd6", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -665,8 +665,8 @@ func TestPodExtractContent(t *testing.T) {
 							Ports:   []corev1.ContainerPort{{Name: "grpc", ContainerPort: 50051}},
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								InitialDelaySeconds: 0,
@@ -674,8 +674,8 @@ func TestPodExtractContent(t *testing.T) {
 							},
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								InitialDelaySeconds: 0,
@@ -683,8 +683,8 @@ func TestPodExtractContent(t *testing.T) {
 							},
 							StartupProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								FailureThreshold: 10,
@@ -737,7 +737,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "7noQSgGmkI4BD1MPKe0pEFFfOE3jJtN2DUyZuD", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "G21gfJ9Iz3wyOmy5eBn7kFuqBv93zGJP5lFEM", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -799,8 +799,8 @@ func TestPodExtractContent(t *testing.T) {
 							Ports:   []corev1.ContainerPort{{Name: "grpc", ContainerPort: 50051}},
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								InitialDelaySeconds: 0,
@@ -808,8 +808,8 @@ func TestPodExtractContent(t *testing.T) {
 							},
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								InitialDelaySeconds: 0,
@@ -817,8 +817,8 @@ func TestPodExtractContent(t *testing.T) {
 							},
 							StartupProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{"grpc_health_probe", "-addr=:50051", "-rpc-timeout=5s"},
+									GRPC: &corev1.GRPCAction{
+										Port: 50051,
 									},
 								},
 								FailureThreshold: 10,
