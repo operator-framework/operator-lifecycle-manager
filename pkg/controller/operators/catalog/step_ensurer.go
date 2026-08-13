@@ -114,28 +114,27 @@ func (o *StepEnsurer) EnsureSecret(operatorNamespace, planNamespace, name string
 	return
 }
 
-// EnsureBundleSecret creates user-specified secrets from the bundle. Called when StepResource.Secret is true
-func (o *StepEnsurer) EnsureBundleSecret(namespace string, secret *corev1.Secret) (status v1alpha1.StepStatus, err error) {
-	_, createErr := o.kubeClient.KubernetesInterface().CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
+// createOrUpdateSecret creates or updates a Secret using the given client.
+// Returns Created on fresh create, Present on update (AlreadyExists), or an error.
+func createOrUpdateSecret(client operatorclient.ClientInterface, namespace string, secret *corev1.Secret) (v1alpha1.StepStatus, error) {
+	_, createErr := client.KubernetesInterface().CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
 	if createErr == nil {
-		status = v1alpha1.StepStatusCreated
-		return
+		return v1alpha1.StepStatusCreated, nil
 	}
-
 	if !apierrors.IsAlreadyExists(createErr) {
-		err = errorwrap.Wrapf(createErr, "error updating secret: %s", secret.GetName())
-		return
+		return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(createErr, "error creating secret: %s", secret.GetName())
 	}
-
-	secret.SetNamespace(namespace)
 	// NOTE: any annotations/changes applied to the secret are lost
-	if _, updateErr := o.kubeClient.UpdateSecret(secret); updateErr != nil {
-		err = errorwrap.Wrapf(updateErr, "error updating secret: %s", secret.GetName())
-		return
+	if _, updateErr := client.UpdateSecret(secret); updateErr != nil {
+		return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(updateErr, "error updating secret: %s", secret.GetName())
 	}
+	return v1alpha1.StepStatusPresent, nil
+}
 
-	status = v1alpha1.StepStatusPresent
-	return
+// EnsureBundleSecret creates user-specified secrets from the bundle. Called when StepResource.Secret is true
+func (o *StepEnsurer) EnsureBundleSecret(namespace string, secret *corev1.Secret) (v1alpha1.StepStatus, error) {
+	secret.SetNamespace(namespace)
+	return createOrUpdateSecret(o.kubeClient, namespace, secret)
 }
 
 // EnsureServiceAccount writes the specified ServiceAccount object to the cluster.
