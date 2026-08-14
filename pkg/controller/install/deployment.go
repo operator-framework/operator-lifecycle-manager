@@ -123,12 +123,36 @@ func (i *StrategyDeploymentInstaller) createOrUpdateCertResourcesForDeployment()
 				return err
 			}
 		case *webhookDescriptionWithCAPEM:
+			// ConversionWebhook CRD patching is deferred to the post-Install readiness
+			// check (areWebhooksAvailable) so that spec.conversion is only written once
+			// the new deployment's pods are actually serving /convert. Writing it here
+			// during Install() — before any pod is ready — causes a window where the
+			// apiserver routes conversion calls to pods that return HTTP 404.
+			if d.webhookDescription.Type == v1alpha1.ConversionWebhook {
+				continue
+			}
 			err := i.createOrUpdateWebhook(d.caPEM, d.webhookDescription)
 			if err != nil {
 				return err
 			}
 		default:
 			return fmt.Errorf("unsupported CA Resource")
+		}
+	}
+	return nil
+}
+
+// EnsureConversionWebhooks writes spec.conversion on CRDs for any ConversionWebhook
+// entries in the cert resources. Called after the deployment is confirmed ready so that
+// the conversion endpoint is only activated when the new pods are serving /convert.
+func (i *StrategyDeploymentInstaller) EnsureConversionWebhooks() error {
+	for _, desc := range i.getCertResources() {
+		d, ok := desc.(*webhookDescriptionWithCAPEM)
+		if !ok || d.webhookDescription.Type != v1alpha1.ConversionWebhook {
+			continue
+		}
+		if err := i.createOrUpdateConversionWebhook(d.caPEM, d.webhookDescription); err != nil {
+			return err
 		}
 	}
 	return nil
