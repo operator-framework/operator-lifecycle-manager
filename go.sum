@@ -503,8 +503,8 @@ go.opentelemetry.io/proto/otlp v1.10.0 h1:IQRWgT5srOCYfiWnpqUYz9CVmbO8bFmKcwYxpu
 go.opentelemetry.io/proto/otlp v1.10.0/go.mod h1:/CV4QoCR/S9yaPj8utp3lvQPoqMtxXdzn7ozvvozVqk=
 go.podman.io/common v0.68.1 h1:y8NoHLidghpgHtWtwB9+pN7cHhIDe33g1sB4RFCRvKI=
 go.podman.io/common v0.68.1/go.mod h1:zVzufHkRpLueF6NW6N+fAs1C2METdzYcfD9zuw+oJKA=
-go.podman.io/image/v5 v5.41.0 h1:xOan4jlwbT4R5qhe3ruDAGJLnOC2z0eR61WhZjHbe4E=
-go.podman.io/image/v5 v5.41.0/go.mod h1:wfgAlfczPK4ZZw/wn/Av2iJfb3z9Vv+RKWgjHNShzZk=
+go.podman.io/image/v5 v5.41.1 h1:iPrhIt7/aNfRBMuzoxbMUVpQmR7Q75ahnrzkIC4JWLQ=
+go.podman.io/image/v5 v5.41.1/go.mod h1:wfgAlfczPK4ZZw/wn/Av2iJfb3z9Vv+RKWgjHNShzZk=
 go.podman.io/storage v1.64.0 h1:ryHCZO+Zl0ZG7OTHF+Qc4C0zLNuoe9W35zgE7mh2pYw=
 go.podman.io/storage v1.64.0/go.mod h1:ft0DzCRMZs1yn0rszmLYXEEwgd7IIc66JRwSRPUDwwc=
 go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
