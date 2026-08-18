@@ -41,6 +41,12 @@ func (r *replace) IsBeingReplaced(in *v1alpha1.ClusterServiceVersion, csvsInName
 			continue
 		}
 
+		// a CSV cannot replace itself
+		if csv.GetName() == in.GetName() {
+			r.logger.WithField("csv", in.GetName()).Debug("ignoring self-referencing spec.replaces")
+			continue
+		}
+
 		r.logger.Debugf("checking %s", csv.GetName())
 
 		if csv.Spec.Replaces == in.GetName() {
@@ -63,6 +69,12 @@ func (r *replace) IsReplacing(in *v1alpha1.ClusterServiceVersion) *v1alpha1.Clus
 		return nil
 	}
 
+	// a CSV cannot replace itself
+	if in.Spec.Replaces == in.GetName() {
+		r.logger.WithField("csv", in.GetName()).Debug("ignoring self-referencing spec.replaces")
+		return nil
+	}
+
 	// using the client instead of a lister; missing an object because of a cache sync can cause upgrades to fail
 	previous, err := r.client.OperatorsV1alpha1().ClusterServiceVersions(in.GetNamespace()).Get(context.TODO(), in.Spec.Replaces, metav1.GetOptions{})
 	if err != nil {
@@ -79,11 +91,19 @@ func (r *replace) IsReplacing(in *v1alpha1.ClusterServiceVersion) *v1alpha1.Clus
 // If the corresponding ClusterServiceVersion is not found nil is returned.
 func (r *replace) GetFinalCSVInReplacing(in *v1alpha1.ClusterServiceVersion, csvsInNamespace map[string]*v1alpha1.ClusterServiceVersion) (replacedBy *v1alpha1.ClusterServiceVersion) {
 	current := in
+	visited := map[string]struct{}{in.GetName(): {}}
 	for {
 		next := r.IsBeingReplaced(current, csvsInNamespace)
 		if next == nil {
 			break
 		}
+
+		// a cycle in the replacement chain would loop forever
+		if _, ok := visited[next.GetName()]; ok {
+			r.logger.WithField("csv", next.GetName()).Debug("cycle detected in replacement chain")
+			break
+		}
+		visited[next.GetName()] = struct{}{}
 
 		replacedBy = next
 		current = next

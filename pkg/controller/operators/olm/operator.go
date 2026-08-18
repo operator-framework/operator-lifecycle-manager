@@ -2539,7 +2539,10 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// If there is a succeeded replacement, mark this for deletion
 		next := a.isBeingReplaced(out, a.csvSet(out.GetNamespace(), v1alpha1.CSVPhaseAny))
 		// Get the newest CSV in the replacement chain if fail forward upgrades are enabled.
-		if operatorGroup.UpgradeStrategy() == operatorsv1.UpgradeStrategyUnsafeFailForward {
+		// next can be nil (e.g. the replacement was deleted, or a self-referencing
+		// spec.replaces is ignored by the finder); fall through to the
+		// "no replacement CSV found" error below instead of dereferencing it.
+		if next != nil && operatorGroup.UpgradeStrategy() == operatorsv1.UpgradeStrategyUnsafeFailForward {
 			csvs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(next.GetNamespace()).List(labels.Everything())
 			if err != nil {
 				syncError = err

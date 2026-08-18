@@ -3464,6 +3464,71 @@ func TestTransitionCSVFailForward(t *testing.T) {
 				},
 			},
 		},
+		{
+			// A CSV left in Replacing by a pre-cycle-guard OLM whose spec.replaces
+			// names itself: with the self-reference guards, isBeingReplaced returns
+			// nil, and the fail-forward chain walk must not dereference it.
+			name: "FailForwardEnabled/SelfReferencingCSV/NoPanicReplacementNotFound",
+			initial: initial{
+				csvs: []*v1alpha1.ClusterServiceVersion{
+					csvWithAnnotations(csv("csv1",
+						namespace,
+						"1.0.0",
+						"csv1",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseReplacing,
+					), addAnnotations(defaultTemplateAnnotations, map[string]string{})),
+				},
+				clientObjs: []runtime.Object{
+					func() *operatorsv1.OperatorGroup {
+						og := defaultOperatorGroup.DeepCopy()
+						og.Spec.UpgradeStrategy = operatorsv1.UpgradeStrategyUnsafeFailForward
+						return og
+					}(),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseReplacing},
+				},
+				err: map[string]error{
+					"csv1": fmt.Errorf("marked as replacement, but no replacement CSV found in cluster"),
+				},
+			},
+		},
+		{
+			name: "FailForwardDisabled/SelfReferencingCSV/ReplacementNotFound",
+			initial: initial{
+				csvs: []*v1alpha1.ClusterServiceVersion{
+					csvWithAnnotations(csv("csv1",
+						namespace,
+						"1.0.0",
+						"csv1",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseReplacing,
+					), addAnnotations(defaultTemplateAnnotations, map[string]string{})),
+				},
+				clientObjs: []runtime.Object{
+					func() *operatorsv1.OperatorGroup {
+						og := defaultOperatorGroup.DeepCopy()
+						og.Spec.UpgradeStrategy = operatorsv1.UpgradeStrategyDefault
+						return og
+					}(),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseReplacing},
+				},
+				err: map[string]error{
+					"csv1": fmt.Errorf("marked as replacement, but no replacement CSV found in cluster"),
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
