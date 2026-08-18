@@ -600,10 +600,12 @@ func (a *Operator) areWebhooksAvailable(csv *v1alpha1.ClusterServiceVersion, ins
 			// Write spec.conversion on each target CRD now that the deployment is confirmed
 			// ready. This is deferred from Install() to prevent routing conversion calls to
 			// pods that are not yet serving /convert.
-			if sdi, ok := installer.(*install.StrategyDeploymentInstaller); ok {
-				if err := sdi.EnsureConversionWebhooks(); err != nil {
-					return false, fmt.Errorf("conversionWebhook not ready: %w", err)
-				}
+			sdi, ok := installer.(*install.StrategyDeploymentInstaller)
+			if !ok {
+				return false, fmt.Errorf("conversionWebhook requires a StrategyDeploymentInstaller, got %T", installer)
+			}
+			if err := sdi.EnsureConversionWebhooks(); err != nil {
+				return false, fmt.Errorf("conversionWebhook not ready: %w", err)
 			}
 			for _, conversionCRD := range desc.ConversionCRDs {
 				// check if CRD exists on cluster
