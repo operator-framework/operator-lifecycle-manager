@@ -2641,9 +2641,11 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 	// Only attempt to write spec.conversion once the deployment is confirmed ready.
 	// areWebhooksAvailable calls EnsureConversionWebhooks, so calling it when
 	// strategyInstalled is false would recreate the upgrade race we are fixing.
+	// Note: CheckInstalled never returns (true, non-nil error), so strategyInstalled
+	// is sufficient — no need to also gate on strategyErr.
 	webhooksInstalled := false
 	var webhookErr error
-	if strategyInstalled && strategyErr == nil {
+	if strategyInstalled {
 		webhooksInstalled, webhookErr = a.areWebhooksAvailable(csv, installer)
 	}
 
