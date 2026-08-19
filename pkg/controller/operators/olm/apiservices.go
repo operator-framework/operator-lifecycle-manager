@@ -562,7 +562,11 @@ func (a *Operator) cleanUpRemovedWebhooks(csv *v1alpha1.ClusterServiceVersion) e
 	return nil
 }
 
-func (a *Operator) areWebhooksAvailable(csv *v1alpha1.ClusterServiceVersion) (bool, error) {
+// areWebhooksAvailable checks that all webhook resources declared in the CSV exist and
+// are correctly configured. For ConversionWebhook entries it also writes spec.conversion
+// on the target CRDs using the provided installer, ensuring conversion is only activated
+// once the new deployment's pods are ready to serve /convert.
+func (a *Operator) areWebhooksAvailable(csv *v1alpha1.ClusterServiceVersion, installer install.StrategyInstaller) (bool, error) {
 	err := a.cleanUpRemovedWebhooks(csv)
 	if err != nil {
 		return false, err
@@ -593,6 +597,16 @@ func (a *Operator) areWebhooksAvailable(csv *v1alpha1.ClusterServiceVersion) (bo
 			}
 			webhookCount = len(webhookList.Items)
 		case v1alpha1.ConversionWebhook:
+			// Write spec.conversion on each target CRD now that the deployment is confirmed
+			// ready. This is deferred from Install() to prevent routing conversion calls to
+			// pods that are not yet serving /convert.
+			sdi, ok := installer.(*install.StrategyDeploymentInstaller)
+			if !ok {
+				return false, fmt.Errorf("conversionWebhook requires a StrategyDeploymentInstaller, got %T", installer)
+			}
+			if err := sdi.EnsureConversionWebhooks(); err != nil {
+				return false, fmt.Errorf("conversionWebhook not ready: %w", err)
+			}
 			for _, conversionCRD := range desc.ConversionCRDs {
 				// check if CRD exists on cluster
 				crd, err := a.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), conversionCRD, metav1.GetOptions{})

@@ -1302,11 +1302,27 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 	// webhook from the CRD definition.
 	csvs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(clusterServiceVersion.GetNamespace()).List(labels.Everything())
 	if err != nil {
-		logger.Errorf("error listing csvs: %v\n", err)
+		// Without a complete CSV list we cannot safely determine which CRDs are still
+		// covered by a replacement CSV. Bail out to avoid incorrectly clearing
+		// spec.conversion on CRDs that a replacement still owns.
+		logger.Errorf("error listing csvs, skipping conversion webhook cleanup: %v\n", err)
+		return
 	}
+
+	// Build the set of CRDs whose ConversionWebhook is still covered by the replacement CSV.
+	// If the replacement dropped the ConversionWebhook for a given CRD, spec.conversion on
+	// that CRD must be reset — otherwise it keeps pointing at the now-deleted service and
+	// all CR requests against that CRD will fail.
+	coveredCRDs := map[string]bool{}
 	for _, csv := range csvs {
 		if csv.Spec.Replaces == clusterServiceVersion.GetName() {
-			return
+			for _, desc := range csv.Spec.WebhookDefinitions {
+				if desc.Type == v1alpha1.ConversionWebhook {
+					for _, crdName := range desc.ConversionCRDs {
+						coveredCRDs[crdName] = true
+					}
+				}
+			}
 		}
 	}
 
@@ -1316,6 +1332,12 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 		}
 
 		for i, crdName := range desc.ConversionCRDs {
+			if coveredCRDs[crdName] {
+				// Replacement CSV still has a ConversionWebhook for this CRD; leave
+				// spec.conversion intact so in-flight conversion calls keep working.
+				continue
+			}
+
 			crd, err := a.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
 			if err != nil {
 				logger.Errorf("error getting CRD %v which was defined in CSVs spec.WebhookDefinition[%d]: %v\n", crdName, i, err)
@@ -1323,11 +1345,13 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 			}
 
 			copy := crd.DeepCopy()
-			copy.Spec.Conversion.Strategy = apiextensionsv1.NoneConverter
-			copy.Spec.Conversion.Webhook = nil
+			if copy.Spec.Conversion != nil {
+				copy.Spec.Conversion.Strategy = apiextensionsv1.NoneConverter
+				copy.Spec.Conversion.Webhook = nil
 
-			if _, err = a.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), copy, metav1.UpdateOptions{}); err != nil {
-				logger.Errorf("error updating conversion strategy for CRD %v: %v\n", crdName, err)
+				if _, err = a.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), copy, metav1.UpdateOptions{}); err != nil {
+					logger.Errorf("error updating conversion strategy for CRD %v: %v\n", crdName, err)
+				}
 			}
 		}
 	}
@@ -2617,7 +2641,16 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 	}
 
 	apiServicesInstalled, apiServiceErr := a.areAPIServicesAvailable(csv)
-	webhooksInstalled, webhookErr := a.areWebhooksAvailable(csv)
+	// Only attempt to write spec.conversion once the deployment is confirmed ready.
+	// areWebhooksAvailable calls EnsureConversionWebhooks, so calling it when
+	// strategyInstalled is false would recreate the upgrade race we are fixing.
+	// Note: CheckInstalled never returns (true, non-nil error), so strategyInstalled
+	// is sufficient — no need to also gate on strategyErr.
+	webhooksInstalled := false
+	var webhookErr error
+	if strategyInstalled {
+		webhooksInstalled, webhookErr = a.areWebhooksAvailable(csv, installer)
+	}
 
 	if strategyInstalled && apiServicesInstalled && webhooksInstalled {
 		// if there's no error, we're successfully running
