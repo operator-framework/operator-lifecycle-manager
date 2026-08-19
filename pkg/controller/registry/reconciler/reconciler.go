@@ -180,7 +180,7 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 								Port: 50051,
 							},
 						},
-						FailureThreshold: 10,
+						FailureThreshold: 15,
 						PeriodSeconds:    10,
 						TimeoutSeconds:   5,
 					},

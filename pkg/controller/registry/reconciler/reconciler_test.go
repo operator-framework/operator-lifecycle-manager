@@ -38,7 +38,7 @@ func TestPodMemoryTarget(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "b5nr2RkG6B45bx5Cn63j7B5ybVGjvneXC0AGu7", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "cBESV2Miwqi3TX1KELgXItd7j206e4q6b21BnP", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -71,7 +71,7 @@ func TestPodMemoryTarget(t *testing.T) {
 										Port: 50051,
 									},
 								},
-								FailureThreshold: 10,
+								FailureThreshold: 15,
 								PeriodSeconds:    10,
 								TimeoutSeconds:   5,
 							},
@@ -110,7 +110,7 @@ func TestPodMemoryTarget(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "62b6r57eNVnmLZo0glbfT9JJHn98HcJzBhZN94", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "22OBIOEoFxFjed27eJvvYzqL0TfdXsuapKoxsE", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -144,7 +144,7 @@ func TestPodMemoryTarget(t *testing.T) {
 										Port: 50051,
 									},
 								},
-								FailureThreshold: 10,
+								FailureThreshold: 15,
 								PeriodSeconds:    10,
 								TimeoutSeconds:   5,
 							},
@@ -209,7 +209,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "b5nr2RkG6B45bx5Cn63j7B5ybVGjvneXC0AGu7", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "cBESV2Miwqi3TX1KELgXItd7j206e4q6b21BnP", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -242,7 +242,7 @@ func TestPodExtractContent(t *testing.T) {
 										Port: 50051,
 									},
 								},
-								FailureThreshold: 10,
+								FailureThreshold: 15,
 								PeriodSeconds:    10,
 								TimeoutSeconds:   5,
 							},
@@ -285,7 +285,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "7RONLG0R9WhWbcfGQvcwjexvGmZhN0Hyl16mHH", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "30fzEky6rWPSaUHUtTN3mbl0SvE2PryXPIr090", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -363,7 +363,7 @@ func TestPodExtractContent(t *testing.T) {
 										Port: 50051,
 									},
 								},
-								FailureThreshold: 10,
+								FailureThreshold: 15,
 								PeriodSeconds:    10,
 								TimeoutSeconds:   5,
 							},
@@ -406,7 +406,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "8GtO2FTxu9llB1icRoWQIinKIVmNcrtivDihGG", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "57eMKS6v8du5evWOTeBJEFYx7r5udVxvhEQpLB", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -486,7 +486,7 @@ func TestPodExtractContent(t *testing.T) {
 										Port: 50051,
 									},
 								},
-								FailureThreshold: 10,
+								FailureThreshold: 15,
 								PeriodSeconds:    10,
 								TimeoutSeconds:   5,
 							},
@@ -522,7 +522,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "8MrvWgiEdqXHHX9wiYJTEe8NgdSQYTVQtOnqml", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "bfNQa9OTbkeciTpFoCgpKhNENGjVjY61PYAoYA", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -555,7 +555,7 @@ func TestPodExtractContent(t *testing.T) {
 										Port: 50051,
 									},
 								},
-								FailureThreshold: 10,
+								FailureThreshold: 15,
 								PeriodSeconds:    10,
 								TimeoutSeconds:   5,
 							},
@@ -605,7 +605,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "30zwNEAtF3RcZ94bM4MzA64LwQ8ikpEyrQHTd6", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "5CPn3qG7EdDS0mOX7AazM9Tt1RBtR6bjjMmmep", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -687,7 +687,7 @@ func TestPodExtractContent(t *testing.T) {
 										Port: 50051,
 									},
 								},
-								FailureThreshold: 10,
+								FailureThreshold: 15,
 								PeriodSeconds:    10,
 								TimeoutSeconds:   5,
 							},
@@ -737,7 +737,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "G21gfJ9Iz3wyOmy5eBn7kFuqBv93zGJP5lFEM", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "adSLBZw1o1geKStnSKaiQEubBnN4eqkHabCyHs", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -821,7 +821,7 @@ func TestPodExtractContent(t *testing.T) {
 										Port: 50051,
 									},
 								},
-								FailureThreshold: 10,
+								FailureThreshold: 15,
 								PeriodSeconds:    10,
 								TimeoutSeconds:   5,
 							},
