@@ -55,15 +55,15 @@ func (c *Client) UpdateDeployment(dep *appsv1.Deployment) (*appsv1.Deployment, b
 //
 // Returns the latest Deployment and true if it was updated, or an error.
 func (c *Client) PatchDeployment(original, modified *appsv1.Deployment) (*appsv1.Deployment, bool, error) {
+	if modified == nil {
+		return nil, false, errors.New("modified cannot be nil")
+	}
 	namespace, name := modified.Namespace, modified.Name
 	klog.V(4).Infof("[PATCH Deployment]: %s:%s", namespace, name)
 
 	current, err := c.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, false, err
-	}
-	if modified == nil {
-		return nil, false, errors.New("modified cannot be nil")
 	}
 	if original == nil {
 		original = current // Emulate 2-way merge.
