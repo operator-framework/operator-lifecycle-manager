@@ -2197,6 +2197,9 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 			"resourceVersion": outInstallPlan.ResourceVersion,
 			"phase":           outInstallPlan.Status.Phase,
 		}
+		if syncError != nil {
+			fields["syncError"] = syncError.Error()
+		}
 		for i, step := range outInstallPlan.Status.Plan {
 			if step.Resource.Kind == "BundleSecret" || step.Resource.Kind == "ServiceAccount" {
 				fields[fmt.Sprintf("step[%d].%s", i, step.Resource.Kind)] = string(step.Status)
@@ -2519,7 +2522,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 		o.logger.Errorf("failed to get a client for plan execution- %v", err)
 		return err
 	}
-	b := newBuilder(plan, o.lister.OperatorsV1alpha1().ClusterServiceVersionLister(), builderKubeClient, kubeclient, o.client, builderDynamicClient, r, o.logger, o.recorder)
+	b := newBuilder(plan, o.lister.OperatorsV1alpha1().ClusterServiceVersionLister(), builderKubeClient, kubeclient, crclient, builderDynamicClient, r, o.logger, o.recorder)
 
 	for i, step := range plan.Status.Plan {
 		beforeStatus := plan.Status.Plan[i].Status
