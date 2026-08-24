@@ -2969,6 +2969,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 			}).Debug(msg)
 		} else {
 			o.logger.WithFields(logrus.Fields{
+				"ip":        plan.GetName(),
 				"kind":      step.Resource.Kind,
 				"name":      step.Resource.Name,
 				"stepIndex": i,

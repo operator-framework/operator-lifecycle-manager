@@ -379,10 +379,12 @@ func (b *builder) NewBundleSecretStep(step *v1alpha1.Step, manifest string) Step
 		s.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 		// Add the resolving CSV as a non-blocking owner so the secret is GC'd on
-		// uninstall. Use the lister (catalog-operator credentials, avoids extra API
-		// call) — UID is stable once set so a briefly-stale lister entry is safe.
+		// uninstall. Use a live API call — the CSV may have been created in this
+		// same ExecutePlan invocation and will not yet be in the lister cache.
+		// A lister NotFound here would bubble through apierrors.IsNotFound and
+		// incorrectly trigger the discovery-querier path in ExecutePlan.
 		if step.Resolving != "" {
-			csv, err := b.csvLister.ClusterServiceVersions(namespace).Get(step.Resolving)
+			csv, err := b.olmClient.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), step.Resolving, metav1.GetOptions{})
 			if err != nil {
 				return v1alpha1.StepStatusUnknown, fmt.Errorf("error getting csv %s for secret owner ref: %w", step.Resolving, err)
 			}
