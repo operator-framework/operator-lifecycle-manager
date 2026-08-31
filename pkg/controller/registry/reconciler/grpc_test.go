@@ -816,3 +816,75 @@ func TestUpdatePodByDigest(t *testing.T) {
 		require.Equal(t, tt.result, imageChanged(logrus.NewEntry(logrus.New()), tt.updatePod, tt.servingPods), table[i].description)
 	}
 }
+
+func TestCorrectImages(t *testing.T) {
+	const catalogImage = "quay.io/test/catalog:v1"
+	const opmImage = "quay.io/test/opm:v1"
+	const utilImage = "quay.io/test/util:v1"
+
+	makeSource := func(image string, extractContent *v1alpha1.ExtractContentConfig) grpcCatalogSourceDecorator {
+		cs := validGrpcCatalogSource(image, "")
+		if extractContent != nil {
+			cs.Spec.GrpcPodConfig = &v1alpha1.GrpcPodConfig{ExtractContent: extractContent}
+		}
+		return grpcCatalogSourceDecorator{CatalogSource: cs, opmImage: opmImage, utilImage: utilImage}
+	}
+
+	for _, tt := range []struct {
+		name   string
+		source grpcCatalogSourceDecorator
+		pod    *corev1.Pod
+		want   bool
+	}{
+		{
+			name:   "non-ExtractContent/empty containers does not panic",
+			source: makeSource(catalogImage, nil),
+			pod:    &corev1.Pod{},
+			want:   false,
+		},
+		{
+			name:   "non-ExtractContent/matching image",
+			source: makeSource(catalogImage, nil),
+			pod: &corev1.Pod{Spec: corev1.PodSpec{
+				Containers: []corev1.Container{{Image: catalogImage}},
+			}},
+			want: true,
+		},
+		{
+			name:   "non-ExtractContent/wrong image",
+			source: makeSource(catalogImage, nil),
+			pod: &corev1.Pod{Spec: corev1.PodSpec{
+				Containers: []corev1.Container{{Image: "quay.io/test/catalog:v2"}},
+			}},
+			want: false,
+		},
+		{
+			name:   "ExtractContent/correct init and serving containers",
+			source: makeSource(catalogImage, &v1alpha1.ExtractContentConfig{CatalogDir: "/catalog"}),
+			pod: &corev1.Pod{Spec: corev1.PodSpec{
+				InitContainers: []corev1.Container{{Image: utilImage}, {Image: catalogImage}},
+				Containers:     []corev1.Container{{Image: opmImage}},
+			}},
+			want: true,
+		},
+		{
+			name:   "ExtractContent/wrong number of init containers",
+			source: makeSource(catalogImage, &v1alpha1.ExtractContentConfig{CatalogDir: "/catalog"}),
+			pod:    &corev1.Pod{Spec: corev1.PodSpec{Containers: []corev1.Container{{Image: opmImage}}}},
+			want:   false,
+		},
+		{
+			name:   "ExtractContent/wrong serving container image",
+			source: makeSource(catalogImage, &v1alpha1.ExtractContentConfig{CatalogDir: "/catalog"}),
+			pod: &corev1.Pod{Spec: corev1.PodSpec{
+				InitContainers: []corev1.Container{{Image: utilImage}, {Image: catalogImage}},
+				Containers:     []corev1.Container{{Image: "quay.io/test/opm:wrong"}},
+			}},
+			want: false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, correctImages(tt.source, tt.pod))
+		})
+	}
+}

@@ -273,6 +273,9 @@ func correctImages(source grpcCatalogSourceDecorator, pod *corev1.Pod) bool {
 			pod.Spec.InitContainers[1].Image == source.CatalogSource.Spec.Image &&
 			pod.Spec.Containers[0].Image == source.opmImage
 	}
+	if len(pod.Spec.Containers) == 0 {
+		return false
+	}
 	return pod.Spec.Containers[0].Image == source.CatalogSource.Spec.Image
 }
 
