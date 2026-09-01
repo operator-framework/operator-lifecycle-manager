@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/itchyny/gojq"
@@ -32,19 +33,26 @@ const (
 )
 
 var (
-	csvGVK                = operatorsv1alpha1.SchemeGroupVersion.WithKind(operatorsv1alpha1.ClusterServiceVersionKind)
-	componentConditionsJQ *gojq.Query
-	csvConditionsJQ       *gojq.Query
+	csvGVK = operatorsv1alpha1.SchemeGroupVersion.WithKind(operatorsv1alpha1.ClusterServiceVersionKind)
+
+	jqOnce              sync.Once
+	jqErr               error
+	componentConditions *gojq.Query
+	csvConditions       *gojq.Query
 )
 
-func init() {
-	var err error
-	if componentConditionsJQ, err = gojq.Parse(".status.conditions"); err != nil {
-		panic(fmt.Errorf("failed to parse component conditions jq: %s", err))
-	}
-	if csvConditionsJQ, err = gojq.Parse(".status | [{\"type\": .phase, \"status\": \"True\", \"reason\": .reason, \"message\": .message, \"lastUpdateTime\": .lastUpdateTime,\"lastTransitionTime\": .lastTransitionTime}]"); err != nil {
-		panic(fmt.Errorf("failed to parse csv conditions jq: %s", err))
-	}
+func jqQueries() (componentQ, csvQ *gojq.Query, err error) {
+	jqOnce.Do(func() {
+		if componentConditions, jqErr = gojq.Parse(".status.conditions"); jqErr != nil {
+			jqErr = fmt.Errorf("failed to parse component conditions jq: %w", jqErr)
+			return
+		}
+		if csvConditions, jqErr = gojq.Parse(".status | [{\"type\": .phase, \"status\": \"True\", \"reason\": .reason, \"message\": .message, \"lastUpdateTime\": .lastUpdateTime,\"lastTransitionTime\": .lastTransitionTime}]"); jqErr != nil {
+			jqErr = fmt.Errorf("failed to parse csv conditions jq: %w", jqErr)
+			return
+		}
+	})
+	return componentConditions, csvConditions, jqErr
 }
 
 // OperatorNames returns a list of operator names extracted from the given labels.
@@ -413,10 +421,16 @@ func (c *Component) Reference() (ref *operatorsv1.RichReference, err error) {
 		ObjectReference: truncated,
 	}
 
-	query := componentConditionsJQ
+	componentQ, csvQ, qErr := jqQueries()
+	if qErr != nil {
+		err = qErr
+		return
+	}
+
+	query := componentQ
 	switch c.GroupVersionKind() {
 	case csvGVK:
-		query = csvConditionsJQ
+		query = csvQ
 	}
 	iter := query.Run(c.UnstructuredContent())
 
