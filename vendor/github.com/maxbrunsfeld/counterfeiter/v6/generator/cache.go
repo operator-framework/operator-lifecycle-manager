@@ -1,8 +1,15 @@
 package generator
 
-import "golang.org/x/tools/go/packages"
+import (
+	"sync"
 
+	"golang.org/x/tools/go/packages"
+)
+
+// Cache memoizes loaded packages by import path. It is safe to share between
+// goroutines.
 type Cache struct {
+	mu         sync.Mutex
 	packageMap map[string]interface{}
 }
 
@@ -17,6 +24,8 @@ type Cacher interface {
 }
 
 func (c *Cache) Load(packagePath string) ([]*packages.Package, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	p, ok := c.packageMap[packagePath]
 	if !ok {
 		return nil, false
@@ -26,6 +35,8 @@ func (c *Cache) Load(packagePath string) ([]*packages.Package, bool) {
 }
 
 func (c *Cache) Store(packagePath string, packages []*packages.Package) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.packageMap == nil {
 		c.packageMap = map[string]interface{}{}
 	}

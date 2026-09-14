@@ -9,12 +9,38 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"text/template"
 	"unicode"
 )
 
-func New(args []string, workingDir string, evaler Evaler, stater Stater) (*ParsedArguments, error) {
+// Option configures New.
+type Option func(*options)
+
+type options struct {
+	defaults *ParsedArguments
+}
+
+// WithDefaults supplies the arguments parsed from a "-generate" invocation.
+// Flags that a directive does not set itself fall back to the values given
+// there, so that -o, -fake-name-template, -header and -q can be configured
+// once per package on the "//go:generate ... -generate" line.
+func WithDefaults(defaults *ParsedArguments) Option {
+	return func(o *options) {
+		o.defaults = defaults
+	}
+}
+
+func New(args []string, workingDir string, evaler Evaler, stater Stater, opts ...Option) (*ParsedArguments, error) {
 	if len(args) == 0 {
 		return nil, errors.New("argument parsing requires at least one argument")
+	}
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+	defaults := o.defaults
+	if defaults == nil {
+		defaults = &ParsedArguments{}
 	}
 
 	fs := flag.NewFlagSet("counterfeiter", flag.ContinueOnError)
@@ -22,6 +48,11 @@ func New(args []string, workingDir string, evaler Evaler, stater Stater) (*Parse
 		"fake-name",
 		"",
 		"The name of the fake struct",
+	)
+	fakeNameTemplateFlag := fs.String(
+		"fake-name-template",
+		"",
+		"A text/template for the name of the fake struct, evaluated against {{.TargetName}}",
 	)
 
 	outputPathFlag := fs.String(
@@ -50,6 +81,11 @@ func New(args []string, workingDir string, evaler Evaler, stater Stater) (*Parse
 		false,
 		"Suppress status statements",
 	)
+	testFlag := fs.Bool(
+		"test",
+		false,
+		"Generate the fake into the external test package (<package>_test) of the output directory",
+	)
 	helpFlag := fs.Bool(
 		"help",
 		false,
@@ -67,27 +103,86 @@ func New(args []string, workingDir string, evaler Evaler, stater Stater) (*Parse
 		return nil, errors.New(usage)
 	}
 
+	fakeNameTemplateText := or(*fakeNameTemplateFlag, defaults.FakeNameTemplate)
+	fakeNameTemplate, err := parseFakeNameTemplate(fakeNameTemplateText)
+	if err != nil {
+		return nil, err
+	}
+	outputPath := or(*outputPathFlag, defaults.OutputPath)
+
 	packageMode := *packageFlag
+	testPackage := *testFlag || defaults.TestPackage
+	if packageMode && testPackage {
+		return nil, errors.New("-test cannot be combined with -p: a package shim is not a test package")
+	}
 	result := &ParsedArguments{
 		PrintToStdOut: any(args, "-"),
 		GenerateInterfaceAndShimFromPackageDirectory: packageMode,
 		GenerateMode: *generateFlag,
-		HeaderFile:   *headerFlag,
-		Quiet:        *quietFlag,
+		HeaderFile:   or(*headerFlag, defaults.HeaderFile),
+		Quiet:        *quietFlag || defaults.Quiet,
+		TestPackage:  testPackage,
 	}
 	if *generateFlag {
+		// Keep the raw flag values: they become the defaults for every directive.
+		result.OutputPath = outputPath
+		result.FakeNameTemplate = fakeNameTemplateText
 		return result, nil
 	}
-	err = result.parseSourcePackageDir(packageMode, workingDir, evaler, stater, fs.Args())
+	// "-" only asks for stdout; it is not a source path or an interface.
+	positional := without(fs.Args(), "-")
+	err = result.parseSourcePackageDir(packageMode, workingDir, evaler, stater, positional)
 	if err != nil {
 		return nil, err
 	}
-	result.parseInterfaceName(packageMode, fs.Args())
-	result.parseFakeName(packageMode, *fakeNameFlag, fs.Args())
-	result.parseOutputPath(packageMode, workingDir, *outputPathFlag, fs.Args())
-	result.parseDestinationPackageName(packageMode, fs.Args())
-	result.parsePackagePath(packageMode, fs.Args())
+	result.parseInterfaceName(packageMode, positional)
+	err = result.parseFakeName(packageMode, *fakeNameFlag, fakeNameTemplate, positional)
+	if err != nil {
+		return nil, err
+	}
+	err = result.parseOutputPath(packageMode, workingDir, outputPath, positional)
+	if err != nil {
+		return nil, err
+	}
+	result.parseDestinationPackageName(packageMode, positional)
+	result.parsePackagePath(packageMode, positional)
 	return result, nil
+}
+
+func or(opts ...string) string {
+	for _, s := range opts {
+		if s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
+// fakeNameTemplate is a parsed -fake-name-template; an empty flag parses as
+// the default name, "Fake" followed by the target name.
+type fakeNameTemplate struct {
+	text string
+	tmpl *template.Template
+}
+
+func parseFakeNameTemplate(text string) (fakeNameTemplate, error) {
+	if text == "" {
+		text = "Fake{{.TargetName}}"
+	}
+	tmpl, err := template.New("fake-name-template").Parse(text)
+	if err != nil {
+		return fakeNameTemplate{}, fmt.Errorf("invalid -fake-name-template %q: %w", text, err)
+	}
+	return fakeNameTemplate{text: text, tmpl: tmpl}, nil
+}
+
+func (t fakeNameTemplate) render(targetName string) (string, error) {
+	var b strings.Builder
+	err := t.tmpl.Execute(&b, struct{ TargetName string }{targetName})
+	if err != nil {
+		return "", fmt.Errorf("invalid -fake-name-template %q: %w", t.text, err)
+	}
+	return b.String(), nil
 }
 
 func (a *ParsedArguments) PrettyPrint() {
@@ -124,47 +219,60 @@ func (a *ParsedArguments) parseSourcePackageDir(packageMode bool, workingDir str
 	return nil
 }
 
-func (a *ParsedArguments) parseFakeName(packageMode bool, fakeName string, args []string) {
+func (a *ParsedArguments) parseFakeName(packageMode bool, fakeName string, tmpl fakeNameTemplate, args []string) error {
 	if packageMode {
 		a.parsePackagePath(packageMode, args)
 		a.FakeImplName = strings.ToUpper(path.Base(a.PackagePath))[:1] + path.Base(a.PackagePath)[1:]
-		return
+		return nil
 	}
-	if fakeName == "" {
-		fakeName = "Fake" + fixupUnexportedNames(a.InterfaceName)
+	if fakeName != "" {
+		a.FakeImplName = fakeName
+		a.FakeNameExplicit = true
+		return nil
 	}
-	a.FakeImplName = fakeName
+	var err error
+	a.FakeImplName, err = tmpl.render(fixupUnexportedNames(a.InterfaceName))
+	return err
 }
 
-func (a *ParsedArguments) parseOutputPath(packageMode bool, workingDir string, outputPath string, args []string) {
-	outputPathIsFilename := false
-	if strings.HasSuffix(outputPath, ".go") {
-		outputPathIsFilename = true
-	}
+func (a *ParsedArguments) parseOutputPath(packageMode bool, workingDir string, outputPath string, args []string) error {
 	snakeCaseName := strings.ToLower(camelRegexp.ReplaceAllString(a.FakeImplName, "${1}_${2}"))
+	fileName := snakeCaseName + ".go"
+	if a.TestPackage {
+		fileName = snakeCaseName + "_test.go"
+	}
 
 	if outputPath != "" {
 		if !filepath.IsAbs(outputPath) {
 			outputPath = filepath.Join(workingDir, outputPath)
 		}
 		a.OutputPath = outputPath
-		if !outputPathIsFilename {
-			a.OutputPath = filepath.Join(a.OutputPath, snakeCaseName+".go")
+		if !strings.HasSuffix(outputPath, ".go") {
+			a.OutputPath = filepath.Join(outputPath, fileName)
+		} else if a.TestPackage && !strings.HasSuffix(outputPath, "_test.go") {
+			return fmt.Errorf("-test generates a _test package, which Go only compiles from a _test.go file, not %s", filepath.Base(outputPath))
 		}
-		return
+		return nil
 	}
 
 	if packageMode {
 		a.parseDestinationPackageName(packageMode, args)
-		a.OutputPath = path.Join(workingDir, a.DestinationPackageName, snakeCaseName+".go")
-		return
+		a.OutputPath = path.Join(workingDir, a.DestinationPackageName, fileName)
+		return nil
 	}
 
+	if a.TestPackage {
+		// The fake belongs to the tests in the directory counterfeiter runs
+		// in, wherever the interface comes from.
+		a.OutputPath = filepath.Join(workingDir, fileName)
+		return nil
+	}
 	d := workingDir
 	if len(args) > 1 {
 		d = a.SourcePackageDir
 	}
-	a.OutputPath = filepath.Join(d, packageNameForPath(d), snakeCaseName+".go")
+	a.OutputPath = filepath.Join(d, packageNameForPath(d), fileName)
+	return nil
 }
 
 func (a *ParsedArguments) parseDestinationPackageName(packageMode bool, args []string) {
@@ -175,6 +283,9 @@ func (a *ParsedArguments) parseDestinationPackageName(packageMode bool, args []s
 	}
 
 	a.DestinationPackageName = restrictToValidPackageName(filepath.Base(filepath.Dir(a.OutputPath)))
+	if a.TestPackage {
+		a.DestinationPackageName += "_test"
+	}
 }
 
 func (a *ParsedArguments) parsePackagePath(packageMode bool, args []string) {
@@ -203,14 +314,17 @@ type ParsedArguments struct {
 
 	DestinationPackageName string // often the base-dir for OutputPath but must be a valid package name
 
-	InterfaceName string // the interface to counterfeit
-	FakeImplName  string // the name of the struct implementing the given interface
+	InterfaceName    string // the interface to counterfeit
+	FakeImplName     string // the name of the struct implementing the given interface
+	FakeNameExplicit bool   // FakeImplName came from -fake-name and is used as given
 
 	PrintToStdOut bool
 	GenerateMode  bool
 	Quiet         bool
+	TestPackage   bool // write the fake into the external test package (<package>_test) of its directory
 
-	HeaderFile string
+	HeaderFile       string
+	FakeNameTemplate string // text/template for FakeImplName, evaluated against {{.TargetName}}
 }
 
 func fixupUnexportedNames(interfaceName string) string {
@@ -248,6 +362,16 @@ func getSourceDir(path string, workingDir string, evaler Evaler, stater Stater) 
 		return filepath.Dir(path), nil
 	}
 	return path, nil
+}
+
+func without(slice []string, needle string) []string {
+	result := make([]string, 0, len(slice))
+	for _, str := range slice {
+		if str != needle {
+			result = append(result, str)
+		}
+	}
+	return result
 }
 
 func any(slice []string, needle string) bool {
