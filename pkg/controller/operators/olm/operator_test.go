@@ -3703,6 +3703,52 @@ func TestWebhookCABundleRetrieval(t *testing.T) {
 			},
 		},
 		{
+			name: "RetrieveCAFromConversionWebhookSecretBeforeCRDIsConfigured",
+			initial: initial{
+				csvs: []*v1alpha1.ClusterServiceVersion{
+					csvWithConversionWebhook(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1",
+							nil,
+							[]v1alpha1.StrategyDeploymentPermissions{},
+						),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstalling,
+					), "csv1-dep1", []string{"c1.g1"}),
+				},
+				crds: []runtime.Object{
+					crdWithConversionWebhook(crd("c1", "v1", "g1"), nil),
+				},
+				objs: []runtime.Object{
+					&corev1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      install.SecretName(install.ServiceName("csv1-dep1")),
+							Namespace: namespace,
+							Labels: map[string]string{
+								install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+							},
+						},
+						Data: map[string][]byte{
+							install.OLMCAPEMKey: caBundle,
+						},
+					},
+				},
+				desc: v1alpha1.WebhookDescription{
+					DeploymentName: "csv1-dep1",
+					GenerateName:   "webhook",
+					Type:           v1alpha1.ConversionWebhook,
+					ConversionCRDs: []string{"c1.g1"},
+				},
+			},
+			expected: expected{
+				caBundle: caBundle,
+				err:      nil,
+			},
+		},
+		{
 			name: "RetrieveFromValidatingAdmissionWebhook",
 			initial: initial{
 				csvs: []*v1alpha1.ClusterServiceVersion{
