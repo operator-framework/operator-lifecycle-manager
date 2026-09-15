@@ -4,7 +4,7 @@ package operatorlisterfakes
 import (
 	"sync"
 
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
 

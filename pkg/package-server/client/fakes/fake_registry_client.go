@@ -165,16 +165,21 @@ type FakeRegistryClient struct {
 }
 
 func (fake *FakeRegistryClient) GetBundle(arg1 context.Context, arg2 *api.GetBundleRequest, arg3 ...grpc.CallOption) (*api.Bundle, error) {
+	var arg3Copy []grpc.CallOption
+	if arg3 != nil {
+		arg3Copy = make([]grpc.CallOption, len(arg3))
+		copy(arg3Copy, arg3)
+	}
 	fake.getBundleMutex.Lock()
 	ret, specificReturn := fake.getBundleReturnsOnCall[len(fake.getBundleArgsForCall)]
 	fake.getBundleArgsForCall = append(fake.getBundleArgsForCall, struct {
 		arg1 context.Context
 		arg2 *api.GetBundleRequest
 		arg3 []grpc.CallOption
-	}{arg1, arg2, arg3})
+	}{arg1, arg2, arg3Copy})
 	stub := fake.GetBundleStub
 	fakeReturns := fake.getBundleReturns
-	fake.recordInvocation("GetBundle", []interface{}{arg1, arg2, arg3})
+	fake.recordInvocation("GetBundle", []interface{}{arg1, arg2, arg3Copy})
 	fake.getBundleMutex.Unlock()
 	if stub != nil {
 		return stub(arg1, arg2, arg3...)
@@ -231,16 +236,21 @@ func (fake *FakeRegistryClient) GetBundleReturnsOnCall(i int, result1 *api.Bundl
 }
 
 func (fake *FakeRegistryClient) GetBundleForChannel(arg1 context.Context, arg2 *api.GetBundleInChannelRequest, arg3 ...grpc.CallOption) (*api.Bundle, error) {
+	var arg3Copy []grpc.CallOption
+	if arg3 != nil {
+		arg3Copy = make([]grpc.CallOption, len(arg3))
+		copy(arg3Copy, arg3)
+	}
 	fake.getBundleForChannelMutex.Lock()
 	ret, specificReturn := fake.getBundleForChannelReturnsOnCall[len(fake.getBundleForChannelArgsForCall)]
 	fake.getBundleForChannelArgsForCall = append(fake.getBundleForChannelArgsForCall, struct {
 		arg1 context.Context
 		arg2 *api.GetBundleInChannelRequest
 		arg3 []grpc.CallOption
-	}{arg1, arg2, arg3})
+	}{arg1, arg2, arg3Copy})
 	stub := fake.GetBundleForChannelStub
 	fakeReturns := fake.getBundleForChannelReturns
-	fake.recordInvocation("GetBundleForChannel", []interface{}{arg1, arg2, arg3})
+	fake.recordInvocation("GetBundleForChannel", []interface{}{arg1, arg2, arg3Copy})
 	fake.getBundleForChannelMutex.Unlock()
 	if stub != nil {
 		return stub(arg1, arg2, arg3...)
@@ -297,16 +307,21 @@ func (fake *FakeRegistryClient) GetBundleForChannelReturnsOnCall(i int, result1 
 }
 
 func (fake *FakeRegistryClient) GetBundleThatReplaces(arg1 context.Context, arg2 *api.GetReplacementRequest, arg3 ...grpc.CallOption) (*api.Bundle, error) {
+	var arg3Copy []grpc.CallOption
+	if arg3 != nil {
+		arg3Copy = make([]grpc.CallOption, len(arg3))
+		copy(arg3Copy, arg3)
+	}
 	fake.getBundleThatReplacesMutex.Lock()
 	ret, specificReturn := fake.getBundleThatReplacesReturnsOnCall[len(fake.getBundleThatReplacesArgsForCall)]
 	fake.getBundleThatReplacesArgsForCall = append(fake.getBundleThatReplacesArgsForCall, struct {
 		arg1 context.Context
 		arg2 *api.GetReplacementRequest
 		arg3 []grpc.CallOption
-	}{arg1, arg2, arg3})
+	}{arg1, arg2, arg3Copy})
 	stub := fake.GetBundleThatReplacesStub
 	fakeReturns := fake.getBundleThatReplacesReturns
-	fake.recordInvocation("GetBundleThatReplaces", []interface{}{arg1, arg2, arg3})
+	fake.recordInvocation("GetBundleThatReplaces", []interface{}{arg1, arg2, arg3Copy})
 	fake.getBundleThatReplacesMutex.Unlock()
 	if stub != nil {
 		return stub(arg1, arg2, arg3...)
@@ -363,16 +378,21 @@ func (fake *FakeRegistryClient) GetBundleThatReplacesReturnsOnCall(i int, result
 }
 
 func (fake *FakeRegistryClient) GetChannelEntriesThatProvide(arg1 context.Context, arg2 *api.GetAllProvidersRequest, arg3 ...grpc.CallOption) (api.Registry_GetChannelEntriesThatProvideClient, error) {
+	var arg3Copy []grpc.CallOption
+	if arg3 != nil {
+		arg3Copy = make([]grpc.CallOption, len(arg3))
+		copy(arg3Copy, arg3)
+	}
 	fake.getChannelEntriesThatProvideMutex.Lock()
 	ret, specificReturn := fake.getChannelEntriesThatProvideReturnsOnCall[len(fake.getChannelEntriesThatProvideArgsForCall)]
 	fake.getChannelEntriesThatProvideArgsForCall = append(fake.getChannelEntriesThatProvideArgsForCall, struct {
 		arg1 context.Context
 		arg2 *api.GetAllProvidersRequest
 		arg3 []grpc.CallOption
-	}{arg1, arg2, arg3})
+	}{arg1, arg2, arg3Copy})
 	stub := fake.GetChannelEntriesThatProvideStub
 	fakeReturns := fake.getChannelEntriesThatProvideReturns
-	fake.recordInvocation("GetChannelEntriesThatProvide", []interface{}{arg1, arg2, arg3})
+	fake.recordInvocation("GetChannelEntriesThatProvide", []interface{}{arg1, arg2, arg3Copy})
 	fake.getChannelEntriesThatProvideMutex.Unlock()
 	if stub != nil {
 		return stub(arg1, arg2, arg3...)
@@ -429,16 +449,21 @@ func (fake *FakeRegistryClient) GetChannelEntriesThatProvideReturnsOnCall(i int,
 }
 
 func (fake *FakeRegistryClient) GetChannelEntriesThatReplace(arg1 context.Context, arg2 *api.GetAllReplacementsRequest, arg3 ...grpc.CallOption) (api.Registry_GetChannelEntriesThatReplaceClient, error) {
+	var arg3Copy []grpc.CallOption
+	if arg3 != nil {
+		arg3Copy = make([]grpc.CallOption, len(arg3))
+		copy(arg3Copy, arg3)
+	}
 	fake.getChannelEntriesThatReplaceMutex.Lock()
 	ret, specificReturn := fake.getChannelEntriesThatReplaceReturnsOnCall[len(fake.getChannelEntriesThatReplaceArgsForCall)]
 	fake.getChannelEntriesThatReplaceArgsForCall = append(fake.getChannelEntriesThatReplaceArgsForCall, struct {
 		arg1 context.Context
 		arg2 *api.GetAllReplacementsRequest
 		arg3 []grpc.CallOption
-	}{arg1, arg2, arg3})
+	}{arg1, arg2, arg3Copy})
 	stub := fake.GetChannelEntriesThatReplaceStub
 	fakeReturns := fake.getChannelEntriesThatReplaceReturns
-	fake.recordInvocation("GetChannelEntriesThatReplace", []interface{}{arg1, arg2, arg3})
+	fake.recordInvocation("GetChannelEntriesThatReplace", []interface{}{arg1, arg2, arg3Copy})
 	fake.getChannelEntriesThatReplaceMutex.Unlock()
 	if stub != nil {
 		return stub(arg1, arg2, arg3...)
@@ -495,16 +520,21 @@ func (fake *FakeRegistryClient) GetChannelEntriesThatReplaceReturnsOnCall(i int,
 }
 
 func (fake *FakeRegistryClient) GetDefaultBundleThatProvides(arg1 context.Context, arg2 *api.GetDefaultProviderRequest, arg3 ...grpc.CallOption) (*api.Bundle, error) {
+	var arg3Copy []grpc.CallOption
+	if arg3 != nil {
+		arg3Copy = make([]grpc.CallOption, len(arg3))
+		copy(arg3Copy, arg3)
+	}
 	fake.getDefaultBundleThatProvidesMutex.Lock()
 	ret, specificReturn := fake.getDefaultBundleThatProvidesReturnsOnCall[len(fake.getDefaultBundleThatProvidesArgsForCall)]
 	fake.getDefaultBundleThatProvidesArgsForCall = append(fake.getDefaultBundleThatProvidesArgsForCall, struct {
 		arg1 context.Context
 		arg2 *api.GetDefaultProviderRequest
 		arg3 []grpc.CallOption
-	}{arg1, arg2, arg3})
+	}{arg1, arg2, arg3Copy})
 	stub := fake.GetDefaultBundleThatProvidesStub
 	fakeReturns := fake.getDefaultBundleThatProvidesReturns
-	fake.recordInvocation("GetDefaultBundleThatProvides", []interface{}{arg1, arg2, arg3})
+	fake.recordInvocation("GetDefaultBundleThatProvides", []interface{}{arg1, arg2, arg3Copy})
 	fake.getDefaultBundleThatProvidesMutex.Unlock()
 	if stub != nil {
 		return stub(arg1, arg2, arg3...)
@@ -561,16 +591,21 @@ func (fake *FakeRegistryClient) GetDefaultBundleThatProvidesReturnsOnCall(i int,
 }
 
 func (fake *FakeRegistryClient) GetLatestChannelEntriesThatProvide(arg1 context.Context, arg2 *api.GetLatestProvidersRequest, arg3 ...grpc.CallOption) (api.Registry_GetLatestChannelEntriesThatProvideClient, error) {
+	var arg3Copy []grpc.CallOption
+	if arg3 != nil {
+		arg3Copy = make([]grpc.CallOption, len(arg3))
+		copy(arg3Copy, arg3)
+	}
 	fake.getLatestChannelEntriesThatProvideMutex.Lock()
 	ret, specificReturn := fake.getLatestChannelEntriesThatProvideReturnsOnCall[len(fake.getLatestChannelEntriesThatProvideArgsForCall)]
 	fake.getLatestChannelEntriesThatProvideArgsForCall = append(fake.getLatestChannelEntriesThatProvideArgsForCall, struct {
 		arg1 context.Context
 		arg2 *api.GetLatestProvidersRequest
 		arg3 []grpc.CallOption
-	}{arg1, arg2, arg3})
+	}{arg1, arg2, arg3Copy})
 	stub := fake.GetLatestChannelEntriesThatProvideStub
 	fakeReturns := fake.getLatestChannelEntriesThatProvideReturns
-	fake.recordInvocation("GetLatestChannelEntriesThatProvide", []interface{}{arg1, arg2, arg3})
+	fake.recordInvocation("GetLatestChannelEntriesThatProvide", []interface{}{arg1, arg2, arg3Copy})
 	fake.getLatestChannelEntriesThatProvideMutex.Unlock()
 	if stub != nil {
 		return stub(arg1, arg2, arg3...)
@@ -627,16 +662,21 @@ func (fake *FakeRegistryClient) GetLatestChannelEntriesThatProvideReturnsOnCall(
 }
 
 func (fake *FakeRegistryClient) GetPackage(arg1 context.Context, arg2 *api.GetPackageRequest, arg3 ...grpc.CallOption) (*api.Package, error) {
+	var arg3Copy []grpc.CallOption
+	if arg3 != nil {
+		arg3Copy = make([]grpc.CallOption, len(arg3))
+		copy(arg3Copy, arg3)
+	}
 	fake.getPackageMutex.Lock()
 	ret, specificReturn := fake.getPackageReturnsOnCall[len(fake.getPackageArgsForCall)]
 	fake.getPackageArgsForCall = append(fake.getPackageArgsForCall, struct {
 		arg1 context.Context
 		arg2 *api.GetPackageRequest
 		arg3 []grpc.CallOption
-	}{arg1, arg2, arg3})
+	}{arg1, arg2, arg3Copy})
 	stub := fake.GetPackageStub
 	fakeReturns := fake.getPackageReturns
-	fake.recordInvocation("GetPackage", []interface{}{arg1, arg2, arg3})
+	fake.recordInvocation("GetPackage", []interface{}{arg1, arg2, arg3Copy})
 	fake.getPackageMutex.Unlock()
 	if stub != nil {
 		return stub(arg1, arg2, arg3...)
@@ -693,16 +733,21 @@ func (fake *FakeRegistryClient) GetPackageReturnsOnCall(i int, result1 *api.Pack
 }
 
 func (fake *FakeRegistryClient) ListBundles(arg1 context.Context, arg2 *api.ListBundlesRequest, arg3 ...grpc.CallOption) (api.Registry_ListBundlesClient, error) {
+	var arg3Copy []grpc.CallOption
+	if arg3 != nil {
+		arg3Copy = make([]grpc.CallOption, len(arg3))
+		copy(arg3Copy, arg3)
+	}
 	fake.listBundlesMutex.Lock()
 	ret, specificReturn := fake.listBundlesReturnsOnCall[len(fake.listBundlesArgsForCall)]
 	fake.listBundlesArgsForCall = append(fake.listBundlesArgsForCall, struct {
 		arg1 context.Context
 		arg2 *api.ListBundlesRequest
 		arg3 []grpc.CallOption
-	}{arg1, arg2, arg3})
+	}{arg1, arg2, arg3Copy})
 	stub := fake.ListBundlesStub
 	fakeReturns := fake.listBundlesReturns
-	fake.recordInvocation("ListBundles", []interface{}{arg1, arg2, arg3})
+	fake.recordInvocation("ListBundles", []interface{}{arg1, arg2, arg3Copy})
 	fake.listBundlesMutex.Unlock()
 	if stub != nil {
 		return stub(arg1, arg2, arg3...)
@@ -759,16 +804,21 @@ func (fake *FakeRegistryClient) ListBundlesReturnsOnCall(i int, result1 api.Regi
 }
 
 func (fake *FakeRegistryClient) ListPackages(arg1 context.Context, arg2 *api.ListPackageRequest, arg3 ...grpc.CallOption) (api.Registry_ListPackagesClient, error) {
+	var arg3Copy []grpc.CallOption
+	if arg3 != nil {
+		arg3Copy = make([]grpc.CallOption, len(arg3))
+		copy(arg3Copy, arg3)
+	}
 	fake.listPackagesMutex.Lock()
 	ret, specificReturn := fake.listPackagesReturnsOnCall[len(fake.listPackagesArgsForCall)]
 	fake.listPackagesArgsForCall = append(fake.listPackagesArgsForCall, struct {
 		arg1 context.Context
 		arg2 *api.ListPackageRequest
 		arg3 []grpc.CallOption
-	}{arg1, arg2, arg3})
+	}{arg1, arg2, arg3Copy})
 	stub := fake.ListPackagesStub
 	fakeReturns := fake.listPackagesReturns
-	fake.recordInvocation("ListPackages", []interface{}{arg1, arg2, arg3})
+	fake.recordInvocation("ListPackages", []interface{}{arg1, arg2, arg3Copy})
 	fake.listPackagesMutex.Unlock()
 	if stub != nil {
 		return stub(arg1, arg2, arg3...)

@@ -175,12 +175,17 @@ func (fake *FakeS) AddArgsForCall(i int) z.Lit {
 }
 
 func (fake *FakeS) Assume(arg1 ...z.Lit) {
+	var arg1Copy []z.Lit
+	if arg1 != nil {
+		arg1Copy = make([]z.Lit, len(arg1))
+		copy(arg1Copy, arg1)
+	}
 	fake.assumeMutex.Lock()
 	fake.assumeArgsForCall = append(fake.assumeArgsForCall, struct {
 		arg1 []z.Lit
-	}{arg1})
+	}{arg1Copy})
 	stub := fake.AssumeStub
-	fake.recordInvocation("Assume", []interface{}{arg1})
+	fake.recordInvocation("Assume", []interface{}{arg1Copy})
 	fake.assumeMutex.Unlock()
 	if stub != nil {
 		fake.AssumeStub(arg1...)
