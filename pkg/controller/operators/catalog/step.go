@@ -2,9 +2,11 @@ package catalog
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -19,10 +21,12 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	listersv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/alongside"
 	crdlib "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/crd"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 // Stepper manages cluster interactions based on the step.
@@ -43,6 +47,8 @@ type builder struct {
 	plan             *v1alpha1.InstallPlan
 	csvLister        listersv1alpha1.ClusterServiceVersionLister
 	opclient         operatorclient.ClientInterface
+	attenuatedClient operatorclient.ClientInterface
+	olmClient        versioned.Interface
 	dynamicClient    dynamic.Interface
 	manifestResolver ManifestResolver
 	logger           logrus.FieldLogger
@@ -51,11 +57,13 @@ type builder struct {
 	annotator alongside.Annotator
 }
 
-func newBuilder(plan *v1alpha1.InstallPlan, csvLister listersv1alpha1.ClusterServiceVersionLister, opclient operatorclient.ClientInterface, dynamicClient dynamic.Interface, manifestResolver ManifestResolver, logger logrus.FieldLogger, er record.EventRecorder) *builder {
+func newBuilder(plan *v1alpha1.InstallPlan, csvLister listersv1alpha1.ClusterServiceVersionLister, opclient operatorclient.ClientInterface, attenuatedClient operatorclient.ClientInterface, olmClient versioned.Interface, dynamicClient dynamic.Interface, manifestResolver ManifestResolver, logger logrus.FieldLogger, er record.EventRecorder) *builder {
 	return &builder{
 		plan:             plan,
 		csvLister:        csvLister,
 		opclient:         opclient,
+		attenuatedClient: attenuatedClient,
+		olmClient:        olmClient,
 		dynamicClient:    dynamicClient,
 		manifestResolver: manifestResolver,
 		logger:           logger,
@@ -91,6 +99,8 @@ func (b *builder) create(step v1alpha1.Step) (Stepper, error) {
 		case crdlib.V1Beta1Version:
 			return b.NewCRDV1Beta1Step(b.opclient.ApiextensionsInterface().ApiextensionsV1beta1(), &step, manifest), nil
 		}
+	case resolver.BundleSecretKind:
+		return b.NewBundleSecretStep(&step, manifest), nil
 	}
 	return nil, notSupportedStepperErr{fmt.Sprintf("stepper interface does not support %s", step.Resource.Kind)}
 }
@@ -317,4 +327,98 @@ func setInstalledAlongsideAnnotation(a alongside.Annotator, dst metav1.Object, n
 	}
 
 	a.ToObject(dst, nns)
+}
+
+// NewBundleSecretStep returns a StepperFunc for BundleSecret steps (OCPBUGS-35210 Fix 2).
+//
+// SA-token Secrets must not be created before their owning ServiceAccount exists — the
+// Kubernetes token controller (KCM) immediately deletes orphaned token secrets, and
+// EnsureBundleSecret would mark the step Created permanently, preventing any retry.
+//
+// This StepperFunc returns WaitingForAPI when the SA is absent so that NeedsRequeue()
+// keeps phase=Installing and OLM retries after 5 s. On the retry the SA has been
+// created (it appears later in the plan), and the secret is created successfully.
+// WaitingForAPI in the StepperFunc path is handled here directly — it never reaches
+// the main ExecutePlan switch that would otherwise skip the step.
+func (b *builder) NewBundleSecretStep(step *v1alpha1.Step, manifest string) StepperFunc {
+	return func() (v1alpha1.StepStatus, error) {
+		switch step.Status {
+		case v1alpha1.StepStatusPresent, v1alpha1.StepStatusCreated:
+			return step.Status, nil
+		}
+
+		namespace := b.plan.GetNamespace()
+
+		var s corev1.Secret
+		if err := json.Unmarshal([]byte(manifest), &s); err != nil {
+			return v1alpha1.StepStatusUnknown, err
+		}
+
+		saName := s.Annotations[corev1.ServiceAccountNameKey]
+		if s.Type == corev1.SecretTypeServiceAccountToken && saName != "" {
+			_, saErr := b.attenuatedClient.KubernetesInterface().CoreV1().
+				ServiceAccounts(namespace).Get(context.TODO(), saName, metav1.GetOptions{})
+			if apierrors.IsNotFound(saErr) {
+				logrus.WithFields(logrus.Fields{
+					"secret": s.Name,
+					"sa":     saName,
+				}).Info("BundleSecretStep: SA not yet created — returning WaitingForAPI (OCPBUGS-35210)")
+				return v1alpha1.StepStatusWaitingForAPI, nil
+			}
+			// Forbidden means the scoped client lacks get on serviceaccounts; proceed
+			// and attempt secret creation — KCM will gate on SA existence regardless.
+			if saErr != nil && !apierrors.IsForbidden(saErr) {
+				return v1alpha1.StepStatusUnknown, saErr
+			}
+		}
+
+		s.SetNamespace(namespace)
+		if s.Labels == nil {
+			s.Labels = map[string]string{}
+		}
+		s.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
+
+		// Add the resolving CSV as a non-blocking owner so the secret is GC'd on
+		// uninstall. Use a live API call — the CSV may have been created in this
+		// same ExecutePlan invocation and will not yet be in the lister cache.
+		// A lister NotFound here would bubble through apierrors.IsNotFound and
+		// incorrectly trigger the discovery-querier path in ExecutePlan.
+		if step.Resolving != "" {
+			csv, err := b.olmClient.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), step.Resolving, metav1.GetOptions{})
+			if err != nil {
+				return v1alpha1.StepStatusUnknown, fmt.Errorf("error getting csv %s for secret owner ref: %w", step.Resolving, err)
+			}
+			ownerutil.AddNonBlockingOwner(&s, csv)
+		}
+
+		// Refresh UIDs on any pre-existing CSV owner refs shipped in the bundle
+		// manifest so Kubernetes GC can match them on uninstall.
+		updated, err := refreshCSVOwnerRefUIDs(s.OwnerReferences, b.olmClient, namespace)
+		if err != nil {
+			return v1alpha1.StepStatusUnknown, fmt.Errorf("error refreshing owner references for secret %s: %w", s.GetName(), err)
+		}
+		s.SetOwnerReferences(updated)
+
+		return createOrUpdateSecret(b.attenuatedClient, namespace, &s)
+	}
+}
+
+// refreshCSVOwnerRefUIDs populates the UID field on any CSV-kind owner references
+// using a live API call, matching the behaviour of getUpdatedOwnerReferences used
+// by the old BundleSecret handler. A live call (not the lister) is used so that
+// freshly-created CSVs whose UIDs have not yet synced to the informer cache are
+// handled correctly.
+func refreshCSVOwnerRefUIDs(refs []metav1.OwnerReference, olmClient versioned.Interface, namespace string) ([]metav1.OwnerReference, error) {
+	updated := append([]metav1.OwnerReference(nil), refs...)
+	for i, owner := range refs {
+		if owner.Kind == v1alpha1.ClusterServiceVersionKind {
+			csv, err := olmClient.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), owner.Name, metav1.GetOptions{})
+			if err != nil {
+				return nil, err
+			}
+			owner.UID = csv.GetUID()
+			updated[i] = owner
+		}
+	}
+	return updated, nil
 }
