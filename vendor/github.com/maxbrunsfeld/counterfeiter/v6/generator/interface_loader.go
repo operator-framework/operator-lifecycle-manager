@@ -1,9 +1,9 @@
 package generator
 
 import (
+	"errors"
 	"fmt"
 	"go/types"
-	"strings"
 
 	"golang.org/x/tools/go/types/typeutil"
 )
@@ -19,7 +19,10 @@ func (f *Fake) addTypesForMethod(sig *types.Signature) {
 	}
 }
 
-func methodForSignature(sig *types.Signature, methodName string, imports Imports) Method {
+func methodForSignature(sig *types.Signature, methodName string, imports Imports) (Method, error) {
+	if hasInvalidType(sig) {
+		return Method{}, fmt.Errorf("method %s uses a type that could not be loaded", methodName)
+	}
 	params := []Param{}
 	for i := 0; i < sig.Params().Len(); i++ {
 		param := sig.Params().At(i)
@@ -28,11 +31,12 @@ func methodForSignature(sig *types.Signature, methodName string, imports Imports
 		if isVariadic {
 			typ = "..." + typ[2:] // Change []string to ...string
 		}
+		_, isSlice := param.Type().Underlying().(*types.Slice)
 		p := Param{
 			Name:       fmt.Sprintf("arg%v", i+1),
 			Type:       typ,
 			IsVariadic: isVariadic,
-			IsSlice:    strings.HasPrefix(typ, "[]"),
+			IsSlice:    isSlice,
 		}
 		params = append(params, p)
 	}
@@ -49,7 +53,7 @@ func methodForSignature(sig *types.Signature, methodName string, imports Imports
 		Name:    methodName,
 		Returns: returns,
 		Params:  params,
-	}
+	}, nil
 }
 
 // interfaceMethodSet identifies the methods that are exported for a given
@@ -81,13 +85,16 @@ func interfaceMethodSet(t types.Type) []*rawMethod {
 	return result
 }
 
-func (f *Fake) loadMethods() {
+func (f *Fake) loadMethods() error {
 	var methods []*rawMethod
 	if f.Mode == Package {
 		methods = packageMethodSet(f.Package)
 	} else {
 		if !f.IsInterface() || f.Target == nil || f.Target.Type() == nil {
-			return
+			return nil
+		}
+		if iface, ok := f.Target.Type().Underlying().(*types.Interface); ok && hasInvalidEmbed(iface, map[*types.Interface]bool{}) {
+			return f.loadError(errors.New("an embedded interface could not be loaded"))
 		}
 		methods = interfaceMethodSet(f.Target.Type())
 	}
@@ -97,7 +104,11 @@ func (f *Fake) loadMethods() {
 	}
 
 	for i := range methods {
-		method := methodForSignature(methods[i].Signature, methods[i].Func.Name(), f.Imports)
+		method, err := methodForSignature(methods[i].Signature, methods[i].Func.Name(), f.Imports)
+		if err != nil {
+			return f.loadError(err)
+		}
 		f.Methods = append(f.Methods, method)
 	}
+	return nil
 }

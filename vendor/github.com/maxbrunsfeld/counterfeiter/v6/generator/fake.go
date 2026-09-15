@@ -30,10 +30,10 @@ type Fake struct {
 	Target                              *types.TypeName
 	Mode                                FakeMode
 	DestinationPackage                  string
+	DestinationDir                      string
 	Name                                string
 	GenericTypeParametersAndConstraints string
 	GenericTypeParameters               string
-	GenericTypeConstraints              string
 	TargetAlias                         string
 	TargetName                          string
 	TargetPackage                       string
@@ -41,6 +41,24 @@ type Fake struct {
 	Methods                             []Method
 	Function                            Method
 	Header                              string
+
+	// loadErrors holds the errors go/packages reported for the target
+	// package that did not stop loading, kept so a failure caused by one
+	// of them can say what went wrong.
+	loadErrors []packages.Error
+
+	// inTargetPackage is true when the fake is written into the directory of
+	// the package that declares the target, so that package must not be
+	// imported and its names are used unqualified.
+	inTargetPackage bool
+
+	// testPackage is true when the fake belongs to the external test package
+	// ("<package>_test") of the destination directory.
+	testPackage bool
+
+	// explicitName is true when the user chose the fake's name, so it is
+	// used as given.
+	explicitName bool
 }
 
 // Method is a method of the interface.
@@ -50,9 +68,42 @@ type Method struct {
 	Returns Returns
 }
 
+// Option configures a Fake before its packages are loaded.
+type Option func(*Fake)
+
+// WithDestinationDir records the directory the fake will be written to. When
+// that is the directory of the target's own package, the fake is generated as
+// a member of that package: it omits the self-import and leaves the package's
+// types unqualified.
+func WithDestinationDir(dir string) Option {
+	return func(f *Fake) {
+		f.DestinationDir = dir
+	}
+}
+
+// WithTestPackage generates the fake into the external test package of the
+// destination directory: the "<package>_test" package that go test compiles
+// next to the package living there. That package is distinct from the target's
+// own package even when the directory is the same, so the target is imported
+// and must be exported.
+func WithTestPackage() Option {
+	return func(f *Fake) {
+		f.testPackage = true
+	}
+}
+
+// WithExplicitName records that the fake's name was chosen by the user rather
+// than derived from the target's name. The name is then used as given; in
+// particular it stays exported for an unexported target in its own package.
+func WithExplicitName() Option {
+	return func(f *Fake) {
+		f.explicitName = true
+	}
+}
+
 // NewFake returns a Fake that loads the package and finds the interface or the
 // function.
-func NewFake(fakeMode FakeMode, targetName string, packagePath string, fakeName string, destinationPackage string, headerContent string, workingDir string, cache Cacher) (*Fake, error) {
+func NewFake(fakeMode FakeMode, targetName string, packagePath string, fakeName string, destinationPackage string, headerContent string, workingDir string, cache Cacher, opts ...Option) (*Fake, error) {
 	f := &Fake{
 		TargetName:         targetName,
 		TargetPackage:      packagePath,
@@ -61,6 +112,9 @@ func NewFake(fakeMode FakeMode, targetName string, packagePath string, fakeName 
 		DestinationPackage: destinationPackage,
 		Imports:            newImports(),
 		Header:             headerContent,
+	}
+	for _, opt := range opts {
+		opt(f)
 	}
 
 	f.Imports.Add("sync", "sync")
@@ -76,7 +130,10 @@ func NewFake(fakeMode FakeMode, targetName string, packagePath string, fakeName 
 	}
 
 	if f.IsInterface() || f.Mode == Package {
-		f.loadMethods()
+		err = f.loadMethods()
+		if err != nil {
+			return nil, err
+		}
 	}
 	if f.IsFunction() {
 		err = f.loadMethodForFunction()
@@ -126,48 +183,6 @@ func (f *Fake) IsConstraintInterface() bool {
 	// check for approximation constraints by examining the string representation
 	// a bit of a hack, but the Go types API doesn't expose type constraints cleanly
 	return strings.Contains(iface.String(), "~")
-}
-
-// HasConstraintInterface indicates whether any of the generic type constraints
-// are constraint interfaces that cannot be used in type assertions.
-func (f *Fake) HasConstraintInterface() bool {
-	if f.Target == nil || f.Target.Type() == nil {
-		return false
-	}
-
-	named, ok := f.Target.Type().(*types.Named)
-	if !ok {
-		return false
-	}
-
-	typeParams := named.TypeParams()
-	if typeParams.Len() == 0 {
-		return false
-	}
-
-	for i := 0; i < typeParams.Len(); i++ {
-		param := typeParams.At(i)
-		constraint := param.Constraint()
-
-		// check if the constraint is a constraint interface
-		if iface, ok := constraint.Underlying().(*types.Interface); ok {
-			// check if this interface contains type constraints
-			for j := 0; j < iface.NumEmbeddeds(); j++ {
-				if _, ok := iface.EmbeddedType(j).(*types.Union); ok {
-					return true
-				}
-			}
-
-			// check for approximation constraints by examining the string representation
-			// a bit of a hack, but the Go types API doesn't expose type constraints cleanly
-			constraintStr := constraint.String()
-			if strings.Contains(constraintStr, "~") {
-				return true
-			}
-		}
-	}
-
-	return false
 }
 
 func unexport(s string) string {

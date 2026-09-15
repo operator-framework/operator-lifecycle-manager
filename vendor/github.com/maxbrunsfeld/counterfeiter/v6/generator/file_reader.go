@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 type FileReader interface {
@@ -50,8 +51,11 @@ func (r *SimpleFileReader) Get(cwd, path string) (string, error) {
 	return r.Open.readString(p)
 }
 
+// CachedFileReader reads each file once and serves it from memory after that.
+// It is safe to share between goroutines.
 type CachedFileReader struct {
 	Open  Opener
+	mu    sync.Mutex
 	cache map[string]string
 }
 
@@ -64,6 +68,8 @@ func (r *CachedFileReader) Get(cwd, path string) (string, error) {
 
 	p := normalisePath(cwd, path)
 
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if s, ok := r.cache[p]; ok {
 		return s, nil
 	}

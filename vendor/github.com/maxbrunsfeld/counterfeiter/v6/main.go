@@ -77,18 +77,12 @@ func run() error {
 	}
 
 	for i := range invocations {
-		a, err := arguments.New(invocations[i].Args, cwd, filepath.EvalSymlinks, os.Stat)
+		// Flags on the '//go:generate ... -generate' line are the defaults for
+		// every '//counterfeiter:generate' directive in the package.
+		a, err := arguments.New(invocations[i].Args, cwd, filepath.EvalSymlinks, os.Stat, arguments.WithDefaults(args))
 		if err != nil {
 			return err
 		}
-
-		// If the '//counterfeiter:generate ...' line does not have a '-header'
-		// flag, we use the one from the "global"
-		// '//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate -header /some/header.txt'
-		// line (which defaults to none). By doing so, we can configure the header
-		// once per package, which is probably the most common case for adding
-		// licence headers (i.e. all the fakes will have the same licence headers).
-		a.HeaderFile = or(a.HeaderFile, args.HeaderFile)
 
 		err = generate(cwd, a, cache, headerReader)
 		if err != nil {
@@ -96,15 +90,6 @@ func run() error {
 		}
 	}
 	return nil
-}
-
-func or(opts ...string) string {
-	for _, s := range opts {
-		if s != "" {
-			return s
-		}
-	}
-	return ""
 }
 
 func isDebug() bool {
@@ -124,13 +109,18 @@ func invokedByGoGenerate() bool {
 }
 
 func generate(workingDir string, args *arguments.ParsedArguments, cache generator.Cacher, headerReader generator.FileReader) error {
+	f, err := newFake(workingDir, args, cache, headerReader)
+	if err != nil {
+		return err
+	}
+
 	if !args.Quiet {
-		if err := reportStarting(workingDir, args.OutputPath, args.FakeImplName); err != nil {
+		if err := reportStarting(workingDir, args.OutputPath, f.Name); err != nil {
 			return err
 		}
 	}
 
-	b, err := doGenerate(workingDir, args, cache, headerReader)
+	b, err := f.Generate(true)
 	if err != nil {
 		return err
 	}
@@ -146,7 +136,7 @@ func generate(workingDir string, args *arguments.ParsedArguments, cache generato
 	return nil
 }
 
-func doGenerate(workingDir string, args *arguments.ParsedArguments, cache generator.Cacher, headerReader generator.FileReader) ([]byte, error) {
+func newFake(workingDir string, args *arguments.ParsedArguments, cache generator.Cacher, headerReader generator.FileReader) (*generator.Fake, error) {
 	mode := generator.InterfaceOrFunction
 	if args.GenerateInterfaceAndShimFromPackageDirectory {
 		mode = generator.Package
@@ -157,11 +147,14 @@ func doGenerate(workingDir string, args *arguments.ParsedArguments, cache genera
 		return nil, err
 	}
 
-	f, err := generator.NewFake(mode, args.InterfaceName, args.PackagePath, args.FakeImplName, args.DestinationPackageName, headerContent, workingDir, cache)
-	if err != nil {
-		return nil, err
+	opts := []generator.Option{generator.WithDestinationDir(filepath.Dir(args.OutputPath))}
+	if args.TestPackage {
+		opts = append(opts, generator.WithTestPackage())
 	}
-	return f.Generate(true)
+	if args.FakeNameExplicit {
+		opts = append(opts, generator.WithExplicitName())
+	}
+	return generator.NewFake(mode, args.InterfaceName, args.PackagePath, args.FakeImplName, args.DestinationPackageName, headerContent, workingDir, cache, opts...)
 }
 
 func printCode(code []byte, outputPath string, printToStdOut bool) error {

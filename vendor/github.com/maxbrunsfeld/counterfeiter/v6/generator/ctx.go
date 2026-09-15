@@ -1,5 +1,3 @@
-//go:build go1.14
-
 package generator
 
 import "go/build"
