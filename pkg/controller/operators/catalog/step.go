@@ -378,11 +378,25 @@ func (b *builder) NewBundleSecretStep(step *v1alpha1.Step, manifest string) Step
 		}
 		s.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
+		// Refresh UIDs on any pre-existing CSV owner refs shipped in the bundle
+		// manifest so Kubernetes GC can match them on uninstall. Capture refs
+		// before adding the resolving CSV owner below to avoid a redundant API
+		// call: the resolving CSV fetch already returns an object with the
+		// correct UID, so passing it through refreshCSVOwnerRefUIDs would
+		// re-fetch the same CSV unnecessarily.
+		updated, err := refreshCSVOwnerRefUIDs(s.OwnerReferences, b.olmClient, namespace)
+		if err != nil {
+			return v1alpha1.StepStatusUnknown, fmt.Errorf("error refreshing owner references for secret %s: %w", s.GetName(), err)
+		}
+		s.SetOwnerReferences(updated)
+
 		// Add the resolving CSV as a non-blocking owner so the secret is GC'd on
 		// uninstall. Use a live API call — the CSV may have been created in this
 		// same ExecutePlan invocation and will not yet be in the lister cache.
 		// A lister NotFound here would bubble through apierrors.IsNotFound and
 		// incorrectly trigger the discovery-querier path in ExecutePlan.
+		// This is done after refreshCSVOwnerRefUIDs so the resolving CSV's UID
+		// (already set by the live Get) is not redundantly re-fetched.
 		if step.Resolving != "" {
 			csv, err := b.olmClient.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), step.Resolving, metav1.GetOptions{})
 			if err != nil {
@@ -390,14 +404,6 @@ func (b *builder) NewBundleSecretStep(step *v1alpha1.Step, manifest string) Step
 			}
 			ownerutil.AddNonBlockingOwner(&s, csv)
 		}
-
-		// Refresh UIDs on any pre-existing CSV owner refs shipped in the bundle
-		// manifest so Kubernetes GC can match them on uninstall.
-		updated, err := refreshCSVOwnerRefUIDs(s.OwnerReferences, b.olmClient, namespace)
-		if err != nil {
-			return v1alpha1.StepStatusUnknown, fmt.Errorf("error refreshing owner references for secret %s: %w", s.GetName(), err)
-		}
-		s.SetOwnerReferences(updated)
 
 		return createOrUpdateSecret(b.attenuatedClient, namespace, &s)
 	}
