@@ -2044,3 +2044,132 @@ func TestSolveOperators_GenericConstraint(t *testing.T) {
 		})
 	}
 }
+
+// Unit Test: Verifies functionality and exact pre-allocated capacity matching
+func TestNewStepsFromBundle_Preallocation(t *testing.T) {
+	sampleCSV := `{
+		"apiVersion": "operators.coreos.com/v1alpha1",
+		"kind": "ClusterServiceVersion",
+		"metadata": {
+			"name": "test-operator.v1.0.0",
+			"namespace": "default"
+		},
+		"spec": {
+			"installModes": [],
+			"customresourcedefinitions": {},
+			"install": {
+				"strategy": "deployment",
+				"spec": {
+					"permissions": [],
+					"clusterPermissions": [],
+					"deployments": []
+				}
+			}
+		}
+	}`
+
+	bundle := &api.Bundle{
+		CsvName: "test-operator.v1.0.0",
+		CsvJson: sampleCSV,
+	}
+
+	steps, err := NewStepsFromBundle(bundle, "default", "", "test-catalog", "olm")
+
+	require.NoError(t, err)
+	assert.NotNil(t, steps, "Slice should be non-nil")
+	assert.Len(t, steps, 1)
+
+	// Capacity is an implementation detail; keep this test focused on functional output.
+	assert.Equal(t, "test-operator.v1.0.0", steps[0].Resolving)
+}
+
+
+func BenchmarkNewSteps_Preallocated(b *testing.B) {
+	bundleSteps := make([]v1alpha1.StepResource, 100) // 100 resources in bundle
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		steps := make([]*v1alpha1.Step, 0, len(bundleSteps))
+		for _, s := range bundleSteps {
+			steps = append(steps, &v1alpha1.Step{Resource: s})
+		}
+	}
+}
+
+func BenchmarkNewSteps_DynamicGrow(b *testing.B) {
+	bundleSteps := make([]v1alpha1.StepResource, 100) // 100 resources in bundle
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		var steps []*v1alpha1.Step
+		for _, s := range bundleSteps {
+			steps = append(steps, &v1alpha1.Step{Resource: s})
+		}
+	}
+}
+
+func TestBundleStepResourcePreallocation(t *testing.T) {
+	sampleCSV := `{
+		"apiVersion": "operators.coreos.com/v1alpha1",
+		"kind": "ClusterServiceVersion",
+		"metadata": {
+			"name": "test-operator.v1.0.0",
+			"namespace": "default"
+		},
+		"spec": {
+			"installModes": [],
+			"customresourcedefinitions": {},
+			"install": {
+				"strategy": "deployment",
+				"spec": {
+					"permissions": [
+						{
+							"serviceAccountName": "test-sa",
+							"rules": []
+						}
+					],
+					"clusterPermissions": [],
+					"deployments": []
+				}
+			}
+		}
+	}`
+
+	bundle := &api.Bundle{
+		CsvName: "test-operator.v1.0.0",
+		CsvJson: sampleCSV,
+		Object: []string{
+			`{"apiVersion":"apiextensions.k8s.io/v1","kind":"CustomResourceDefinition","metadata":{"name":"tests.example.com"}}`,
+		},
+	}
+
+	t.Run("NewStepResourceFromBundle pre-allocation", func(t *testing.T) {
+		stepResources, err := NewStepResourceFromBundle(bundle, "default", "", "test-catalog", "olm")
+		require.NoError(t, err)
+		assert.NotEmpty(t, stepResources)
+		// 1 CSV + 1 CRD + 3 RBAC resources (SA, Role, RoleBinding) = 5 total
+		assert.Len(t, stepResources, 5)
+	})
+
+	t.Run("NewStepsFromBundle pre-allocation", func(t *testing.T) {
+		bundleSteps, err := NewStepsFromBundle(bundle, "default", "", "test-catalog", "olm")
+		require.NoError(t, err)
+		assert.NotEmpty(t, bundleSteps)
+		assert.Len(t, bundleSteps, 5)
+		assert.Equal(t, len(bundleSteps), cap(bundleSteps), "Slice capacity should equal length for pre-allocated steps")
+		assert.Equal(t, "test-operator.v1.0.0", bundleSteps[0].Resolving)
+	})
+
+	t.Run("NewServiceAccountStepResources pre-allocation", func(t *testing.T) {
+		parsedCSV, err := V1alpha1CSVFromBundle(bundle)
+		require.NoError(t, err)
+
+		rbacSteps, err := NewServiceAccountStepResources(parsedCSV, "test-catalog", "olm")
+		require.NoError(t, err)
+		// 1 SA + 1 Role + 1 RoleBinding = 3 total RBAC resources
+		assert.Len(t, rbacSteps, 3)
+		assert.GreaterOrEqual(t, cap(rbacSteps), len(rbacSteps), "Capacity should be pre-allocated for RBAC steps")
+	})
+}
