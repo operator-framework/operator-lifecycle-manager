@@ -49,6 +49,16 @@ func newRootCmd() *cobra.Command {
 			if o.debug {
 				logger.SetLevel(logrus.DebugLevel)
 			}
+			// OCPBUGS-35210: use millisecond timestamps so OLM and audit log
+			// entries can be correlated at sub-second precision.
+			// Set on both the local logger AND the global package logger so that
+			// code using logrus.WithFields() directly also emits milliseconds.
+			msFormatter := &logrus.TextFormatter{
+				TimestampFormat: "2006-01-02T15:04:05.000Z07:00",
+				FullTimestamp:   true,
+			}
+			logger.SetFormatter(msFormatter)
+			logrus.SetFormatter(msFormatter)
 			logger.Infof("log level %s", logger.Level)
 
 			ctx, cancel := context.WithCancel(signals.Context())
