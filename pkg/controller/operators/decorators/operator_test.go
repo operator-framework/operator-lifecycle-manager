@@ -14,6 +14,18 @@ import (
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
 
+func TestJQQueries(t *testing.T) {
+	componentQ, csvQ, err := jqQueries()
+	require.NoError(t, err)
+	require.NotNil(t, componentQ)
+	require.NotNil(t, csvQ)
+
+	componentQ2, csvQ2, err2 := jqQueries()
+	require.NoError(t, err2)
+	require.Same(t, componentQ, componentQ2, "sync.Once should return the same pointer")
+	require.Same(t, csvQ, csvQ2, "sync.Once should return the same pointer")
+}
+
 func TestOperatorNames(t *testing.T) {
 	type args struct {
 		labels map[string]string
