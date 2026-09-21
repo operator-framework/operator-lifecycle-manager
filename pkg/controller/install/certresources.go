@@ -1,6 +1,9 @@
 package install
 
 import (
+	"crypto/ecdsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"strconv"
 	"time"
@@ -38,6 +41,10 @@ const (
 	OLMCAPEMKey = "olmCAKey"
 	// OLMCAHashAnnotationKey is the label key used to store the hash of the CA cert
 	OLMCAHashAnnotationKey = "olmcahash"
+	// OLMCertHashAnnotationKey is the annotation key used to store the hash of the serving cert.
+	OLMCertHashAnnotationKey = "olmcerthash"
+	// OLMKeyHashAnnotationKey is the annotation key used to store the hash of the serving private key.
+	OLMKeyHashAnnotationKey = "olmkeyhash"
 	// Organization is the organization name used in the generation of x509 certs
 	Organization = "Red Hat, Inc."
 	// Kubernetes System namespace
@@ -232,8 +239,8 @@ func (i *StrategyDeploymentInstaller) CertsRotated() bool {
 	return i.certificatesRotated
 }
 
-// shouldRotateCerts indicates whether an apiService cert should be rotated due to being
-// malformed, invalid, expired, inactive or within a specific freshness interval (DefaultCertMinFresh) before expiry.
+// shouldRotateCerts indicates whether a serving cert should be rotated due to being malformed,
+// invalid, expired, inactive or within a specific freshness interval (DefaultCertMinFresh) before expiry.
 func shouldRotateCerts(certSecret *corev1.Secret, hosts []string) bool {
 	now := metav1.Now()
 	caPEM, ok := certSecret.Data[OLMCAPEMKey]
@@ -241,9 +248,14 @@ func shouldRotateCerts(certSecret *corev1.Secret, hosts []string) bool {
 		// missing CA cert in secret
 		return true
 	}
-	certPEM, ok := certSecret.Data["tls.crt"]
+	certPEM, ok := certSecret.Data[corev1.TLSCertKey]
 	if !ok {
 		// missing cert in secret
+		return true
+	}
+	keyPEM, ok := certSecret.Data[corev1.TLSPrivateKeyKey]
+	if !ok {
+		// missing private key in secret
 		return true
 	}
 
@@ -255,6 +267,22 @@ func shouldRotateCerts(certSecret *corev1.Secret, hosts []string) bool {
 	cert, err := certs.PEMToCert(certPEM)
 	if err != nil {
 		// malformed cert
+		return true
+	}
+
+	keyBlock, _ := pem.Decode(keyPEM)
+	if keyBlock == nil {
+		// malformed private key
+		return true
+	}
+	privateKey, err := x509.ParseECPrivateKey(keyBlock.Bytes)
+	if err != nil {
+		// malformed private key
+		return true
+	}
+	certificatePublicKey, ok := cert.PublicKey.(*ecdsa.PublicKey)
+	if !ok || !privateKey.PublicKey.Equal(certificatePublicKey) {
+		// private key does not match the serving certificate
 		return true
 	}
 
@@ -270,6 +298,14 @@ func shouldRotateCerts(certSecret *corev1.Secret, hosts []string) bool {
 			return true
 		}
 	}
+
+	annotations := certSecret.GetAnnotations()
+	if annotations[OLMCAHashAnnotationKey] != certs.PEMSHA256(caPEM) ||
+		annotations[OLMCertHashAnnotationKey] != certs.PEMSHA256(certPEM) ||
+		annotations[OLMKeyHashAnnotationKey] != certs.PEMSHA256(keyPEM) {
+		return true
+	}
+
 	return false
 }
 
@@ -349,25 +385,31 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 		return nil, nil, err
 	}
 
-	// Add olmcahash as a label to the caPEM
+	// Store fingerprints for the generated CA, serving certificate, and private key.
 	caPEM, _, err := ca.ToPEM()
 	if err != nil {
 		logger.Warnf("unable to convert CA certificate to PEM format for Service %s", serviceName)
 		return nil, nil, err
 	}
 	caHash := certs.PEMSHA256(caPEM)
+	certHash := certs.PEMSHA256(certPEM)
+	keyHash := certs.PEMSHA256(privPEM)
 
 	secret := &corev1.Secret{
 		Data: map[string][]byte{
-			"tls.crt":   certPEM,
-			"tls.key":   privPEM,
-			OLMCAPEMKey: caPEM,
+			corev1.TLSCertKey:       certPEM,
+			corev1.TLSPrivateKeyKey: privPEM,
+			OLMCAPEMKey:             caPEM,
 		},
 		Type: corev1.SecretTypeTLS,
 	}
 	secret.SetName(SecretName(serviceName))
 	secret.SetNamespace(i.owner.GetNamespace())
-	secret.SetAnnotations(map[string]string{OLMCAHashAnnotationKey: caHash})
+	secret.SetAnnotations(map[string]string{
+		OLMCAHashAnnotationKey:   caHash,
+		OLMCertHashAnnotationKey: certHash,
+		OLMKeyHashAnnotationKey:  keyHash,
+	})
 	secret.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
 	existingSecret, err := i.strategyClient.GetOpLister().CoreV1().SecretLister().Secrets(i.owner.GetNamespace()).Get(secret.GetName())
@@ -573,11 +615,11 @@ func AddDefaultCertVolumeAndVolumeMounts(depSpec *appsv1.DeploymentSpec, secretN
 				SecretName: secretName,
 				Items: []corev1.KeyToPath{
 					{
-						Key:  "tls.crt",
+						Key:  corev1.TLSCertKey,
 						Path: "apiserver.crt",
 					},
 					{
-						Key:  "tls.key",
+						Key:  corev1.TLSPrivateKeyKey,
 						Path: "apiserver.key",
 					},
 				},
@@ -599,11 +641,11 @@ func AddDefaultCertVolumeAndVolumeMounts(depSpec *appsv1.DeploymentSpec, secretN
 				SecretName: secretName,
 				Items: []corev1.KeyToPath{
 					{
-						Key:  "tls.crt",
+						Key:  corev1.TLSCertKey,
 						Path: "tls.crt",
 					},
 					{
-						Key:  "tls.key",
+						Key:  corev1.TLSPrivateKeyKey,
 						Path: "tls.key",
 					},
 				},
