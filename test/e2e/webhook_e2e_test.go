@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -974,6 +975,89 @@ var _ = Describe("CSVs with a Webhook", Label("Webhooks"), func() {
 			Expect(tempCrdA.Spec.Conversion.Webhook.ClientConfig.Service.Path).Should(Equal(&expectedConvertPath))
 			Expect(tempCrdA.Spec.Conversion.Webhook.ClientConfig.Service.Name).Should(Equal("webhook-service"))
 			Expect(tempCrdA.Spec.Conversion.Webhook.ClientConfig.Service.Namespace).Should(Equal(expectedConvertNamespace))
+		})
+		It("Preserves the current conversion webhook while a replacement is not ready", func() {
+			crdPlural := genName("conversion-upgrade-")
+			conversionCRD := newV1CRD(crdPlural)
+			cleanupCRD, err := createCRD(c, conversionCRD)
+			require.NoError(GinkgoT(), err)
+			defer cleanupCRD()
+
+			ownedCRDDescs := []operatorsv1alpha1.CRDDescription{{
+				Name:    conversionCRD.GetName(),
+				Version: conversionCRD.Spec.Versions[0].Name,
+				Kind:    conversionCRD.Spec.Names.Kind,
+			}}
+			sideEffect := admissionregistrationv1.SideEffectClassNone
+			oldWebhook := operatorsv1alpha1.WebhookDescription{
+				GenerateName:            "conversion-webhook-old",
+				Type:                    operatorsv1alpha1.ConversionWebhook,
+				DeploymentName:          genName("conversion-old-"),
+				ContainerPort:           443,
+				AdmissionReviewVersions: []string{"v1beta1", "v1"},
+				SideEffects:             &sideEffect,
+				ConversionCRDs:          []string{conversionCRD.GetName()},
+			}
+
+			oldCSV := createCSVWithWebhookAndCrds(generatedNamespace.GetName(), oldWebhook, ownedCRDDescs)
+			cleanupOldCSV, err := createCSV(c, crc, oldCSV, generatedNamespace.GetName(), false, false)
+			require.NoError(GinkgoT(), err)
+			var cleanupNewCSV cleanupFunc
+			defer func() {
+				if cleanupNewCSV != nil {
+					cleanupNewCSV()
+				}
+				cleanupOldCSV()
+			}()
+
+			_, err = fetchCSV(crc, generatedNamespace.GetName(), oldCSV.Name, csvSucceededChecker)
+			require.NoError(GinkgoT(), err)
+
+			expectedOldService := install.ServiceName(oldWebhook.DeploymentName)
+			var expectedOldCABundle []byte
+			Eventually(func() (string, error) {
+				crd, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), conversionCRD.GetName(), metav1.GetOptions{})
+				if err != nil {
+					return "", err
+				}
+				if crd.Spec.Conversion == nil || crd.Spec.Conversion.Webhook == nil || crd.Spec.Conversion.Webhook.ClientConfig == nil || crd.Spec.Conversion.Webhook.ClientConfig.Service == nil || len(crd.Spec.Conversion.Webhook.ClientConfig.CABundle) == 0 {
+					return "", fmt.Errorf("conversion webhook is not configured")
+				}
+				expectedOldCABundle = append([]byte(nil), crd.Spec.Conversion.Webhook.ClientConfig.CABundle...)
+				return crd.Spec.Conversion.Webhook.ClientConfig.Service.Name, nil
+			}).Should(Equal(expectedOldService))
+
+			newWebhook := oldWebhook
+			newWebhook.GenerateName = "conversion-webhook-new"
+			newWebhook.DeploymentName = genName("conversion-new-")
+			newCSV := createCSVWithWebhookAndCrds(generatedNamespace.GetName(), newWebhook, ownedCRDDescs)
+			newCSV.Name = genName("conversion-upgrade-csv-")
+			newCSV.Spec.Replaces = oldCSV.Name
+			newCSV.Spec.InstallStrategy = newNginxInstallStrategy(newWebhook.DeploymentName, nil, nil)
+			newCSV.Spec.InstallStrategy.StrategySpec.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Image = "example.invalid/conversion-webhook:never"
+
+			cleanupNewCSV, err = createCSV(c, crc, newCSV, generatedNamespace.GetName(), false, false)
+			require.NoError(GinkgoT(), err)
+
+			_, err = fetchCSV(crc, generatedNamespace.GetName(), newCSV.Name, func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
+				return csv.Status.Phase == operatorsv1alpha1.CSVPhaseInstalling
+			})
+			require.NoError(GinkgoT(), err)
+
+			By(`The existing conversion webhook remains active until the replacement is ready`)
+			Eventually(func() (string, error) {
+				crd, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), conversionCRD.GetName(), metav1.GetOptions{})
+				if err != nil {
+					return "", err
+				}
+				if crd.Spec.Conversion == nil || crd.Spec.Conversion.Webhook == nil || crd.Spec.Conversion.Webhook.ClientConfig == nil || crd.Spec.Conversion.Webhook.ClientConfig.Service == nil || len(crd.Spec.Conversion.Webhook.ClientConfig.CABundle) == 0 {
+					return "", fmt.Errorf("conversion webhook is not configured")
+				}
+				if !bytes.Equal(crd.Spec.Conversion.Webhook.ClientConfig.CABundle, expectedOldCABundle) {
+					return "", fmt.Errorf("conversion webhook CA bundle changed before replacement was ready")
+				}
+				return crd.Spec.Conversion.Webhook.ClientConfig.Service.Name, nil
+			}).Should(Equal(expectedOldService))
 		})
 		It("The CSV is not created when dealing with conversionCRD and multiple installModes support exists", func() {
 			By(`create CRD (crdA)`)
