@@ -771,7 +771,7 @@ go.podman.io/common/pkg/auth
 go.podman.io/common/pkg/capabilities
 go.podman.io/common/pkg/completion
 go.podman.io/common/pkg/password
-# go.podman.io/image/v5 v5.41.1
+# go.podman.io/image/v5 v5.41.2
 ## explicit; go 1.25.7
 go.podman.io/image/v5/docker
 go.podman.io/image/v5/docker/policyconfiguration
@@ -807,7 +807,7 @@ go.podman.io/image/v5/pkg/tlsclientconfig
 go.podman.io/image/v5/transports
 go.podman.io/image/v5/types
 go.podman.io/image/v5/version
-# go.podman.io/storage v1.64.0
+# go.podman.io/storage v1.64.1
 ## explicit; go 1.25.0
 go.podman.io/storage/internal/rawfilelock
 go.podman.io/storage/pkg/configfile
