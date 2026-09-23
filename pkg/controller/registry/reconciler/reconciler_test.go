@@ -38,7 +38,7 @@ func TestPodMemoryTarget(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "b3TgxOZKR9GWI3HsZUGul7EMYUKpXBazgJaBy2", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "cBESV2Miwqi3TX1KELgXItd7j206e4q6b21BnP", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -80,9 +80,6 @@ func TestPodMemoryTarget(t *testing.T) {
 									corev1.ResourceCPU:    resource.MustParse("10m"),
 									corev1.ResourceMemory: resource.MustParse("50Mi"),
 								},
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU: resource.MustParse("2"),
-								},
 							},
 							SecurityContext: &corev1.SecurityContext{
 								ReadOnlyRootFilesystem: ptr.To(false),
@@ -113,7 +110,7 @@ func TestPodMemoryTarget(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "6I8q4ntU0mg0YDRUFqE4iTcpWAB36q6eHFwWhd", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "22OBIOEoFxFjed27eJvvYzqL0TfdXsuapKoxsE", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -156,9 +153,7 @@ func TestPodMemoryTarget(t *testing.T) {
 									corev1.ResourceCPU:    resource.MustParse("10m"),
 									corev1.ResourceMemory: resource.MustParse("5Mi"),
 								},
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU: resource.MustParse("2"),
-								},
+								Limits: corev1.ResourceList{},
 							},
 							SecurityContext: &corev1.SecurityContext{
 								ReadOnlyRootFilesystem: ptr.To(false),
@@ -214,7 +209,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "b3TgxOZKR9GWI3HsZUGul7EMYUKpXBazgJaBy2", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "cBESV2Miwqi3TX1KELgXItd7j206e4q6b21BnP", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -256,9 +251,6 @@ func TestPodExtractContent(t *testing.T) {
 									corev1.ResourceCPU:    resource.MustParse("10m"),
 									corev1.ResourceMemory: resource.MustParse("50Mi"),
 								},
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU: resource.MustParse("2"),
-								},
 							},
 							SecurityContext: &corev1.SecurityContext{
 								ReadOnlyRootFilesystem: ptr.To(false),
@@ -293,7 +285,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "8kD3A1vMnCYXEz5zdY2TUF5zWrKTiKVLPSUcRu", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "30fzEky6rWPSaUHUtTN3mbl0SvE2PryXPIr090", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -380,9 +372,6 @@ func TestPodExtractContent(t *testing.T) {
 									corev1.ResourceCPU:    resource.MustParse("10m"),
 									corev1.ResourceMemory: resource.MustParse("50Mi"),
 								},
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU: resource.MustParse("2"),
-								},
 							},
 							SecurityContext: &corev1.SecurityContext{
 								ReadOnlyRootFilesystem: ptr.To(true),
@@ -417,7 +406,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "8OkzMFWKKYyt5gqJvM01VuNmlSzzLXymyPrXVF", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "57eMKS6v8du5evWOTeBJEFYx7r5udVxvhEQpLB", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -506,9 +495,6 @@ func TestPodExtractContent(t *testing.T) {
 									corev1.ResourceCPU:    resource.MustParse("10m"),
 									corev1.ResourceMemory: resource.MustParse("50Mi"),
 								},
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU: resource.MustParse("2"),
-								},
 							},
 							SecurityContext: &corev1.SecurityContext{
 								ReadOnlyRootFilesystem: ptr.To(true),
@@ -536,7 +522,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "bDc9JN6M7lrPZ9WAke2iCgiMSvhxg1iOz28MCI", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "bfNQa9OTbkeciTpFoCgpKhNENGjVjY61PYAoYA", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -577,9 +563,6 @@ func TestPodExtractContent(t *testing.T) {
 								Requests: corev1.ResourceList{
 									corev1.ResourceCPU:    resource.MustParse("10m"),
 									corev1.ResourceMemory: resource.MustParse("50Mi"),
-								},
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU: resource.MustParse("2"),
 								},
 							},
 							ImagePullPolicy: image.InferImagePullPolicy("image"),
@@ -622,7 +605,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "aDF279JF7kYO6HMGYcKsekOgv8APQPIuVKJuAP", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "5CPn3qG7EdDS0mOX7AazM9Tt1RBtR6bjjMmmep", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -713,9 +696,6 @@ func TestPodExtractContent(t *testing.T) {
 									corev1.ResourceCPU:    resource.MustParse("10m"),
 									corev1.ResourceMemory: resource.MustParse("50Mi"),
 								},
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU: resource.MustParse("2"),
-								},
 							},
 							ImagePullPolicy: image.InferImagePullPolicy("image"),
 							SecurityContext: &corev1.SecurityContext{
@@ -757,7 +737,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "1NOYbt10A4JQuURRyUwEHdnJgZ09GQnCCPm9Xv", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "adSLBZw1o1geKStnSKaiQEubBnN4eqkHabCyHs", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -849,9 +829,6 @@ func TestPodExtractContent(t *testing.T) {
 								Requests: corev1.ResourceList{
 									corev1.ResourceCPU:    resource.MustParse("10m"),
 									corev1.ResourceMemory: resource.MustParse("50Mi"),
-								},
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU: resource.MustParse("2"),
 								},
 							},
 							ImagePullPolicy: image.InferImagePullPolicy("image"),
