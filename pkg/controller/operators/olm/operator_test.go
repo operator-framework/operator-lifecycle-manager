@@ -3703,6 +3703,98 @@ func TestWebhookCABundleRetrieval(t *testing.T) {
 			},
 		},
 		{
+			name: "RetrieveCAFromConversionWebhookSecretBeforeCRDIsConfigured",
+			initial: initial{
+				csvs: []*v1alpha1.ClusterServiceVersion{
+					csvWithConversionWebhook(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1",
+							nil,
+							[]v1alpha1.StrategyDeploymentPermissions{},
+						),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstalling,
+					), "csv1-dep1", []string{"c1.g1"}),
+				},
+				crds: []runtime.Object{
+					crdWithConversionWebhook(crd("c1", "v1", "g1"), nil),
+				},
+				objs: []runtime.Object{
+					&corev1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      install.SecretName(install.ServiceName("csv1-dep1")),
+							Namespace: namespace,
+							Labels: map[string]string{
+								install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+							},
+						},
+						Data: map[string][]byte{
+							install.OLMCAPEMKey: caBundle,
+						},
+					},
+				},
+				desc: v1alpha1.WebhookDescription{
+					DeploymentName: "csv1-dep1",
+					GenerateName:   "webhook",
+					Type:           v1alpha1.ConversionWebhook,
+					ConversionCRDs: []string{"c1.g1"},
+				},
+			},
+			expected: expected{
+				caBundle: caBundle,
+				err:      nil,
+			},
+		},
+		{
+			name: "PreferCAFromConversionWebhookSecretDuringReplacement",
+			initial: initial{
+				csvs: []*v1alpha1.ClusterServiceVersion{
+					csvWithConversionWebhook(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1",
+							nil,
+							[]v1alpha1.StrategyDeploymentPermissions{},
+						),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstalling,
+					), "csv1-dep1", []string{"c1.g1"}),
+				},
+				crds: []runtime.Object{
+					crdWithConversionWebhook(crd("c1", "v1", "g1"), []byte("old-ca")),
+				},
+				objs: []runtime.Object{
+					&corev1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      install.SecretName(install.ServiceName("csv1-dep1")),
+							Namespace: namespace,
+							Labels: map[string]string{
+								install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+							},
+						},
+						Data: map[string][]byte{
+							install.OLMCAPEMKey: caBundle,
+						},
+					},
+				},
+				desc: v1alpha1.WebhookDescription{
+					DeploymentName: "csv1-dep1",
+					GenerateName:   "webhook",
+					Type:           v1alpha1.ConversionWebhook,
+					ConversionCRDs: []string{"c1.g1"},
+				},
+			},
+			expected: expected{
+				caBundle: caBundle,
+				err:      nil,
+			},
+		},
+		{
 			name: "RetrieveFromValidatingAdmissionWebhook",
 			initial: initial{
 				csvs: []*v1alpha1.ClusterServiceVersion{
@@ -3833,6 +3925,85 @@ func TestWebhookCABundleRetrieval(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRemovedWebhooksCleanedUpBeforeStrategyReady(t *testing.T) {
+	namespace := "ns"
+	csv := csv("csv1", namespace, "0.0.0", "", installStrategy("csv1-dep1", nil, nil), nil, nil, v1alpha1.CSVPhaseInstalling)
+
+	validatingLabels := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
+	validatingLabels[install.WebhookDescKey] = "removed-validating"
+	mutatingLabels := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
+	mutatingLabels[install.WebhookDescKey] = "removed-mutating"
+
+	validating := &admissionregistrationv1.ValidatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "removed-validating",
+			Labels: validatingLabels,
+		},
+	}
+	mutating := &admissionregistrationv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "removed-mutating",
+			Labels: mutatingLabels,
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	op, err := NewFakeOperator(
+		ctx,
+		withNamespaces(namespace),
+		withK8sObjs(validating, mutating),
+		withOperatorNamespace(namespace),
+	)
+	require.NoError(t, err)
+
+	err = op.updateInstallStatus(
+		csv,
+		NewTestInstaller(nil, errors.New("deployment is not ready")),
+		&TestStrategy{},
+		v1alpha1.CSVPhaseInstalling,
+		v1alpha1.CSVReasonWaiting,
+	)
+	require.Error(t, err)
+
+	_, err = op.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), validating.Name, metav1.GetOptions{})
+	require.True(t, apierrors.IsNotFound(err))
+	_, err = op.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Get(context.TODO(), mutating.Name, metav1.GetOptions{})
+	require.True(t, apierrors.IsNotFound(err))
+}
+
+func TestRemovedWebhooksCleanupReturnsDeletionErrors(t *testing.T) {
+	namespace := "ns"
+	csv := csv("csv1", namespace, "0.0.0", "", installStrategy("csv1-dep1", nil, nil), nil, nil, v1alpha1.CSVPhaseInstalling)
+	labels := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
+	labels[install.WebhookDescKey] = "removed-validating"
+	validating := &admissionregistrationv1.ValidatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "removed-validating",
+			Labels: labels,
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	op, err := NewFakeOperator(
+		ctx,
+		withNamespaces(namespace),
+		withK8sObjs(validating),
+		withOperatorNamespace(namespace),
+	)
+	require.NoError(t, err)
+
+	deleteErr := errors.New("delete webhook failed")
+	k8sClient, ok := op.opClient.KubernetesInterface().(*k8sfake.Clientset)
+	require.True(t, ok)
+	k8sClient.PrependReactor("delete", "validatingwebhookconfigurations", func(clienttesting.Action) (bool, runtime.Object, error) {
+		return true, nil, deleteErr
+	})
+
+	require.ErrorIs(t, op.cleanUpRemovedWebhooks(csv), deleteErr)
 }
 
 // TestUpdates verifies that a set of expected phase transitions occur when multiple CSVs are present
