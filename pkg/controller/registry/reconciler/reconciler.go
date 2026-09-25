@@ -189,11 +189,6 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 							corev1.ResourceCPU:    resource.MustParse("10m"),
 							corev1.ResourceMemory: resource.MustParse("50Mi"),
 						},
-						Limits: corev1.ResourceList{
-							// enforce CPU limits to avoid node degradation due to CPU spikes
-							// on catalog cache building on startup
-							corev1.ResourceCPU: resource.MustParse("2"),
-						},
 					},
 					SecurityContext: &corev1.SecurityContext{
 						ReadOnlyRootFilesystem: ptr.To(false),
