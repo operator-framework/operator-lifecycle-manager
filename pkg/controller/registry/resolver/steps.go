@@ -146,7 +146,14 @@ func NewStepResourceFromBundle(bundle *api.Bundle, namespace, replaces, catalogS
 	if err != nil {
 		return nil, err
 	}
-	steps := []v1alpha1.StepResource{step}
+	
+	operatorServiceAccountSteps, err := NewServiceAccountStepResources(csv, catalogSourceName, catalogSourceNamespace)
+	if err != nil {
+		return nil, err
+	}
+
+	totalCap := 1 + len(bundle.Object) + len(operatorServiceAccountSteps)
+	steps := append(make([]v1alpha1.StepResource, 0, totalCap), step)
 
 	for _, object := range bundle.Object {
 		dec := yaml.NewYAMLOrJSONDecoder(strings.NewReader(object), 10)
@@ -166,10 +173,6 @@ func NewStepResourceFromBundle(bundle *api.Bundle, namespace, replaces, catalogS
 		steps = append(steps, step)
 	}
 
-	operatorServiceAccountSteps, err := NewServiceAccountStepResources(csv, catalogSourceName, catalogSourceNamespace)
-	if err != nil {
-		return nil, err
-	}
 	steps = append(steps, operatorServiceAccountSteps...)
 	return steps, nil
 }
@@ -180,7 +183,8 @@ func NewStepsFromBundle(bundle *api.Bundle, namespace, replaces, catalogSourceNa
 		return nil, err
 	}
 
-	var steps []*v1alpha1.Step
+	steps := make([]*v1alpha1.Step, 0, len(bundleSteps))
+
 	for _, s := range bundleSteps {
 		steps = append(steps, &v1alpha1.Step{
 			Resolving: bundle.CsvName,
