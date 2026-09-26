@@ -2,15 +2,55 @@ package server
 
 import (
 	"context"
+	"io"
 	"testing"
+	"time"
 
 	apiconfigv1 "github.com/openshift/api/config/v1"
 	configfake "github.com/openshift/client-go/config/clientset/versioned/fake"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/provider"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
+
+func TestRefreshFlags(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		args    []string
+		workers int
+		jitter  float64
+		invalid bool
+	}{
+		{name: "defaults", workers: 4, jitter: 0.2},
+		{name: "configured", args: []string{"--package-refresh-workers=8", "--catalog-refresh-jitter=0"}, workers: 8},
+		{name: "zero-workers", args: []string{"--package-refresh-workers=0"}, invalid: true},
+		{name: "negative-workers", args: []string{"--package-refresh-workers=-1"}, invalid: true},
+		{name: "excessive-workers", args: []string{"--package-refresh-workers=129"}, invalid: true},
+		{name: "negative-jitter", args: []string{"--catalog-refresh-jitter=-0.1"}, invalid: true},
+		{name: "excessive-jitter", args: []string{"--catalog-refresh-jitter=1.1"}, invalid: true},
+		{name: "nan", args: []string{"--catalog-refresh-jitter=NaN"}, invalid: true},
+		{name: "inf", args: []string{"--catalog-refresh-jitter=+Inf"}, invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			o := NewPackageServerOptions(io.Discard, io.Discard)
+			cmd := NewCommandStartPackageServer(context.Background(), o)
+			require.NoError(t, cmd.ParseFlags(tc.args))
+			err := provider.ValidateRefreshOptions(o.PackageRefreshWorkers, o.CatalogRefreshJitter)
+			if tc.invalid {
+				require.Error(t, err)
+				require.EqualError(t, o.Run(context.Background()), err.Error(), "validation must precede config/auth side effects")
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.workers, o.PackageRefreshWorkers)
+			require.Equal(t, tc.jitter, o.CatalogRefreshJitter)
+			require.Equal(t, 12*time.Hour, o.DefaultSyncInterval, "jitter must not silently change the cadence")
+		})
+	}
+}
 
 // clusterAPIServer returns a minimal APIServer singleton with the given TLS profile.
 func clusterAPIServer(profile *apiconfigv1.TLSSecurityProfile) *apiconfigv1.APIServer {

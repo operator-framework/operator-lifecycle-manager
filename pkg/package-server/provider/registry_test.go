@@ -42,6 +42,29 @@ const (
 	dbName  = "test.db"
 )
 
+func TestRefreshCacheStreamSetupError(t *testing.T) {
+	for _, method := range []string{"ListBundles", "ListPackages"} {
+		t.Run(method, func(t *testing.T) {
+			client := &fakes.FakeRegistryClient{}
+			streamErr := fmt.Errorf("%s failed", method)
+			if method == "ListBundles" {
+				client.ListBundlesReturns(nil, streamErr)
+			} else {
+				bundles := &fakes.FakeRegistry_ListBundlesClient{}
+				bundles.RecvReturns(nil, io.EOF)
+				client.ListBundlesReturns(bundles, nil)
+				client.ListPackagesReturns(nil, streamErr)
+			}
+			provider := &RegistryProvider{}
+			err := provider.refreshCache(context.Background(), &registryClient{
+				RegistryClient: client,
+				catsrc:         catalogSource("test", "global"),
+			})
+			require.Same(t, streamErr, err)
+		})
+	}
+}
+
 func server() {
 	_ = os.Remove(dbName)
 	lis, err := net.Listen("tcp", "localhost:"+port)
@@ -100,7 +123,7 @@ func NewFakeRegistryProvider(ctx context.Context, clientObjs []runtime.Object, k
 
 	resyncInterval := 5 * time.Minute
 
-	return NewRegistryProvider(ctx, clientFake, op, resyncInterval, globalNamespace)
+	return NewRegistryProvider(ctx, clientFake, op, resyncInterval, globalNamespace, DefaultPackageRefreshWorkers, 0)
 }
 
 func catalogSource(name, namespace string) *operatorsv1alpha1.CatalogSource {
@@ -938,13 +961,14 @@ func TestRegistryProviderGet(t *testing.T) {
 		packageName      string
 	}
 	tests := []struct {
-		name           string
-		namespaces     []string
-		globalNS       string
-		catalogSources []runtime.Object
-		request        getRequest
-		expectedErr    string
-		expected       *operators.PackageManifest
+		name                string
+		namespaces          []string
+		globalNS            string
+		catalogSources      []runtime.Object
+		refreshErrorCatalog string
+		request             getRequest
+		expectedErr         string
+		expected            *operators.PackageManifest
 	}{
 		{
 			name:       "SingleNamespace/PackageManifestNotFound",
@@ -1010,9 +1034,10 @@ func TestRegistryProviderGet(t *testing.T) {
 			},
 		},
 		{
-			name:       "SingleNamespace/TwoCatalogs/OneBadConnection/PackageManifestFound",
-			namespaces: []string{"ns"},
-			globalNS:   "ns",
+			name:                "SingleNamespace/TwoCatalogs/OneBadConnection/PackageManifestFound",
+			refreshErrorCatalog: "not-so-cool-operators",
+			namespaces:          []string{"ns"},
+			globalNS:            "ns",
 			catalogSources: []runtime.Object{
 				withRegistryServiceStatus(catalogSource("cool-operators", "ns"), "grpc", "cool-operators", "ns", port, metav1.NewTime(time.Now())),
 				withRegistryServiceStatus(catalogSource("not-so-cool-operators", "ns"), "grpc", "not-so-cool-operators", "ns", "50052", metav1.NewTime(time.Now())),
@@ -1119,7 +1144,12 @@ func TestRegistryProviderGet(t *testing.T) {
 
 			for _, cs := range test.catalogSources {
 				catsrc := cs.(*operatorsv1alpha1.CatalogSource)
-				require.NoError(t, provider.refreshCache(ctx, newTestRegistryClient(t, catsrc)))
+				err := provider.refreshCache(ctx, newTestRegistryClient(t, catsrc))
+				if catsrc.Name == test.refreshErrorCatalog {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
 			}
 
 			packageManifest, err := provider.Get(test.request.packageNamespace, test.request.packageName)
@@ -1137,12 +1167,13 @@ func TestRegistryProviderGet(t *testing.T) {
 
 func TestRegistryProviderList(t *testing.T) {
 	tests := []struct {
-		name             string
-		globalNS         string
-		registryClients  []*registryClient
-		requestNamespace string
-		expectedErr      string
-		expected         *operators.PackageManifestList
+		name                string
+		globalNS            string
+		registryClients     []*registryClient
+		refreshErrorCatalog string
+		requestNamespace    string
+		expectedErr         string
+		expected            *operators.PackageManifestList
 	}{
 		{
 			name:             "NoPackages",
@@ -1233,8 +1264,9 @@ func TestRegistryProviderList(t *testing.T) {
 			}},
 		},
 		{
-			name:     "TwoCatalogs/OneBadConnection/PackagesFound",
-			globalNS: "ns",
+			name:                "TwoCatalogs/OneBadConnection/PackagesFound",
+			refreshErrorCatalog: "not-so-cool-operators",
+			globalNS:            "ns",
 			registryClients: []*registryClient{
 				newTestRegistryClient(t, withRegistryServiceStatus(catalogSource("cool-operators", "ns"), "grpc", "cool-operators", "ns", port, metav1.NewTime(time.Now()))),
 				newTestRegistryClient(t, withRegistryServiceStatus(catalogSource("not-so-cool-operators", "ns"), "grpc", "not-so-cool-operators", "ns", "50052", metav1.NewTime(time.Now()))),
@@ -1736,7 +1768,12 @@ func TestRegistryProviderList(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, c := range test.registryClients {
-				require.NoError(t, provider.refreshCache(ctx, c))
+				err := provider.refreshCache(ctx, c)
+				if c.catsrc.Name == test.refreshErrorCatalog {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
 			}
 
 			packageManifestList, err := provider.List(test.requestNamespace, labels.Everything())
