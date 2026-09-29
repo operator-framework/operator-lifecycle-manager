@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
+	"math/rand/v2"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/blang/semver/v4"
@@ -15,13 +18,16 @@ import (
 	"github.com/operator-framework/operator-registry/pkg/api"
 	orregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
@@ -35,11 +41,23 @@ import (
 )
 
 const (
-	catalogIndex = "catalog"
-	cacheTimeout = 5 * time.Minute
-	readyTimeout = 10 * time.Minute
-	stateTimeout = 20 * time.Second
+	catalogIndex                 = "catalog"
+	cacheTimeout                 = 5 * time.Minute
+	readyTimeout                 = 10 * time.Minute
+	stateTimeout                 = 20 * time.Second
+	DefaultPackageRefreshWorkers = 4
+	DefaultCatalogRefreshJitter  = 0.2
 )
+
+func ValidateRefreshOptions(workers int, jitter float64) error {
+	if workers < 1 || workers > 128 {
+		return fmt.Errorf("package-refresh-workers must be between 1 and 128")
+	}
+	if math.IsNaN(jitter) || math.IsInf(jitter, 0) || jitter < 0 || jitter > 1 {
+		return fmt.Errorf("catalog-refresh-jitter must be between 0 and 1")
+	}
+	return nil
+}
 
 func getSourceKey(pkg *operators.PackageManifest) (key *registry.CatalogKey) {
 	if pkg != nil {
@@ -118,20 +136,35 @@ type RegistryProvider struct {
 	queueinformer.Operator
 	runOnce sync.Once
 
-	globalNamespace string
-	sources         *registrygrpc.SourceStore
-	cache           cache.Indexer
-	pkgLister       pkglisters.PackageManifestLister
-	catsrcLister    operatorslisters.CatalogSourceLister
+	globalNamespace     string
+	sources             *registrygrpc.SourceStore
+	cache               cache.Indexer
+	pkgLister           pkglisters.PackageManifestLister
+	catsrcLister        operatorslisters.CatalogSourceLister
+	packageRefreshSlots *semaphore.Weighted
+	ctx                 context.Context
+	refreshQueue        workqueue.TypedRateLimitingInterface[types.NamespacedName]
+	refreshInterval     time.Duration
+	refreshJitter       float64
+	randomFloat         func() float64
 }
 
 var _ PackageManifestProvider = &RegistryProvider{}
 
-func NewRegistryProvider(ctx context.Context, crClient versioned.Interface, operator queueinformer.Operator, wakeupInterval time.Duration, globalNamespace string) (*RegistryProvider, error) {
+func NewRegistryProvider(ctx context.Context, crClient versioned.Interface, operator queueinformer.Operator, wakeupInterval time.Duration, globalNamespace string, workers int, jitter float64) (*RegistryProvider, error) {
+	if err := ValidateRefreshOptions(workers, jitter); err != nil {
+		return nil, err
+	}
 	p := &RegistryProvider{
 		Operator: operator,
 
-		globalNamespace: globalNamespace,
+		globalNamespace:     globalNamespace,
+		packageRefreshSlots: semaphore.NewWeighted(int64(workers)),
+		ctx:                 ctx,
+		refreshInterval:     wakeupInterval,
+		refreshJitter:       jitter,
+		randomFloat:         rand.Float64,
+		refreshQueue:        workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[types.NamespacedName]()),
 		cache: cache.NewIndexer(PackageManifestKeyFunc, cache.Indexers{
 			cache.NamespaceIndex: cache.MetaNamespaceIndexFunc,
 			catalogIndex:         catalogIndexFunc,
@@ -145,7 +178,8 @@ func NewRegistryProvider(ctx context.Context, crClient versioned.Interface, oper
 	catsrcInformer := informerFactory.Operators().V1alpha1().CatalogSources()
 	catsrcQueueInformer, err := queueinformer.NewQueueInformer(
 		ctx,
-		queueinformer.WithInformer(catsrcInformer.Informer()),
+		queueinformer.WithQueue(p.refreshQueue),
+		queueinformer.WithIndexer(catsrcInformer.Informer().GetIndexer()),
 		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(p.syncCatalogSource).ToSyncer()),
 		queueinformer.WithDeletionHandler(p.catalogSourceDeleted),
 	)
@@ -155,9 +189,45 @@ func NewRegistryProvider(ctx context.Context, crClient versioned.Interface, oper
 	if err := p.RegisterQueueInformer(catsrcQueueInformer); err != nil {
 		return nil, err
 	}
+	if err := p.RegisterInformer(catsrcInformer.Informer()); err != nil {
+		return nil, err
+	}
+	_, err = catsrcInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			source := obj.(*operatorsv1alpha1.CatalogSource)
+			p.refreshQueue.Add(types.NamespacedName{Namespace: source.Namespace, Name: source.Name})
+		},
+		UpdateFunc: func(old, current interface{}) {
+			before, source := old.(*operatorsv1alpha1.CatalogSource), current.(*operatorsv1alpha1.CatalogSource)
+			p.enqueueRefresh(registry.CatalogKey{Namespace: source.Namespace, Name: source.Name}, before.ResourceVersion == source.ResourceVersion)
+		},
+		DeleteFunc: p.catalogSourceDeleted,
+	})
+	if err != nil {
+		return nil, err
+	}
 	p.catsrcLister = catsrcInformer.Lister()
+	logrus.WithFields(logrus.Fields{"workers": workers, "resyncInterval": wakeupInterval, "jitter": jitter, "rpcTimeout": cacheTimeout}).Info("configured catalog refresh")
 
 	return p, nil
+}
+
+func (p *RegistryProvider) enqueueRefresh(key registry.CatalogKey, resync bool) {
+	if p.ctx.Err() != nil {
+		return
+	}
+	// Resyncs retain the informer cadence. Initial/reconnect/watch work gets a
+	// smaller stagger so initial package discovery never waits an entire period.
+	window := 30 * time.Second
+	if resync {
+		window = time.Duration(float64(p.refreshInterval) * p.refreshJitter)
+	}
+	if p.refreshJitter == 0 {
+		window = 0
+	}
+	delay := time.Duration(float64(window) * p.randomFloat())
+	logrus.WithFields(logrus.Fields{"source": key, "delay": delay, "resync": resync}).Info("scheduled catalog refresh")
+	p.refreshQueue.AddAfter(types.NamespacedName{Namespace: key.Namespace, Name: key.Name}, delay)
 }
 
 // Run starts the provider's source connection management and catalog informers without blocking.
@@ -196,7 +266,7 @@ func (p *RegistryProvider) syncCatalogSource(obj interface{}) (syncError error) 
 
 	if sourceMeta := p.sources.GetMeta(key); sourceMeta != nil && sourceMeta.Address == address {
 		logger.Infof("updating PackageManifest based on CatalogSource changes: %v", key)
-		timeout, cancel := context.WithTimeout(context.Background(), cacheTimeout)
+		timeout, cancel := context.WithTimeout(p.ctx, cacheTimeout)
 		defer cancel()
 		var client *registryClient
 		client, syncError = p.registryClient(key)
@@ -224,17 +294,10 @@ func (p *RegistryProvider) syncSourceState(state registrygrpc.SourceState) {
 	})
 	logger.Debug("source state changed")
 
-	timeout, cancel := context.WithTimeout(context.Background(), cacheTimeout)
-	defer cancel()
-
 	var err error
 	switch state.State {
 	case connectivity.Ready:
-		var client *registryClient
-		client, err = p.registryClient(key)
-		if err == nil {
-			err = p.refreshCache(timeout, client)
-		}
+		p.enqueueRefresh(key, false)
 	case connectivity.TransientFailure, connectivity.Shutdown:
 		err = p.gcPackages(key, nil)
 	default:
@@ -278,7 +341,7 @@ func getOperatorDeprecation(in *api.Deprecation) *operators.Deprecation {
 	}
 }
 
-func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryClient) error {
+func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryClient) (result error) {
 	key, err := client.key()
 	if err != nil {
 		return err
@@ -288,11 +351,19 @@ func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryCli
 		"action": "refresh cache",
 		"source": key,
 	})
+	started := time.Now()
+	var completed, failed atomic.Int64
+	var streamError error
+	logger.Info("catalog refresh started")
+	defer func() {
+		logger.WithFields(logrus.Fields{"duration": time.Since(started), "completedPackages": completed.Load(), "failedPackages": failed.Load(), "error": result, "streamError": streamError}).Info("catalog refresh finished")
+	}()
 
 	bundleStream, err := client.ListBundles(ctx, &api.ListBundlesRequest{})
 	if err != nil {
 		logger.WithField("err", err.Error()).Warnf("error getting bundle stream")
-		return nil
+		streamError = err
+		return err
 	}
 
 	bundles := map[string]map[string][]operators.ChannelEntry{}
@@ -304,7 +375,7 @@ func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryCli
 		}
 		if err != nil {
 			logger.WithField("err", err.Error()).Warnf("error getting bundle data")
-			break
+			return err
 		}
 		if isDeprecated(bundle) {
 			continue
@@ -323,7 +394,8 @@ func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryCli
 	stream, err := client.ListPackages(ctx, &api.ListPackageRequest{})
 	if err != nil {
 		logger.WithField("err", err.Error()).Warnf("error getting package stream")
-		return nil
+		streamError = err
+		return err
 	}
 
 	for pkgName := range bundles {
@@ -347,6 +419,7 @@ func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryCli
 		mu    sync.Mutex
 		wg    sync.WaitGroup
 	)
+	defer wg.Wait()
 	for {
 		pkgName, err := stream.Recv()
 		if err == io.EOF {
@@ -354,38 +427,52 @@ func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryCli
 		}
 		if err != nil {
 			logger.WithField("err", err.Error()).Warnf("error getting package name data")
-			break
+			return err
 		}
 
+		// Share the bound across catalogs and overlapping refreshes. Acquire before
+		// spawning so waiting packages do not each consume a goroutine.
+		if err := p.packageRefreshSlots.Acquire(ctx, 1); err != nil {
+			return err
+		}
 		wg.Add(1)
 		go func() {
+			defer utilruntime.HandleCrash()
 			defer wg.Done()
+			defer p.packageRefreshSlots.Release(1)
 			pkg, err := client.GetPackage(ctx, &api.GetPackageRequest{Name: pkgName.GetName()})
 			if err != nil {
 				logger.WithField("err", err.Error()).Warnf("eliding package: error getting package")
+				failed.Add(1)
 				return
 			}
 
 			newPkg, err := newPackageManifest(ctx, logger, pkg, client, bundles[pkg.GetName()])
 			if err != nil {
 				logger.WithField("err", err.Error()).Warnf("eliding package: error converting to packagemanifest")
+				failed.Add(1)
 				return
 			}
 
 			if err := p.cache.Add(newPkg); err != nil {
 				logger.WithField("err", err.Error()).Warnf("eliding package: failed to add to cache")
+				failed.Add(1)
 				return
 			}
 
 			mu.Lock()
 			defer mu.Unlock()
 			added[newPkg.GetName()] = struct{}{}
+			completed.Add(1)
 		}()
 	}
 
 	logger.Debug("caching new packages...")
 	wg.Wait()
 	logger.Debug("new packages cached")
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	// Garbage collect orphaned packagemanifests from the cache
 	return p.gcPackages(key, added)
