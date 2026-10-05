@@ -294,8 +294,8 @@ github.com/mattn/go-runewidth v0.0.27 h1:Feg/Oou5zI/wnpgDF6omIU0OokC9GxLC/WRknhV
 github.com/mattn/go-runewidth v0.0.27/go.mod h1:3qAiGCV4Koz/yuveO58qUefmUTRm8r0IGEXZ9jeHp/8=
 github.com/mattn/go-sqlite3 v1.14.49 h1:B8jBHC3xhxZgxztrgruTuLucebnULQnx4W7cF7SAE9w=
 github.com/mattn/go-sqlite3 v1.14.49/go.mod h1:6JTjA44L93a0QCyJef5YvlPoKXntQPjzWv5gtm9sB6w=
-github.com/maxbrunsfeld/counterfeiter/v6 v6.13.0 h1:ybB78iZ/Hkh76F6t+MbN+DP9WFNkLX+tB5JWOctzPyY=
-github.com/maxbrunsfeld/counterfeiter/v6 v6.13.0/go.mod h1:pLuSACD770jzP/sacZMoGDxz34d5uiUpo+xdj/pYF/Y=
+github.com/maxbrunsfeld/counterfeiter/v6 v6.14.0 h1:ycRiGl9/HL9uK7STIAmMegVljG1YujdquTpvl7HTROE=
+github.com/maxbrunsfeld/counterfeiter/v6 v6.14.0/go.mod h1:e/D0QNerKifXqW9s4ViRf5N1bnNGrzSFWCe2e0SuiQA=
 github.com/mfridman/tparse v0.18.0 h1:wh6dzOKaIwkUGyKgOntDW4liXSo37qg5AXbIhkMV3vE=
 github.com/mfridman/tparse v0.18.0/go.mod h1:gEvqZTuCgEhPbYk/2lS3Kcxg1GmTxxU7kTC8DvP0i/A=
 github.com/miekg/pkcs11 v1.1.2 h1:/VxmeAX5qU6Q3EwafypogwWbYryHFmF2RpkJmw3m4MQ=
