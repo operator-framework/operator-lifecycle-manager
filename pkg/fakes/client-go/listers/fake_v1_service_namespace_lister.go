@@ -12,10 +12,8 @@ import (
 type FakeServiceNamespaceLister struct {
 	GetStub        func(string) (*v1a.Service, error)
 	getMutex       sync.RWMutex
-	getArgsForCall []struct {
-		arg1 string
-	}
-	getReturns struct {
+	getArgsForCall []FakeServiceNamespaceListerGetArgs
+	getReturns     struct {
 		result1 *v1a.Service
 		result2 error
 	}
@@ -25,10 +23,8 @@ type FakeServiceNamespaceLister struct {
 	}
 	ListStub        func(labels.Selector) ([]*v1a.Service, error)
 	listMutex       sync.RWMutex
-	listArgsForCall []struct {
-		arg1 labels.Selector
-	}
-	listReturns struct {
+	listArgsForCall []FakeServiceNamespaceListerListArgs
+	listReturns     struct {
 		result1 []*v1a.Service
 		result2 error
 	}
@@ -37,15 +33,24 @@ type FakeServiceNamespaceLister struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeServiceNamespaceListerGetArgs holds the arguments of one call to Get.
+type FakeServiceNamespaceListerGetArgs struct {
+	Arg1 string
+}
+
+// FakeServiceNamespaceListerListArgs holds the arguments of one call to List.
+type FakeServiceNamespaceListerListArgs struct {
+	Arg1 labels.Selector
 }
 
 func (fake *FakeServiceNamespaceLister) Get(arg1 string) (*v1a.Service, error) {
 	fake.getMutex.Lock()
 	ret, specificReturn := fake.getReturnsOnCall[len(fake.getArgsForCall)]
-	fake.getArgsForCall = append(fake.getArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.getArgsForCall = append(fake.getArgsForCall, FakeServiceNamespaceListerGetArgs{arg1})
 	stub := fake.GetStub
 	fakeReturns := fake.getReturns
 	fake.recordInvocation("Get", []interface{}{arg1})
@@ -75,7 +80,15 @@ func (fake *FakeServiceNamespaceLister) GetArgsForCall(i int) string {
 	fake.getMutex.RLock()
 	defer fake.getMutex.RUnlock()
 	argsForCall := fake.getArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeServiceNamespaceLister) GetArgs() []FakeServiceNamespaceListerGetArgs {
+	fake.getMutex.RLock()
+	defer fake.getMutex.RUnlock()
+	args := make([]FakeServiceNamespaceListerGetArgs, len(fake.getArgsForCall))
+	copy(args, fake.getArgsForCall)
+	return args
 }
 
 func (fake *FakeServiceNamespaceLister) GetReturns(result1 *v1a.Service, result2 error) {
@@ -107,9 +120,7 @@ func (fake *FakeServiceNamespaceLister) GetReturnsOnCall(i int, result1 *v1a.Ser
 func (fake *FakeServiceNamespaceLister) List(arg1 labels.Selector) ([]*v1a.Service, error) {
 	fake.listMutex.Lock()
 	ret, specificReturn := fake.listReturnsOnCall[len(fake.listArgsForCall)]
-	fake.listArgsForCall = append(fake.listArgsForCall, struct {
-		arg1 labels.Selector
-	}{arg1})
+	fake.listArgsForCall = append(fake.listArgsForCall, FakeServiceNamespaceListerListArgs{arg1})
 	stub := fake.ListStub
 	fakeReturns := fake.listReturns
 	fake.recordInvocation("List", []interface{}{arg1})
@@ -139,7 +150,15 @@ func (fake *FakeServiceNamespaceLister) ListArgsForCall(i int) labels.Selector {
 	fake.listMutex.RLock()
 	defer fake.listMutex.RUnlock()
 	argsForCall := fake.listArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeServiceNamespaceLister) ListArgs() []FakeServiceNamespaceListerListArgs {
+	fake.listMutex.RLock()
+	defer fake.listMutex.RUnlock()
+	args := make([]FakeServiceNamespaceListerListArgs, len(fake.listArgsForCall))
+	copy(args, fake.listArgsForCall)
+	return args
 }
 
 func (fake *FakeServiceNamespaceLister) ListReturns(result1 []*v1a.Service, result2 error) {
@@ -178,9 +197,18 @@ func (fake *FakeServiceNamespaceLister) Invocations() map[string][][]interface{}
 	return copiedInvocations
 }
 
+func (fake *FakeServiceNamespaceLister) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeServiceNamespaceLister) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

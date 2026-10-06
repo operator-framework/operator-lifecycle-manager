@@ -12,10 +12,8 @@ import (
 type FakeServiceLister struct {
 	ListStub        func(labels.Selector) ([]*v1a.Service, error)
 	listMutex       sync.RWMutex
-	listArgsForCall []struct {
-		arg1 labels.Selector
-	}
-	listReturns struct {
+	listArgsForCall []FakeServiceListerListArgs
+	listReturns     struct {
 		result1 []*v1a.Service
 		result2 error
 	}
@@ -25,25 +23,32 @@ type FakeServiceLister struct {
 	}
 	ServicesStub        func(string) v1.ServiceNamespaceLister
 	servicesMutex       sync.RWMutex
-	servicesArgsForCall []struct {
-		arg1 string
-	}
-	servicesReturns struct {
+	servicesArgsForCall []FakeServiceListerServicesArgs
+	servicesReturns     struct {
 		result1 v1.ServiceNamespaceLister
 	}
 	servicesReturnsOnCall map[int]struct {
 		result1 v1.ServiceNamespaceLister
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeServiceListerListArgs holds the arguments of one call to List.
+type FakeServiceListerListArgs struct {
+	Arg1 labels.Selector
+}
+
+// FakeServiceListerServicesArgs holds the arguments of one call to Services.
+type FakeServiceListerServicesArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeServiceLister) List(arg1 labels.Selector) ([]*v1a.Service, error) {
 	fake.listMutex.Lock()
 	ret, specificReturn := fake.listReturnsOnCall[len(fake.listArgsForCall)]
-	fake.listArgsForCall = append(fake.listArgsForCall, struct {
-		arg1 labels.Selector
-	}{arg1})
+	fake.listArgsForCall = append(fake.listArgsForCall, FakeServiceListerListArgs{arg1})
 	stub := fake.ListStub
 	fakeReturns := fake.listReturns
 	fake.recordInvocation("List", []interface{}{arg1})
@@ -73,7 +78,15 @@ func (fake *FakeServiceLister) ListArgsForCall(i int) labels.Selector {
 	fake.listMutex.RLock()
 	defer fake.listMutex.RUnlock()
 	argsForCall := fake.listArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeServiceLister) ListArgs() []FakeServiceListerListArgs {
+	fake.listMutex.RLock()
+	defer fake.listMutex.RUnlock()
+	args := make([]FakeServiceListerListArgs, len(fake.listArgsForCall))
+	copy(args, fake.listArgsForCall)
+	return args
 }
 
 func (fake *FakeServiceLister) ListReturns(result1 []*v1a.Service, result2 error) {
@@ -105,9 +118,7 @@ func (fake *FakeServiceLister) ListReturnsOnCall(i int, result1 []*v1a.Service, 
 func (fake *FakeServiceLister) Services(arg1 string) v1.ServiceNamespaceLister {
 	fake.servicesMutex.Lock()
 	ret, specificReturn := fake.servicesReturnsOnCall[len(fake.servicesArgsForCall)]
-	fake.servicesArgsForCall = append(fake.servicesArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.servicesArgsForCall = append(fake.servicesArgsForCall, FakeServiceListerServicesArgs{arg1})
 	stub := fake.ServicesStub
 	fakeReturns := fake.servicesReturns
 	fake.recordInvocation("Services", []interface{}{arg1})
@@ -137,7 +148,15 @@ func (fake *FakeServiceLister) ServicesArgsForCall(i int) string {
 	fake.servicesMutex.RLock()
 	defer fake.servicesMutex.RUnlock()
 	argsForCall := fake.servicesArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeServiceLister) ServicesArgs() []FakeServiceListerServicesArgs {
+	fake.servicesMutex.RLock()
+	defer fake.servicesMutex.RUnlock()
+	args := make([]FakeServiceListerServicesArgs, len(fake.servicesArgsForCall))
+	copy(args, fake.servicesArgsForCall)
+	return args
 }
 
 func (fake *FakeServiceLister) ServicesReturns(result1 v1.ServiceNamespaceLister) {
@@ -173,9 +192,18 @@ func (fake *FakeServiceLister) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeServiceLister) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeServiceLister) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

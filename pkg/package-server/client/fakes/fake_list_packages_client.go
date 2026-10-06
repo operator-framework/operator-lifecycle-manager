@@ -12,9 +12,8 @@ import (
 type FakeRegistry_ListPackagesClient struct {
 	CloseSendStub        func() error
 	closeSendMutex       sync.RWMutex
-	closeSendArgsForCall []struct {
-	}
-	closeSendReturns struct {
+	closeSendArgsForCall []struct{}
+	closeSendReturns     struct {
 		result1 error
 	}
 	closeSendReturnsOnCall map[int]struct {
@@ -22,9 +21,8 @@ type FakeRegistry_ListPackagesClient struct {
 	}
 	ContextStub        func() context.Context
 	contextMutex       sync.RWMutex
-	contextArgsForCall []struct {
-	}
-	contextReturns struct {
+	contextArgsForCall []struct{}
+	contextReturns     struct {
 		result1 context.Context
 	}
 	contextReturnsOnCall map[int]struct {
@@ -32,9 +30,8 @@ type FakeRegistry_ListPackagesClient struct {
 	}
 	HeaderStub        func() (metadata.MD, error)
 	headerMutex       sync.RWMutex
-	headerArgsForCall []struct {
-	}
-	headerReturns struct {
+	headerArgsForCall []struct{}
+	headerReturns     struct {
 		result1 metadata.MD
 		result2 error
 	}
@@ -44,9 +41,8 @@ type FakeRegistry_ListPackagesClient struct {
 	}
 	RecvStub        func() (*api.PackageName, error)
 	recvMutex       sync.RWMutex
-	recvArgsForCall []struct {
-	}
-	recvReturns struct {
+	recvArgsForCall []struct{}
+	recvReturns     struct {
 		result1 *api.PackageName
 		result2 error
 	}
@@ -56,10 +52,8 @@ type FakeRegistry_ListPackagesClient struct {
 	}
 	RecvMsgStub        func(any) error
 	recvMsgMutex       sync.RWMutex
-	recvMsgArgsForCall []struct {
-		arg1 any
-	}
-	recvMsgReturns struct {
+	recvMsgArgsForCall []FakeRegistry_ListPackagesClientRecvMsgArgs
+	recvMsgReturns     struct {
 		result1 error
 	}
 	recvMsgReturnsOnCall map[int]struct {
@@ -67,10 +61,8 @@ type FakeRegistry_ListPackagesClient struct {
 	}
 	SendMsgStub        func(any) error
 	sendMsgMutex       sync.RWMutex
-	sendMsgArgsForCall []struct {
-		arg1 any
-	}
-	sendMsgReturns struct {
+	sendMsgArgsForCall []FakeRegistry_ListPackagesClientSendMsgArgs
+	sendMsgReturns     struct {
 		result1 error
 	}
 	sendMsgReturnsOnCall map[int]struct {
@@ -78,23 +70,32 @@ type FakeRegistry_ListPackagesClient struct {
 	}
 	TrailerStub        func() metadata.MD
 	trailerMutex       sync.RWMutex
-	trailerArgsForCall []struct {
-	}
-	trailerReturns struct {
+	trailerArgsForCall []struct{}
+	trailerReturns     struct {
 		result1 metadata.MD
 	}
 	trailerReturnsOnCall map[int]struct {
 		result1 metadata.MD
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeRegistry_ListPackagesClientRecvMsgArgs holds the arguments of one call to RecvMsg.
+type FakeRegistry_ListPackagesClientRecvMsgArgs struct {
+	Arg1 any
+}
+
+// FakeRegistry_ListPackagesClientSendMsgArgs holds the arguments of one call to SendMsg.
+type FakeRegistry_ListPackagesClientSendMsgArgs struct {
+	Arg1 any
 }
 
 func (fake *FakeRegistry_ListPackagesClient) CloseSend() error {
 	fake.closeSendMutex.Lock()
 	ret, specificReturn := fake.closeSendReturnsOnCall[len(fake.closeSendArgsForCall)]
-	fake.closeSendArgsForCall = append(fake.closeSendArgsForCall, struct {
-	}{})
+	fake.closeSendArgsForCall = append(fake.closeSendArgsForCall, struct{}{})
 	stub := fake.CloseSendStub
 	fakeReturns := fake.closeSendReturns
 	fake.recordInvocation("CloseSend", []interface{}{})
@@ -146,8 +147,7 @@ func (fake *FakeRegistry_ListPackagesClient) CloseSendReturnsOnCall(i int, resul
 func (fake *FakeRegistry_ListPackagesClient) Context() context.Context {
 	fake.contextMutex.Lock()
 	ret, specificReturn := fake.contextReturnsOnCall[len(fake.contextArgsForCall)]
-	fake.contextArgsForCall = append(fake.contextArgsForCall, struct {
-	}{})
+	fake.contextArgsForCall = append(fake.contextArgsForCall, struct{}{})
 	stub := fake.ContextStub
 	fakeReturns := fake.contextReturns
 	fake.recordInvocation("Context", []interface{}{})
@@ -199,8 +199,7 @@ func (fake *FakeRegistry_ListPackagesClient) ContextReturnsOnCall(i int, result1
 func (fake *FakeRegistry_ListPackagesClient) Header() (metadata.MD, error) {
 	fake.headerMutex.Lock()
 	ret, specificReturn := fake.headerReturnsOnCall[len(fake.headerArgsForCall)]
-	fake.headerArgsForCall = append(fake.headerArgsForCall, struct {
-	}{})
+	fake.headerArgsForCall = append(fake.headerArgsForCall, struct{}{})
 	stub := fake.HeaderStub
 	fakeReturns := fake.headerReturns
 	fake.recordInvocation("Header", []interface{}{})
@@ -255,8 +254,7 @@ func (fake *FakeRegistry_ListPackagesClient) HeaderReturnsOnCall(i int, result1 
 func (fake *FakeRegistry_ListPackagesClient) Recv() (*api.PackageName, error) {
 	fake.recvMutex.Lock()
 	ret, specificReturn := fake.recvReturnsOnCall[len(fake.recvArgsForCall)]
-	fake.recvArgsForCall = append(fake.recvArgsForCall, struct {
-	}{})
+	fake.recvArgsForCall = append(fake.recvArgsForCall, struct{}{})
 	stub := fake.RecvStub
 	fakeReturns := fake.recvReturns
 	fake.recordInvocation("Recv", []interface{}{})
@@ -311,9 +309,7 @@ func (fake *FakeRegistry_ListPackagesClient) RecvReturnsOnCall(i int, result1 *a
 func (fake *FakeRegistry_ListPackagesClient) RecvMsg(arg1 any) error {
 	fake.recvMsgMutex.Lock()
 	ret, specificReturn := fake.recvMsgReturnsOnCall[len(fake.recvMsgArgsForCall)]
-	fake.recvMsgArgsForCall = append(fake.recvMsgArgsForCall, struct {
-		arg1 any
-	}{arg1})
+	fake.recvMsgArgsForCall = append(fake.recvMsgArgsForCall, FakeRegistry_ListPackagesClientRecvMsgArgs{arg1})
 	stub := fake.RecvMsgStub
 	fakeReturns := fake.recvMsgReturns
 	fake.recordInvocation("RecvMsg", []interface{}{arg1})
@@ -343,7 +339,15 @@ func (fake *FakeRegistry_ListPackagesClient) RecvMsgArgsForCall(i int) any {
 	fake.recvMsgMutex.RLock()
 	defer fake.recvMsgMutex.RUnlock()
 	argsForCall := fake.recvMsgArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeRegistry_ListPackagesClient) RecvMsgArgs() []FakeRegistry_ListPackagesClientRecvMsgArgs {
+	fake.recvMsgMutex.RLock()
+	defer fake.recvMsgMutex.RUnlock()
+	args := make([]FakeRegistry_ListPackagesClientRecvMsgArgs, len(fake.recvMsgArgsForCall))
+	copy(args, fake.recvMsgArgsForCall)
+	return args
 }
 
 func (fake *FakeRegistry_ListPackagesClient) RecvMsgReturns(result1 error) {
@@ -372,9 +376,7 @@ func (fake *FakeRegistry_ListPackagesClient) RecvMsgReturnsOnCall(i int, result1
 func (fake *FakeRegistry_ListPackagesClient) SendMsg(arg1 any) error {
 	fake.sendMsgMutex.Lock()
 	ret, specificReturn := fake.sendMsgReturnsOnCall[len(fake.sendMsgArgsForCall)]
-	fake.sendMsgArgsForCall = append(fake.sendMsgArgsForCall, struct {
-		arg1 any
-	}{arg1})
+	fake.sendMsgArgsForCall = append(fake.sendMsgArgsForCall, FakeRegistry_ListPackagesClientSendMsgArgs{arg1})
 	stub := fake.SendMsgStub
 	fakeReturns := fake.sendMsgReturns
 	fake.recordInvocation("SendMsg", []interface{}{arg1})
@@ -404,7 +406,15 @@ func (fake *FakeRegistry_ListPackagesClient) SendMsgArgsForCall(i int) any {
 	fake.sendMsgMutex.RLock()
 	defer fake.sendMsgMutex.RUnlock()
 	argsForCall := fake.sendMsgArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeRegistry_ListPackagesClient) SendMsgArgs() []FakeRegistry_ListPackagesClientSendMsgArgs {
+	fake.sendMsgMutex.RLock()
+	defer fake.sendMsgMutex.RUnlock()
+	args := make([]FakeRegistry_ListPackagesClientSendMsgArgs, len(fake.sendMsgArgsForCall))
+	copy(args, fake.sendMsgArgsForCall)
+	return args
 }
 
 func (fake *FakeRegistry_ListPackagesClient) SendMsgReturns(result1 error) {
@@ -433,8 +443,7 @@ func (fake *FakeRegistry_ListPackagesClient) SendMsgReturnsOnCall(i int, result1
 func (fake *FakeRegistry_ListPackagesClient) Trailer() metadata.MD {
 	fake.trailerMutex.Lock()
 	ret, specificReturn := fake.trailerReturnsOnCall[len(fake.trailerArgsForCall)]
-	fake.trailerArgsForCall = append(fake.trailerArgsForCall, struct {
-	}{})
+	fake.trailerArgsForCall = append(fake.trailerArgsForCall, struct{}{})
 	stub := fake.TrailerStub
 	fakeReturns := fake.trailerReturns
 	fake.recordInvocation("Trailer", []interface{}{})
@@ -493,9 +502,18 @@ func (fake *FakeRegistry_ListPackagesClient) Invocations() map[string][][]interf
 	return copiedInvocations
 }
 
+func (fake *FakeRegistry_ListPackagesClient) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeRegistry_ListPackagesClient) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

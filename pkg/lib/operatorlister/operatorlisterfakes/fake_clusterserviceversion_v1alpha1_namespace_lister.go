@@ -12,10 +12,8 @@ import (
 type FakeClusterServiceVersionNamespaceLister struct {
 	GetStub        func(string) (*v1alpha1a.ClusterServiceVersion, error)
 	getMutex       sync.RWMutex
-	getArgsForCall []struct {
-		arg1 string
-	}
-	getReturns struct {
+	getArgsForCall []FakeClusterServiceVersionNamespaceListerGetArgs
+	getReturns     struct {
 		result1 *v1alpha1a.ClusterServiceVersion
 		result2 error
 	}
@@ -25,10 +23,8 @@ type FakeClusterServiceVersionNamespaceLister struct {
 	}
 	ListStub        func(labels.Selector) ([]*v1alpha1a.ClusterServiceVersion, error)
 	listMutex       sync.RWMutex
-	listArgsForCall []struct {
-		arg1 labels.Selector
-	}
-	listReturns struct {
+	listArgsForCall []FakeClusterServiceVersionNamespaceListerListArgs
+	listReturns     struct {
 		result1 []*v1alpha1a.ClusterServiceVersion
 		result2 error
 	}
@@ -37,15 +33,24 @@ type FakeClusterServiceVersionNamespaceLister struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeClusterServiceVersionNamespaceListerGetArgs holds the arguments of one call to Get.
+type FakeClusterServiceVersionNamespaceListerGetArgs struct {
+	Arg1 string
+}
+
+// FakeClusterServiceVersionNamespaceListerListArgs holds the arguments of one call to List.
+type FakeClusterServiceVersionNamespaceListerListArgs struct {
+	Arg1 labels.Selector
 }
 
 func (fake *FakeClusterServiceVersionNamespaceLister) Get(arg1 string) (*v1alpha1a.ClusterServiceVersion, error) {
 	fake.getMutex.Lock()
 	ret, specificReturn := fake.getReturnsOnCall[len(fake.getArgsForCall)]
-	fake.getArgsForCall = append(fake.getArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.getArgsForCall = append(fake.getArgsForCall, FakeClusterServiceVersionNamespaceListerGetArgs{arg1})
 	stub := fake.GetStub
 	fakeReturns := fake.getReturns
 	fake.recordInvocation("Get", []interface{}{arg1})
@@ -75,7 +80,15 @@ func (fake *FakeClusterServiceVersionNamespaceLister) GetArgsForCall(i int) stri
 	fake.getMutex.RLock()
 	defer fake.getMutex.RUnlock()
 	argsForCall := fake.getArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeClusterServiceVersionNamespaceLister) GetArgs() []FakeClusterServiceVersionNamespaceListerGetArgs {
+	fake.getMutex.RLock()
+	defer fake.getMutex.RUnlock()
+	args := make([]FakeClusterServiceVersionNamespaceListerGetArgs, len(fake.getArgsForCall))
+	copy(args, fake.getArgsForCall)
+	return args
 }
 
 func (fake *FakeClusterServiceVersionNamespaceLister) GetReturns(result1 *v1alpha1a.ClusterServiceVersion, result2 error) {
@@ -107,9 +120,7 @@ func (fake *FakeClusterServiceVersionNamespaceLister) GetReturnsOnCall(i int, re
 func (fake *FakeClusterServiceVersionNamespaceLister) List(arg1 labels.Selector) ([]*v1alpha1a.ClusterServiceVersion, error) {
 	fake.listMutex.Lock()
 	ret, specificReturn := fake.listReturnsOnCall[len(fake.listArgsForCall)]
-	fake.listArgsForCall = append(fake.listArgsForCall, struct {
-		arg1 labels.Selector
-	}{arg1})
+	fake.listArgsForCall = append(fake.listArgsForCall, FakeClusterServiceVersionNamespaceListerListArgs{arg1})
 	stub := fake.ListStub
 	fakeReturns := fake.listReturns
 	fake.recordInvocation("List", []interface{}{arg1})
@@ -139,7 +150,15 @@ func (fake *FakeClusterServiceVersionNamespaceLister) ListArgsForCall(i int) lab
 	fake.listMutex.RLock()
 	defer fake.listMutex.RUnlock()
 	argsForCall := fake.listArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeClusterServiceVersionNamespaceLister) ListArgs() []FakeClusterServiceVersionNamespaceListerListArgs {
+	fake.listMutex.RLock()
+	defer fake.listMutex.RUnlock()
+	args := make([]FakeClusterServiceVersionNamespaceListerListArgs, len(fake.listArgsForCall))
+	copy(args, fake.listArgsForCall)
+	return args
 }
 
 func (fake *FakeClusterServiceVersionNamespaceLister) ListReturns(result1 []*v1alpha1a.ClusterServiceVersion, result2 error) {
@@ -178,9 +197,18 @@ func (fake *FakeClusterServiceVersionNamespaceLister) Invocations() map[string][
 	return copiedInvocations
 }
 
+func (fake *FakeClusterServiceVersionNamespaceLister) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeClusterServiceVersionNamespaceLister) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

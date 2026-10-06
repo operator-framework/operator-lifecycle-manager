@@ -11,9 +11,8 @@ import (
 type FakeRbacV1Lister struct {
 	ClusterRoleBindingListerStub        func() v1.ClusterRoleBindingLister
 	clusterRoleBindingListerMutex       sync.RWMutex
-	clusterRoleBindingListerArgsForCall []struct {
-	}
-	clusterRoleBindingListerReturns struct {
+	clusterRoleBindingListerArgsForCall []struct{}
+	clusterRoleBindingListerReturns     struct {
 		result1 v1.ClusterRoleBindingLister
 	}
 	clusterRoleBindingListerReturnsOnCall map[int]struct {
@@ -21,9 +20,8 @@ type FakeRbacV1Lister struct {
 	}
 	ClusterRoleListerStub        func() v1.ClusterRoleLister
 	clusterRoleListerMutex       sync.RWMutex
-	clusterRoleListerArgsForCall []struct {
-	}
-	clusterRoleListerReturns struct {
+	clusterRoleListerArgsForCall []struct{}
+	clusterRoleListerReturns     struct {
 		result1 v1.ClusterRoleLister
 	}
 	clusterRoleListerReturnsOnCall map[int]struct {
@@ -31,31 +29,20 @@ type FakeRbacV1Lister struct {
 	}
 	RegisterClusterRoleBindingListerStub        func(v1.ClusterRoleBindingLister)
 	registerClusterRoleBindingListerMutex       sync.RWMutex
-	registerClusterRoleBindingListerArgsForCall []struct {
-		arg1 v1.ClusterRoleBindingLister
-	}
-	RegisterClusterRoleListerStub        func(v1.ClusterRoleLister)
-	registerClusterRoleListerMutex       sync.RWMutex
-	registerClusterRoleListerArgsForCall []struct {
-		arg1 v1.ClusterRoleLister
-	}
-	RegisterRoleBindingListerStub        func(string, v1.RoleBindingLister)
-	registerRoleBindingListerMutex       sync.RWMutex
-	registerRoleBindingListerArgsForCall []struct {
-		arg1 string
-		arg2 v1.RoleBindingLister
-	}
-	RegisterRoleListerStub        func(string, v1.RoleLister)
-	registerRoleListerMutex       sync.RWMutex
-	registerRoleListerArgsForCall []struct {
-		arg1 string
-		arg2 v1.RoleLister
-	}
-	RoleBindingListerStub        func() v1.RoleBindingLister
-	roleBindingListerMutex       sync.RWMutex
-	roleBindingListerArgsForCall []struct {
-	}
-	roleBindingListerReturns struct {
+	registerClusterRoleBindingListerArgsForCall []FakeRbacV1ListerRegisterClusterRoleBindingListerArgs
+	RegisterClusterRoleListerStub               func(v1.ClusterRoleLister)
+	registerClusterRoleListerMutex              sync.RWMutex
+	registerClusterRoleListerArgsForCall        []FakeRbacV1ListerRegisterClusterRoleListerArgs
+	RegisterRoleBindingListerStub               func(string, v1.RoleBindingLister)
+	registerRoleBindingListerMutex              sync.RWMutex
+	registerRoleBindingListerArgsForCall        []FakeRbacV1ListerRegisterRoleBindingListerArgs
+	RegisterRoleListerStub                      func(string, v1.RoleLister)
+	registerRoleListerMutex                     sync.RWMutex
+	registerRoleListerArgsForCall               []FakeRbacV1ListerRegisterRoleListerArgs
+	RoleBindingListerStub                       func() v1.RoleBindingLister
+	roleBindingListerMutex                      sync.RWMutex
+	roleBindingListerArgsForCall                []struct{}
+	roleBindingListerReturns                    struct {
 		result1 v1.RoleBindingLister
 	}
 	roleBindingListerReturnsOnCall map[int]struct {
@@ -63,23 +50,44 @@ type FakeRbacV1Lister struct {
 	}
 	RoleListerStub        func() v1.RoleLister
 	roleListerMutex       sync.RWMutex
-	roleListerArgsForCall []struct {
-	}
-	roleListerReturns struct {
+	roleListerArgsForCall []struct{}
+	roleListerReturns     struct {
 		result1 v1.RoleLister
 	}
 	roleListerReturnsOnCall map[int]struct {
 		result1 v1.RoleLister
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeRbacV1ListerRegisterClusterRoleBindingListerArgs holds the arguments of one call to RegisterClusterRoleBindingLister.
+type FakeRbacV1ListerRegisterClusterRoleBindingListerArgs struct {
+	Arg1 v1.ClusterRoleBindingLister
+}
+
+// FakeRbacV1ListerRegisterClusterRoleListerArgs holds the arguments of one call to RegisterClusterRoleLister.
+type FakeRbacV1ListerRegisterClusterRoleListerArgs struct {
+	Arg1 v1.ClusterRoleLister
+}
+
+// FakeRbacV1ListerRegisterRoleBindingListerArgs holds the arguments of one call to RegisterRoleBindingLister.
+type FakeRbacV1ListerRegisterRoleBindingListerArgs struct {
+	Arg1 string
+	Arg2 v1.RoleBindingLister
+}
+
+// FakeRbacV1ListerRegisterRoleListerArgs holds the arguments of one call to RegisterRoleLister.
+type FakeRbacV1ListerRegisterRoleListerArgs struct {
+	Arg1 string
+	Arg2 v1.RoleLister
 }
 
 func (fake *FakeRbacV1Lister) ClusterRoleBindingLister() v1.ClusterRoleBindingLister {
 	fake.clusterRoleBindingListerMutex.Lock()
 	ret, specificReturn := fake.clusterRoleBindingListerReturnsOnCall[len(fake.clusterRoleBindingListerArgsForCall)]
-	fake.clusterRoleBindingListerArgsForCall = append(fake.clusterRoleBindingListerArgsForCall, struct {
-	}{})
+	fake.clusterRoleBindingListerArgsForCall = append(fake.clusterRoleBindingListerArgsForCall, struct{}{})
 	stub := fake.ClusterRoleBindingListerStub
 	fakeReturns := fake.clusterRoleBindingListerReturns
 	fake.recordInvocation("ClusterRoleBindingLister", []interface{}{})
@@ -131,8 +139,7 @@ func (fake *FakeRbacV1Lister) ClusterRoleBindingListerReturnsOnCall(i int, resul
 func (fake *FakeRbacV1Lister) ClusterRoleLister() v1.ClusterRoleLister {
 	fake.clusterRoleListerMutex.Lock()
 	ret, specificReturn := fake.clusterRoleListerReturnsOnCall[len(fake.clusterRoleListerArgsForCall)]
-	fake.clusterRoleListerArgsForCall = append(fake.clusterRoleListerArgsForCall, struct {
-	}{})
+	fake.clusterRoleListerArgsForCall = append(fake.clusterRoleListerArgsForCall, struct{}{})
 	stub := fake.ClusterRoleListerStub
 	fakeReturns := fake.clusterRoleListerReturns
 	fake.recordInvocation("ClusterRoleLister", []interface{}{})
@@ -183,14 +190,12 @@ func (fake *FakeRbacV1Lister) ClusterRoleListerReturnsOnCall(i int, result1 v1.C
 
 func (fake *FakeRbacV1Lister) RegisterClusterRoleBindingLister(arg1 v1.ClusterRoleBindingLister) {
 	fake.registerClusterRoleBindingListerMutex.Lock()
-	fake.registerClusterRoleBindingListerArgsForCall = append(fake.registerClusterRoleBindingListerArgsForCall, struct {
-		arg1 v1.ClusterRoleBindingLister
-	}{arg1})
+	fake.registerClusterRoleBindingListerArgsForCall = append(fake.registerClusterRoleBindingListerArgsForCall, FakeRbacV1ListerRegisterClusterRoleBindingListerArgs{arg1})
 	stub := fake.RegisterClusterRoleBindingListerStub
 	fake.recordInvocation("RegisterClusterRoleBindingLister", []interface{}{arg1})
 	fake.registerClusterRoleBindingListerMutex.Unlock()
 	if stub != nil {
-		fake.RegisterClusterRoleBindingListerStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -210,19 +215,25 @@ func (fake *FakeRbacV1Lister) RegisterClusterRoleBindingListerArgsForCall(i int)
 	fake.registerClusterRoleBindingListerMutex.RLock()
 	defer fake.registerClusterRoleBindingListerMutex.RUnlock()
 	argsForCall := fake.registerClusterRoleBindingListerArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeRbacV1Lister) RegisterClusterRoleBindingListerArgs() []FakeRbacV1ListerRegisterClusterRoleBindingListerArgs {
+	fake.registerClusterRoleBindingListerMutex.RLock()
+	defer fake.registerClusterRoleBindingListerMutex.RUnlock()
+	args := make([]FakeRbacV1ListerRegisterClusterRoleBindingListerArgs, len(fake.registerClusterRoleBindingListerArgsForCall))
+	copy(args, fake.registerClusterRoleBindingListerArgsForCall)
+	return args
 }
 
 func (fake *FakeRbacV1Lister) RegisterClusterRoleLister(arg1 v1.ClusterRoleLister) {
 	fake.registerClusterRoleListerMutex.Lock()
-	fake.registerClusterRoleListerArgsForCall = append(fake.registerClusterRoleListerArgsForCall, struct {
-		arg1 v1.ClusterRoleLister
-	}{arg1})
+	fake.registerClusterRoleListerArgsForCall = append(fake.registerClusterRoleListerArgsForCall, FakeRbacV1ListerRegisterClusterRoleListerArgs{arg1})
 	stub := fake.RegisterClusterRoleListerStub
 	fake.recordInvocation("RegisterClusterRoleLister", []interface{}{arg1})
 	fake.registerClusterRoleListerMutex.Unlock()
 	if stub != nil {
-		fake.RegisterClusterRoleListerStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -242,20 +253,25 @@ func (fake *FakeRbacV1Lister) RegisterClusterRoleListerArgsForCall(i int) v1.Clu
 	fake.registerClusterRoleListerMutex.RLock()
 	defer fake.registerClusterRoleListerMutex.RUnlock()
 	argsForCall := fake.registerClusterRoleListerArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeRbacV1Lister) RegisterClusterRoleListerArgs() []FakeRbacV1ListerRegisterClusterRoleListerArgs {
+	fake.registerClusterRoleListerMutex.RLock()
+	defer fake.registerClusterRoleListerMutex.RUnlock()
+	args := make([]FakeRbacV1ListerRegisterClusterRoleListerArgs, len(fake.registerClusterRoleListerArgsForCall))
+	copy(args, fake.registerClusterRoleListerArgsForCall)
+	return args
 }
 
 func (fake *FakeRbacV1Lister) RegisterRoleBindingLister(arg1 string, arg2 v1.RoleBindingLister) {
 	fake.registerRoleBindingListerMutex.Lock()
-	fake.registerRoleBindingListerArgsForCall = append(fake.registerRoleBindingListerArgsForCall, struct {
-		arg1 string
-		arg2 v1.RoleBindingLister
-	}{arg1, arg2})
+	fake.registerRoleBindingListerArgsForCall = append(fake.registerRoleBindingListerArgsForCall, FakeRbacV1ListerRegisterRoleBindingListerArgs{arg1, arg2})
 	stub := fake.RegisterRoleBindingListerStub
 	fake.recordInvocation("RegisterRoleBindingLister", []interface{}{arg1, arg2})
 	fake.registerRoleBindingListerMutex.Unlock()
 	if stub != nil {
-		fake.RegisterRoleBindingListerStub(arg1, arg2)
+		stub(arg1, arg2)
 	}
 }
 
@@ -275,20 +291,25 @@ func (fake *FakeRbacV1Lister) RegisterRoleBindingListerArgsForCall(i int) (strin
 	fake.registerRoleBindingListerMutex.RLock()
 	defer fake.registerRoleBindingListerMutex.RUnlock()
 	argsForCall := fake.registerRoleBindingListerArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeRbacV1Lister) RegisterRoleBindingListerArgs() []FakeRbacV1ListerRegisterRoleBindingListerArgs {
+	fake.registerRoleBindingListerMutex.RLock()
+	defer fake.registerRoleBindingListerMutex.RUnlock()
+	args := make([]FakeRbacV1ListerRegisterRoleBindingListerArgs, len(fake.registerRoleBindingListerArgsForCall))
+	copy(args, fake.registerRoleBindingListerArgsForCall)
+	return args
 }
 
 func (fake *FakeRbacV1Lister) RegisterRoleLister(arg1 string, arg2 v1.RoleLister) {
 	fake.registerRoleListerMutex.Lock()
-	fake.registerRoleListerArgsForCall = append(fake.registerRoleListerArgsForCall, struct {
-		arg1 string
-		arg2 v1.RoleLister
-	}{arg1, arg2})
+	fake.registerRoleListerArgsForCall = append(fake.registerRoleListerArgsForCall, FakeRbacV1ListerRegisterRoleListerArgs{arg1, arg2})
 	stub := fake.RegisterRoleListerStub
 	fake.recordInvocation("RegisterRoleLister", []interface{}{arg1, arg2})
 	fake.registerRoleListerMutex.Unlock()
 	if stub != nil {
-		fake.RegisterRoleListerStub(arg1, arg2)
+		stub(arg1, arg2)
 	}
 }
 
@@ -308,14 +329,21 @@ func (fake *FakeRbacV1Lister) RegisterRoleListerArgsForCall(i int) (string, v1.R
 	fake.registerRoleListerMutex.RLock()
 	defer fake.registerRoleListerMutex.RUnlock()
 	argsForCall := fake.registerRoleListerArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeRbacV1Lister) RegisterRoleListerArgs() []FakeRbacV1ListerRegisterRoleListerArgs {
+	fake.registerRoleListerMutex.RLock()
+	defer fake.registerRoleListerMutex.RUnlock()
+	args := make([]FakeRbacV1ListerRegisterRoleListerArgs, len(fake.registerRoleListerArgsForCall))
+	copy(args, fake.registerRoleListerArgsForCall)
+	return args
 }
 
 func (fake *FakeRbacV1Lister) RoleBindingLister() v1.RoleBindingLister {
 	fake.roleBindingListerMutex.Lock()
 	ret, specificReturn := fake.roleBindingListerReturnsOnCall[len(fake.roleBindingListerArgsForCall)]
-	fake.roleBindingListerArgsForCall = append(fake.roleBindingListerArgsForCall, struct {
-	}{})
+	fake.roleBindingListerArgsForCall = append(fake.roleBindingListerArgsForCall, struct{}{})
 	stub := fake.RoleBindingListerStub
 	fakeReturns := fake.roleBindingListerReturns
 	fake.recordInvocation("RoleBindingLister", []interface{}{})
@@ -367,8 +395,7 @@ func (fake *FakeRbacV1Lister) RoleBindingListerReturnsOnCall(i int, result1 v1.R
 func (fake *FakeRbacV1Lister) RoleLister() v1.RoleLister {
 	fake.roleListerMutex.Lock()
 	ret, specificReturn := fake.roleListerReturnsOnCall[len(fake.roleListerArgsForCall)]
-	fake.roleListerArgsForCall = append(fake.roleListerArgsForCall, struct {
-	}{})
+	fake.roleListerArgsForCall = append(fake.roleListerArgsForCall, struct{}{})
 	stub := fake.RoleListerStub
 	fakeReturns := fake.roleListerReturns
 	fake.recordInvocation("RoleLister", []interface{}{})
@@ -427,9 +454,18 @@ func (fake *FakeRbacV1Lister) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeRbacV1Lister) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeRbacV1Lister) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

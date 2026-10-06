@@ -11,9 +11,8 @@ import (
 type FakeAppsV1Lister struct {
 	DeploymentListerStub        func() v1.DeploymentLister
 	deploymentListerMutex       sync.RWMutex
-	deploymentListerArgsForCall []struct {
-	}
-	deploymentListerReturns struct {
+	deploymentListerArgsForCall []struct{}
+	deploymentListerReturns     struct {
 		result1 v1.DeploymentLister
 	}
 	deploymentListerReturnsOnCall map[int]struct {
@@ -21,19 +20,22 @@ type FakeAppsV1Lister struct {
 	}
 	RegisterDeploymentListerStub        func(string, v1.DeploymentLister)
 	registerDeploymentListerMutex       sync.RWMutex
-	registerDeploymentListerArgsForCall []struct {
-		arg1 string
-		arg2 v1.DeploymentLister
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	registerDeploymentListerArgsForCall []FakeAppsV1ListerRegisterDeploymentListerArgs
+	invocations                         map[string][][]interface{}
+	callOrder                           []string
+	invocationsMutex                    sync.RWMutex
+}
+
+// FakeAppsV1ListerRegisterDeploymentListerArgs holds the arguments of one call to RegisterDeploymentLister.
+type FakeAppsV1ListerRegisterDeploymentListerArgs struct {
+	Arg1 string
+	Arg2 v1.DeploymentLister
 }
 
 func (fake *FakeAppsV1Lister) DeploymentLister() v1.DeploymentLister {
 	fake.deploymentListerMutex.Lock()
 	ret, specificReturn := fake.deploymentListerReturnsOnCall[len(fake.deploymentListerArgsForCall)]
-	fake.deploymentListerArgsForCall = append(fake.deploymentListerArgsForCall, struct {
-	}{})
+	fake.deploymentListerArgsForCall = append(fake.deploymentListerArgsForCall, struct{}{})
 	stub := fake.DeploymentListerStub
 	fakeReturns := fake.deploymentListerReturns
 	fake.recordInvocation("DeploymentLister", []interface{}{})
@@ -84,15 +86,12 @@ func (fake *FakeAppsV1Lister) DeploymentListerReturnsOnCall(i int, result1 v1.De
 
 func (fake *FakeAppsV1Lister) RegisterDeploymentLister(arg1 string, arg2 v1.DeploymentLister) {
 	fake.registerDeploymentListerMutex.Lock()
-	fake.registerDeploymentListerArgsForCall = append(fake.registerDeploymentListerArgsForCall, struct {
-		arg1 string
-		arg2 v1.DeploymentLister
-	}{arg1, arg2})
+	fake.registerDeploymentListerArgsForCall = append(fake.registerDeploymentListerArgsForCall, FakeAppsV1ListerRegisterDeploymentListerArgs{arg1, arg2})
 	stub := fake.RegisterDeploymentListerStub
 	fake.recordInvocation("RegisterDeploymentLister", []interface{}{arg1, arg2})
 	fake.registerDeploymentListerMutex.Unlock()
 	if stub != nil {
-		fake.RegisterDeploymentListerStub(arg1, arg2)
+		stub(arg1, arg2)
 	}
 }
 
@@ -112,7 +111,15 @@ func (fake *FakeAppsV1Lister) RegisterDeploymentListerArgsForCall(i int) (string
 	fake.registerDeploymentListerMutex.RLock()
 	defer fake.registerDeploymentListerMutex.RUnlock()
 	argsForCall := fake.registerDeploymentListerArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeAppsV1Lister) RegisterDeploymentListerArgs() []FakeAppsV1ListerRegisterDeploymentListerArgs {
+	fake.registerDeploymentListerMutex.RLock()
+	defer fake.registerDeploymentListerMutex.RUnlock()
+	args := make([]FakeAppsV1ListerRegisterDeploymentListerArgs, len(fake.registerDeploymentListerArgsForCall))
+	copy(args, fake.registerDeploymentListerArgsForCall)
+	return args
 }
 
 func (fake *FakeAppsV1Lister) Invocations() map[string][][]interface{} {
@@ -125,9 +132,18 @@ func (fake *FakeAppsV1Lister) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeAppsV1Lister) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeAppsV1Lister) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

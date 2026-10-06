@@ -11,9 +11,8 @@ import (
 type FakeCoreV1Lister struct {
 	ConfigMapListerStub        func() v1.ConfigMapLister
 	configMapListerMutex       sync.RWMutex
-	configMapListerArgsForCall []struct {
-	}
-	configMapListerReturns struct {
+	configMapListerArgsForCall []struct{}
+	configMapListerReturns     struct {
 		result1 v1.ConfigMapLister
 	}
 	configMapListerReturnsOnCall map[int]struct {
@@ -21,9 +20,8 @@ type FakeCoreV1Lister struct {
 	}
 	NamespaceListerStub        func() v1.NamespaceLister
 	namespaceListerMutex       sync.RWMutex
-	namespaceListerArgsForCall []struct {
-	}
-	namespaceListerReturns struct {
+	namespaceListerArgsForCall []struct{}
+	namespaceListerReturns     struct {
 		result1 v1.NamespaceLister
 	}
 	namespaceListerReturnsOnCall map[int]struct {
@@ -31,54 +29,35 @@ type FakeCoreV1Lister struct {
 	}
 	PodListerStub        func() v1.PodLister
 	podListerMutex       sync.RWMutex
-	podListerArgsForCall []struct {
-	}
-	podListerReturns struct {
+	podListerArgsForCall []struct{}
+	podListerReturns     struct {
 		result1 v1.PodLister
 	}
 	podListerReturnsOnCall map[int]struct {
 		result1 v1.PodLister
 	}
-	RegisterConfigMapListerStub        func(string, v1.ConfigMapLister)
-	registerConfigMapListerMutex       sync.RWMutex
-	registerConfigMapListerArgsForCall []struct {
-		arg1 string
-		arg2 v1.ConfigMapLister
-	}
-	RegisterNamespaceListerStub        func(v1.NamespaceLister)
-	registerNamespaceListerMutex       sync.RWMutex
-	registerNamespaceListerArgsForCall []struct {
-		arg1 v1.NamespaceLister
-	}
-	RegisterPodListerStub        func(string, v1.PodLister)
-	registerPodListerMutex       sync.RWMutex
-	registerPodListerArgsForCall []struct {
-		arg1 string
-		arg2 v1.PodLister
-	}
-	RegisterSecretListerStub        func(string, v1.SecretLister)
-	registerSecretListerMutex       sync.RWMutex
-	registerSecretListerArgsForCall []struct {
-		arg1 string
-		arg2 v1.SecretLister
-	}
+	RegisterConfigMapListerStub             func(string, v1.ConfigMapLister)
+	registerConfigMapListerMutex            sync.RWMutex
+	registerConfigMapListerArgsForCall      []FakeCoreV1ListerRegisterConfigMapListerArgs
+	RegisterNamespaceListerStub             func(v1.NamespaceLister)
+	registerNamespaceListerMutex            sync.RWMutex
+	registerNamespaceListerArgsForCall      []FakeCoreV1ListerRegisterNamespaceListerArgs
+	RegisterPodListerStub                   func(string, v1.PodLister)
+	registerPodListerMutex                  sync.RWMutex
+	registerPodListerArgsForCall            []FakeCoreV1ListerRegisterPodListerArgs
+	RegisterSecretListerStub                func(string, v1.SecretLister)
+	registerSecretListerMutex               sync.RWMutex
+	registerSecretListerArgsForCall         []FakeCoreV1ListerRegisterSecretListerArgs
 	RegisterServiceAccountListerStub        func(string, v1.ServiceAccountLister)
 	registerServiceAccountListerMutex       sync.RWMutex
-	registerServiceAccountListerArgsForCall []struct {
-		arg1 string
-		arg2 v1.ServiceAccountLister
-	}
-	RegisterServiceListerStub        func(string, v1.ServiceLister)
-	registerServiceListerMutex       sync.RWMutex
-	registerServiceListerArgsForCall []struct {
-		arg1 string
-		arg2 v1.ServiceLister
-	}
-	SecretListerStub        func() v1.SecretLister
-	secretListerMutex       sync.RWMutex
-	secretListerArgsForCall []struct {
-	}
-	secretListerReturns struct {
+	registerServiceAccountListerArgsForCall []FakeCoreV1ListerRegisterServiceAccountListerArgs
+	RegisterServiceListerStub               func(string, v1.ServiceLister)
+	registerServiceListerMutex              sync.RWMutex
+	registerServiceListerArgsForCall        []FakeCoreV1ListerRegisterServiceListerArgs
+	SecretListerStub                        func() v1.SecretLister
+	secretListerMutex                       sync.RWMutex
+	secretListerArgsForCall                 []struct{}
+	secretListerReturns                     struct {
 		result1 v1.SecretLister
 	}
 	secretListerReturnsOnCall map[int]struct {
@@ -86,9 +65,8 @@ type FakeCoreV1Lister struct {
 	}
 	ServiceAccountListerStub        func() v1.ServiceAccountLister
 	serviceAccountListerMutex       sync.RWMutex
-	serviceAccountListerArgsForCall []struct {
-	}
-	serviceAccountListerReturns struct {
+	serviceAccountListerArgsForCall []struct{}
+	serviceAccountListerReturns     struct {
 		result1 v1.ServiceAccountLister
 	}
 	serviceAccountListerReturnsOnCall map[int]struct {
@@ -96,23 +74,57 @@ type FakeCoreV1Lister struct {
 	}
 	ServiceListerStub        func() v1.ServiceLister
 	serviceListerMutex       sync.RWMutex
-	serviceListerArgsForCall []struct {
-	}
-	serviceListerReturns struct {
+	serviceListerArgsForCall []struct{}
+	serviceListerReturns     struct {
 		result1 v1.ServiceLister
 	}
 	serviceListerReturnsOnCall map[int]struct {
 		result1 v1.ServiceLister
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeCoreV1ListerRegisterConfigMapListerArgs holds the arguments of one call to RegisterConfigMapLister.
+type FakeCoreV1ListerRegisterConfigMapListerArgs struct {
+	Arg1 string
+	Arg2 v1.ConfigMapLister
+}
+
+// FakeCoreV1ListerRegisterNamespaceListerArgs holds the arguments of one call to RegisterNamespaceLister.
+type FakeCoreV1ListerRegisterNamespaceListerArgs struct {
+	Arg1 v1.NamespaceLister
+}
+
+// FakeCoreV1ListerRegisterPodListerArgs holds the arguments of one call to RegisterPodLister.
+type FakeCoreV1ListerRegisterPodListerArgs struct {
+	Arg1 string
+	Arg2 v1.PodLister
+}
+
+// FakeCoreV1ListerRegisterSecretListerArgs holds the arguments of one call to RegisterSecretLister.
+type FakeCoreV1ListerRegisterSecretListerArgs struct {
+	Arg1 string
+	Arg2 v1.SecretLister
+}
+
+// FakeCoreV1ListerRegisterServiceAccountListerArgs holds the arguments of one call to RegisterServiceAccountLister.
+type FakeCoreV1ListerRegisterServiceAccountListerArgs struct {
+	Arg1 string
+	Arg2 v1.ServiceAccountLister
+}
+
+// FakeCoreV1ListerRegisterServiceListerArgs holds the arguments of one call to RegisterServiceLister.
+type FakeCoreV1ListerRegisterServiceListerArgs struct {
+	Arg1 string
+	Arg2 v1.ServiceLister
 }
 
 func (fake *FakeCoreV1Lister) ConfigMapLister() v1.ConfigMapLister {
 	fake.configMapListerMutex.Lock()
 	ret, specificReturn := fake.configMapListerReturnsOnCall[len(fake.configMapListerArgsForCall)]
-	fake.configMapListerArgsForCall = append(fake.configMapListerArgsForCall, struct {
-	}{})
+	fake.configMapListerArgsForCall = append(fake.configMapListerArgsForCall, struct{}{})
 	stub := fake.ConfigMapListerStub
 	fakeReturns := fake.configMapListerReturns
 	fake.recordInvocation("ConfigMapLister", []interface{}{})
@@ -164,8 +176,7 @@ func (fake *FakeCoreV1Lister) ConfigMapListerReturnsOnCall(i int, result1 v1.Con
 func (fake *FakeCoreV1Lister) NamespaceLister() v1.NamespaceLister {
 	fake.namespaceListerMutex.Lock()
 	ret, specificReturn := fake.namespaceListerReturnsOnCall[len(fake.namespaceListerArgsForCall)]
-	fake.namespaceListerArgsForCall = append(fake.namespaceListerArgsForCall, struct {
-	}{})
+	fake.namespaceListerArgsForCall = append(fake.namespaceListerArgsForCall, struct{}{})
 	stub := fake.NamespaceListerStub
 	fakeReturns := fake.namespaceListerReturns
 	fake.recordInvocation("NamespaceLister", []interface{}{})
@@ -217,8 +228,7 @@ func (fake *FakeCoreV1Lister) NamespaceListerReturnsOnCall(i int, result1 v1.Nam
 func (fake *FakeCoreV1Lister) PodLister() v1.PodLister {
 	fake.podListerMutex.Lock()
 	ret, specificReturn := fake.podListerReturnsOnCall[len(fake.podListerArgsForCall)]
-	fake.podListerArgsForCall = append(fake.podListerArgsForCall, struct {
-	}{})
+	fake.podListerArgsForCall = append(fake.podListerArgsForCall, struct{}{})
 	stub := fake.PodListerStub
 	fakeReturns := fake.podListerReturns
 	fake.recordInvocation("PodLister", []interface{}{})
@@ -269,15 +279,12 @@ func (fake *FakeCoreV1Lister) PodListerReturnsOnCall(i int, result1 v1.PodLister
 
 func (fake *FakeCoreV1Lister) RegisterConfigMapLister(arg1 string, arg2 v1.ConfigMapLister) {
 	fake.registerConfigMapListerMutex.Lock()
-	fake.registerConfigMapListerArgsForCall = append(fake.registerConfigMapListerArgsForCall, struct {
-		arg1 string
-		arg2 v1.ConfigMapLister
-	}{arg1, arg2})
+	fake.registerConfigMapListerArgsForCall = append(fake.registerConfigMapListerArgsForCall, FakeCoreV1ListerRegisterConfigMapListerArgs{arg1, arg2})
 	stub := fake.RegisterConfigMapListerStub
 	fake.recordInvocation("RegisterConfigMapLister", []interface{}{arg1, arg2})
 	fake.registerConfigMapListerMutex.Unlock()
 	if stub != nil {
-		fake.RegisterConfigMapListerStub(arg1, arg2)
+		stub(arg1, arg2)
 	}
 }
 
@@ -297,19 +304,25 @@ func (fake *FakeCoreV1Lister) RegisterConfigMapListerArgsForCall(i int) (string,
 	fake.registerConfigMapListerMutex.RLock()
 	defer fake.registerConfigMapListerMutex.RUnlock()
 	argsForCall := fake.registerConfigMapListerArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeCoreV1Lister) RegisterConfigMapListerArgs() []FakeCoreV1ListerRegisterConfigMapListerArgs {
+	fake.registerConfigMapListerMutex.RLock()
+	defer fake.registerConfigMapListerMutex.RUnlock()
+	args := make([]FakeCoreV1ListerRegisterConfigMapListerArgs, len(fake.registerConfigMapListerArgsForCall))
+	copy(args, fake.registerConfigMapListerArgsForCall)
+	return args
 }
 
 func (fake *FakeCoreV1Lister) RegisterNamespaceLister(arg1 v1.NamespaceLister) {
 	fake.registerNamespaceListerMutex.Lock()
-	fake.registerNamespaceListerArgsForCall = append(fake.registerNamespaceListerArgsForCall, struct {
-		arg1 v1.NamespaceLister
-	}{arg1})
+	fake.registerNamespaceListerArgsForCall = append(fake.registerNamespaceListerArgsForCall, FakeCoreV1ListerRegisterNamespaceListerArgs{arg1})
 	stub := fake.RegisterNamespaceListerStub
 	fake.recordInvocation("RegisterNamespaceLister", []interface{}{arg1})
 	fake.registerNamespaceListerMutex.Unlock()
 	if stub != nil {
-		fake.RegisterNamespaceListerStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -329,20 +342,25 @@ func (fake *FakeCoreV1Lister) RegisterNamespaceListerArgsForCall(i int) v1.Names
 	fake.registerNamespaceListerMutex.RLock()
 	defer fake.registerNamespaceListerMutex.RUnlock()
 	argsForCall := fake.registerNamespaceListerArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeCoreV1Lister) RegisterNamespaceListerArgs() []FakeCoreV1ListerRegisterNamespaceListerArgs {
+	fake.registerNamespaceListerMutex.RLock()
+	defer fake.registerNamespaceListerMutex.RUnlock()
+	args := make([]FakeCoreV1ListerRegisterNamespaceListerArgs, len(fake.registerNamespaceListerArgsForCall))
+	copy(args, fake.registerNamespaceListerArgsForCall)
+	return args
 }
 
 func (fake *FakeCoreV1Lister) RegisterPodLister(arg1 string, arg2 v1.PodLister) {
 	fake.registerPodListerMutex.Lock()
-	fake.registerPodListerArgsForCall = append(fake.registerPodListerArgsForCall, struct {
-		arg1 string
-		arg2 v1.PodLister
-	}{arg1, arg2})
+	fake.registerPodListerArgsForCall = append(fake.registerPodListerArgsForCall, FakeCoreV1ListerRegisterPodListerArgs{arg1, arg2})
 	stub := fake.RegisterPodListerStub
 	fake.recordInvocation("RegisterPodLister", []interface{}{arg1, arg2})
 	fake.registerPodListerMutex.Unlock()
 	if stub != nil {
-		fake.RegisterPodListerStub(arg1, arg2)
+		stub(arg1, arg2)
 	}
 }
 
@@ -362,20 +380,25 @@ func (fake *FakeCoreV1Lister) RegisterPodListerArgsForCall(i int) (string, v1.Po
 	fake.registerPodListerMutex.RLock()
 	defer fake.registerPodListerMutex.RUnlock()
 	argsForCall := fake.registerPodListerArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeCoreV1Lister) RegisterPodListerArgs() []FakeCoreV1ListerRegisterPodListerArgs {
+	fake.registerPodListerMutex.RLock()
+	defer fake.registerPodListerMutex.RUnlock()
+	args := make([]FakeCoreV1ListerRegisterPodListerArgs, len(fake.registerPodListerArgsForCall))
+	copy(args, fake.registerPodListerArgsForCall)
+	return args
 }
 
 func (fake *FakeCoreV1Lister) RegisterSecretLister(arg1 string, arg2 v1.SecretLister) {
 	fake.registerSecretListerMutex.Lock()
-	fake.registerSecretListerArgsForCall = append(fake.registerSecretListerArgsForCall, struct {
-		arg1 string
-		arg2 v1.SecretLister
-	}{arg1, arg2})
+	fake.registerSecretListerArgsForCall = append(fake.registerSecretListerArgsForCall, FakeCoreV1ListerRegisterSecretListerArgs{arg1, arg2})
 	stub := fake.RegisterSecretListerStub
 	fake.recordInvocation("RegisterSecretLister", []interface{}{arg1, arg2})
 	fake.registerSecretListerMutex.Unlock()
 	if stub != nil {
-		fake.RegisterSecretListerStub(arg1, arg2)
+		stub(arg1, arg2)
 	}
 }
 
@@ -395,20 +418,25 @@ func (fake *FakeCoreV1Lister) RegisterSecretListerArgsForCall(i int) (string, v1
 	fake.registerSecretListerMutex.RLock()
 	defer fake.registerSecretListerMutex.RUnlock()
 	argsForCall := fake.registerSecretListerArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeCoreV1Lister) RegisterSecretListerArgs() []FakeCoreV1ListerRegisterSecretListerArgs {
+	fake.registerSecretListerMutex.RLock()
+	defer fake.registerSecretListerMutex.RUnlock()
+	args := make([]FakeCoreV1ListerRegisterSecretListerArgs, len(fake.registerSecretListerArgsForCall))
+	copy(args, fake.registerSecretListerArgsForCall)
+	return args
 }
 
 func (fake *FakeCoreV1Lister) RegisterServiceAccountLister(arg1 string, arg2 v1.ServiceAccountLister) {
 	fake.registerServiceAccountListerMutex.Lock()
-	fake.registerServiceAccountListerArgsForCall = append(fake.registerServiceAccountListerArgsForCall, struct {
-		arg1 string
-		arg2 v1.ServiceAccountLister
-	}{arg1, arg2})
+	fake.registerServiceAccountListerArgsForCall = append(fake.registerServiceAccountListerArgsForCall, FakeCoreV1ListerRegisterServiceAccountListerArgs{arg1, arg2})
 	stub := fake.RegisterServiceAccountListerStub
 	fake.recordInvocation("RegisterServiceAccountLister", []interface{}{arg1, arg2})
 	fake.registerServiceAccountListerMutex.Unlock()
 	if stub != nil {
-		fake.RegisterServiceAccountListerStub(arg1, arg2)
+		stub(arg1, arg2)
 	}
 }
 
@@ -428,20 +456,25 @@ func (fake *FakeCoreV1Lister) RegisterServiceAccountListerArgsForCall(i int) (st
 	fake.registerServiceAccountListerMutex.RLock()
 	defer fake.registerServiceAccountListerMutex.RUnlock()
 	argsForCall := fake.registerServiceAccountListerArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeCoreV1Lister) RegisterServiceAccountListerArgs() []FakeCoreV1ListerRegisterServiceAccountListerArgs {
+	fake.registerServiceAccountListerMutex.RLock()
+	defer fake.registerServiceAccountListerMutex.RUnlock()
+	args := make([]FakeCoreV1ListerRegisterServiceAccountListerArgs, len(fake.registerServiceAccountListerArgsForCall))
+	copy(args, fake.registerServiceAccountListerArgsForCall)
+	return args
 }
 
 func (fake *FakeCoreV1Lister) RegisterServiceLister(arg1 string, arg2 v1.ServiceLister) {
 	fake.registerServiceListerMutex.Lock()
-	fake.registerServiceListerArgsForCall = append(fake.registerServiceListerArgsForCall, struct {
-		arg1 string
-		arg2 v1.ServiceLister
-	}{arg1, arg2})
+	fake.registerServiceListerArgsForCall = append(fake.registerServiceListerArgsForCall, FakeCoreV1ListerRegisterServiceListerArgs{arg1, arg2})
 	stub := fake.RegisterServiceListerStub
 	fake.recordInvocation("RegisterServiceLister", []interface{}{arg1, arg2})
 	fake.registerServiceListerMutex.Unlock()
 	if stub != nil {
-		fake.RegisterServiceListerStub(arg1, arg2)
+		stub(arg1, arg2)
 	}
 }
 
@@ -461,14 +494,21 @@ func (fake *FakeCoreV1Lister) RegisterServiceListerArgsForCall(i int) (string, v
 	fake.registerServiceListerMutex.RLock()
 	defer fake.registerServiceListerMutex.RUnlock()
 	argsForCall := fake.registerServiceListerArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeCoreV1Lister) RegisterServiceListerArgs() []FakeCoreV1ListerRegisterServiceListerArgs {
+	fake.registerServiceListerMutex.RLock()
+	defer fake.registerServiceListerMutex.RUnlock()
+	args := make([]FakeCoreV1ListerRegisterServiceListerArgs, len(fake.registerServiceListerArgsForCall))
+	copy(args, fake.registerServiceListerArgsForCall)
+	return args
 }
 
 func (fake *FakeCoreV1Lister) SecretLister() v1.SecretLister {
 	fake.secretListerMutex.Lock()
 	ret, specificReturn := fake.secretListerReturnsOnCall[len(fake.secretListerArgsForCall)]
-	fake.secretListerArgsForCall = append(fake.secretListerArgsForCall, struct {
-	}{})
+	fake.secretListerArgsForCall = append(fake.secretListerArgsForCall, struct{}{})
 	stub := fake.SecretListerStub
 	fakeReturns := fake.secretListerReturns
 	fake.recordInvocation("SecretLister", []interface{}{})
@@ -520,8 +560,7 @@ func (fake *FakeCoreV1Lister) SecretListerReturnsOnCall(i int, result1 v1.Secret
 func (fake *FakeCoreV1Lister) ServiceAccountLister() v1.ServiceAccountLister {
 	fake.serviceAccountListerMutex.Lock()
 	ret, specificReturn := fake.serviceAccountListerReturnsOnCall[len(fake.serviceAccountListerArgsForCall)]
-	fake.serviceAccountListerArgsForCall = append(fake.serviceAccountListerArgsForCall, struct {
-	}{})
+	fake.serviceAccountListerArgsForCall = append(fake.serviceAccountListerArgsForCall, struct{}{})
 	stub := fake.ServiceAccountListerStub
 	fakeReturns := fake.serviceAccountListerReturns
 	fake.recordInvocation("ServiceAccountLister", []interface{}{})
@@ -573,8 +612,7 @@ func (fake *FakeCoreV1Lister) ServiceAccountListerReturnsOnCall(i int, result1 v
 func (fake *FakeCoreV1Lister) ServiceLister() v1.ServiceLister {
 	fake.serviceListerMutex.Lock()
 	ret, specificReturn := fake.serviceListerReturnsOnCall[len(fake.serviceListerArgsForCall)]
-	fake.serviceListerArgsForCall = append(fake.serviceListerArgsForCall, struct {
-	}{})
+	fake.serviceListerArgsForCall = append(fake.serviceListerArgsForCall, struct{}{})
 	stub := fake.ServiceListerStub
 	fakeReturns := fake.serviceListerReturns
 	fake.recordInvocation("ServiceLister", []interface{}{})
@@ -633,9 +671,18 @@ func (fake *FakeCoreV1Lister) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeCoreV1Lister) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeCoreV1Lister) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

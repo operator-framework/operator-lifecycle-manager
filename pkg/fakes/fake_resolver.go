@@ -11,10 +11,8 @@ import (
 type FakeStepResolver struct {
 	ResolveStepsStub        func(string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
 	resolveStepsMutex       sync.RWMutex
-	resolveStepsArgsForCall []struct {
-		arg1 string
-	}
-	resolveStepsReturns struct {
+	resolveStepsArgsForCall []FakeStepResolverResolveStepsArgs
+	resolveStepsReturns     struct {
 		result1 []*v1alpha1.Step
 		result2 []v1alpha1.BundleLookup
 		result3 []*v1alpha1.Subscription
@@ -27,15 +25,19 @@ type FakeStepResolver struct {
 		result4 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeStepResolverResolveStepsArgs holds the arguments of one call to ResolveSteps.
+type FakeStepResolverResolveStepsArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeStepResolver) ResolveSteps(arg1 string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 	fake.resolveStepsMutex.Lock()
 	ret, specificReturn := fake.resolveStepsReturnsOnCall[len(fake.resolveStepsArgsForCall)]
-	fake.resolveStepsArgsForCall = append(fake.resolveStepsArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.resolveStepsArgsForCall = append(fake.resolveStepsArgsForCall, FakeStepResolverResolveStepsArgs{arg1})
 	stub := fake.ResolveStepsStub
 	fakeReturns := fake.resolveStepsReturns
 	fake.recordInvocation("ResolveSteps", []interface{}{arg1})
@@ -65,7 +67,15 @@ func (fake *FakeStepResolver) ResolveStepsArgsForCall(i int) string {
 	fake.resolveStepsMutex.RLock()
 	defer fake.resolveStepsMutex.RUnlock()
 	argsForCall := fake.resolveStepsArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeStepResolver) ResolveStepsArgs() []FakeStepResolverResolveStepsArgs {
+	fake.resolveStepsMutex.RLock()
+	defer fake.resolveStepsMutex.RUnlock()
+	args := make([]FakeStepResolverResolveStepsArgs, len(fake.resolveStepsArgsForCall))
+	copy(args, fake.resolveStepsArgsForCall)
+	return args
 }
 
 func (fake *FakeStepResolver) ResolveStepsReturns(result1 []*v1alpha1.Step, result2 []v1alpha1.BundleLookup, result3 []*v1alpha1.Subscription, result4 error) {
@@ -110,9 +120,18 @@ func (fake *FakeStepResolver) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeStepResolver) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeStepResolver) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}
