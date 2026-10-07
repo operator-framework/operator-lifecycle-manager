@@ -84,6 +84,8 @@ func (o *options) run(ctx context.Context, logger *logrus.Logger) error {
 	listenAndServe, err := server.GetListenAndServeFunc(
 		server.WithLogger(logger),
 		server.WithTLS(&o.tlsCertPath, &o.tlsKeyPath, &o.clientCAPath),
+		server.WithClientCAAuthorization(o.clientCAAuthorization),
+		server.WithClientCAAllowedCommonNames(o.clientCAAllowedCommonNames),
 		server.WithKubeConfig(config),
 		server.WithAPIServerTLSQuerier(apiServerTLSQuerier),
 		server.WithDebug(o.debug),
