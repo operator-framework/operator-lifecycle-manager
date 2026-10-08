@@ -12,12 +12,8 @@ import (
 type FakeUnpacker struct {
 	UnpackBundleStub        func(*v1alpha1.BundleLookup, time.Duration, time.Duration) (*bundle.BundleUnpackResult, error)
 	unpackBundleMutex       sync.RWMutex
-	unpackBundleArgsForCall []struct {
-		arg1 *v1alpha1.BundleLookup
-		arg2 time.Duration
-		arg3 time.Duration
-	}
-	unpackBundleReturns struct {
+	unpackBundleArgsForCall []FakeUnpackerUnpackBundleArgs
+	unpackBundleReturns     struct {
 		result1 *bundle.BundleUnpackResult
 		result2 error
 	}
@@ -26,17 +22,21 @@ type FakeUnpacker struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeUnpackerUnpackBundleArgs holds the arguments of one call to UnpackBundle.
+type FakeUnpackerUnpackBundleArgs struct {
+	Arg1 *v1alpha1.BundleLookup
+	Arg2 time.Duration
+	Arg3 time.Duration
 }
 
 func (fake *FakeUnpacker) UnpackBundle(arg1 *v1alpha1.BundleLookup, arg2 time.Duration, arg3 time.Duration) (*bundle.BundleUnpackResult, error) {
 	fake.unpackBundleMutex.Lock()
 	ret, specificReturn := fake.unpackBundleReturnsOnCall[len(fake.unpackBundleArgsForCall)]
-	fake.unpackBundleArgsForCall = append(fake.unpackBundleArgsForCall, struct {
-		arg1 *v1alpha1.BundleLookup
-		arg2 time.Duration
-		arg3 time.Duration
-	}{arg1, arg2, arg3})
+	fake.unpackBundleArgsForCall = append(fake.unpackBundleArgsForCall, FakeUnpackerUnpackBundleArgs{arg1, arg2, arg3})
 	stub := fake.UnpackBundleStub
 	fakeReturns := fake.unpackBundleReturns
 	fake.recordInvocation("UnpackBundle", []interface{}{arg1, arg2, arg3})
@@ -66,7 +66,15 @@ func (fake *FakeUnpacker) UnpackBundleArgsForCall(i int) (*v1alpha1.BundleLookup
 	fake.unpackBundleMutex.RLock()
 	defer fake.unpackBundleMutex.RUnlock()
 	argsForCall := fake.unpackBundleArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeUnpacker) UnpackBundleArgs() []FakeUnpackerUnpackBundleArgs {
+	fake.unpackBundleMutex.RLock()
+	defer fake.unpackBundleMutex.RUnlock()
+	args := make([]FakeUnpackerUnpackBundleArgs, len(fake.unpackBundleArgsForCall))
+	copy(args, fake.unpackBundleArgsForCall)
+	return args
 }
 
 func (fake *FakeUnpacker) UnpackBundleReturns(result1 *bundle.BundleUnpackResult, result2 error) {
@@ -105,9 +113,18 @@ func (fake *FakeUnpacker) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeUnpacker) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeUnpacker) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

@@ -12,10 +12,8 @@ import (
 type FakeServiceAccountLister struct {
 	ListStub        func(labels.Selector) ([]*v1a.ServiceAccount, error)
 	listMutex       sync.RWMutex
-	listArgsForCall []struct {
-		arg1 labels.Selector
-	}
-	listReturns struct {
+	listArgsForCall []FakeServiceAccountListerListArgs
+	listReturns     struct {
 		result1 []*v1a.ServiceAccount
 		result2 error
 	}
@@ -25,25 +23,32 @@ type FakeServiceAccountLister struct {
 	}
 	ServiceAccountsStub        func(string) v1.ServiceAccountNamespaceLister
 	serviceAccountsMutex       sync.RWMutex
-	serviceAccountsArgsForCall []struct {
-		arg1 string
-	}
-	serviceAccountsReturns struct {
+	serviceAccountsArgsForCall []FakeServiceAccountListerServiceAccountsArgs
+	serviceAccountsReturns     struct {
 		result1 v1.ServiceAccountNamespaceLister
 	}
 	serviceAccountsReturnsOnCall map[int]struct {
 		result1 v1.ServiceAccountNamespaceLister
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeServiceAccountListerListArgs holds the arguments of one call to List.
+type FakeServiceAccountListerListArgs struct {
+	Arg1 labels.Selector
+}
+
+// FakeServiceAccountListerServiceAccountsArgs holds the arguments of one call to ServiceAccounts.
+type FakeServiceAccountListerServiceAccountsArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeServiceAccountLister) List(arg1 labels.Selector) ([]*v1a.ServiceAccount, error) {
 	fake.listMutex.Lock()
 	ret, specificReturn := fake.listReturnsOnCall[len(fake.listArgsForCall)]
-	fake.listArgsForCall = append(fake.listArgsForCall, struct {
-		arg1 labels.Selector
-	}{arg1})
+	fake.listArgsForCall = append(fake.listArgsForCall, FakeServiceAccountListerListArgs{arg1})
 	stub := fake.ListStub
 	fakeReturns := fake.listReturns
 	fake.recordInvocation("List", []interface{}{arg1})
@@ -73,7 +78,15 @@ func (fake *FakeServiceAccountLister) ListArgsForCall(i int) labels.Selector {
 	fake.listMutex.RLock()
 	defer fake.listMutex.RUnlock()
 	argsForCall := fake.listArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeServiceAccountLister) ListArgs() []FakeServiceAccountListerListArgs {
+	fake.listMutex.RLock()
+	defer fake.listMutex.RUnlock()
+	args := make([]FakeServiceAccountListerListArgs, len(fake.listArgsForCall))
+	copy(args, fake.listArgsForCall)
+	return args
 }
 
 func (fake *FakeServiceAccountLister) ListReturns(result1 []*v1a.ServiceAccount, result2 error) {
@@ -105,9 +118,7 @@ func (fake *FakeServiceAccountLister) ListReturnsOnCall(i int, result1 []*v1a.Se
 func (fake *FakeServiceAccountLister) ServiceAccounts(arg1 string) v1.ServiceAccountNamespaceLister {
 	fake.serviceAccountsMutex.Lock()
 	ret, specificReturn := fake.serviceAccountsReturnsOnCall[len(fake.serviceAccountsArgsForCall)]
-	fake.serviceAccountsArgsForCall = append(fake.serviceAccountsArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.serviceAccountsArgsForCall = append(fake.serviceAccountsArgsForCall, FakeServiceAccountListerServiceAccountsArgs{arg1})
 	stub := fake.ServiceAccountsStub
 	fakeReturns := fake.serviceAccountsReturns
 	fake.recordInvocation("ServiceAccounts", []interface{}{arg1})
@@ -137,7 +148,15 @@ func (fake *FakeServiceAccountLister) ServiceAccountsArgsForCall(i int) string {
 	fake.serviceAccountsMutex.RLock()
 	defer fake.serviceAccountsMutex.RUnlock()
 	argsForCall := fake.serviceAccountsArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeServiceAccountLister) ServiceAccountsArgs() []FakeServiceAccountListerServiceAccountsArgs {
+	fake.serviceAccountsMutex.RLock()
+	defer fake.serviceAccountsMutex.RUnlock()
+	args := make([]FakeServiceAccountListerServiceAccountsArgs, len(fake.serviceAccountsArgsForCall))
+	copy(args, fake.serviceAccountsArgsForCall)
+	return args
 }
 
 func (fake *FakeServiceAccountLister) ServiceAccountsReturns(result1 v1.ServiceAccountNamespaceLister) {
@@ -173,9 +192,18 @@ func (fake *FakeServiceAccountLister) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeServiceAccountLister) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeServiceAccountLister) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

@@ -11,9 +11,8 @@ import (
 type FakeAPIExtensionsV1Lister struct {
 	CustomResourceDefinitionListerStub        func() metadatalister.Lister
 	customResourceDefinitionListerMutex       sync.RWMutex
-	customResourceDefinitionListerArgsForCall []struct {
-	}
-	customResourceDefinitionListerReturns struct {
+	customResourceDefinitionListerArgsForCall []struct{}
+	customResourceDefinitionListerReturns     struct {
 		result1 metadatalister.Lister
 	}
 	customResourceDefinitionListerReturnsOnCall map[int]struct {
@@ -21,18 +20,21 @@ type FakeAPIExtensionsV1Lister struct {
 	}
 	RegisterCustomResourceDefinitionListerStub        func(metadatalister.Lister)
 	registerCustomResourceDefinitionListerMutex       sync.RWMutex
-	registerCustomResourceDefinitionListerArgsForCall []struct {
-		arg1 metadatalister.Lister
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	registerCustomResourceDefinitionListerArgsForCall []FakeAPIExtensionsV1ListerRegisterCustomResourceDefinitionListerArgs
+	invocations                                       map[string][][]interface{}
+	callOrder                                         []string
+	invocationsMutex                                  sync.RWMutex
+}
+
+// FakeAPIExtensionsV1ListerRegisterCustomResourceDefinitionListerArgs holds the arguments of one call to RegisterCustomResourceDefinitionLister.
+type FakeAPIExtensionsV1ListerRegisterCustomResourceDefinitionListerArgs struct {
+	Arg1 metadatalister.Lister
 }
 
 func (fake *FakeAPIExtensionsV1Lister) CustomResourceDefinitionLister() metadatalister.Lister {
 	fake.customResourceDefinitionListerMutex.Lock()
 	ret, specificReturn := fake.customResourceDefinitionListerReturnsOnCall[len(fake.customResourceDefinitionListerArgsForCall)]
-	fake.customResourceDefinitionListerArgsForCall = append(fake.customResourceDefinitionListerArgsForCall, struct {
-	}{})
+	fake.customResourceDefinitionListerArgsForCall = append(fake.customResourceDefinitionListerArgsForCall, struct{}{})
 	stub := fake.CustomResourceDefinitionListerStub
 	fakeReturns := fake.customResourceDefinitionListerReturns
 	fake.recordInvocation("CustomResourceDefinitionLister", []interface{}{})
@@ -83,14 +85,12 @@ func (fake *FakeAPIExtensionsV1Lister) CustomResourceDefinitionListerReturnsOnCa
 
 func (fake *FakeAPIExtensionsV1Lister) RegisterCustomResourceDefinitionLister(arg1 metadatalister.Lister) {
 	fake.registerCustomResourceDefinitionListerMutex.Lock()
-	fake.registerCustomResourceDefinitionListerArgsForCall = append(fake.registerCustomResourceDefinitionListerArgsForCall, struct {
-		arg1 metadatalister.Lister
-	}{arg1})
+	fake.registerCustomResourceDefinitionListerArgsForCall = append(fake.registerCustomResourceDefinitionListerArgsForCall, FakeAPIExtensionsV1ListerRegisterCustomResourceDefinitionListerArgs{arg1})
 	stub := fake.RegisterCustomResourceDefinitionListerStub
 	fake.recordInvocation("RegisterCustomResourceDefinitionLister", []interface{}{arg1})
 	fake.registerCustomResourceDefinitionListerMutex.Unlock()
 	if stub != nil {
-		fake.RegisterCustomResourceDefinitionListerStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -110,7 +110,15 @@ func (fake *FakeAPIExtensionsV1Lister) RegisterCustomResourceDefinitionListerArg
 	fake.registerCustomResourceDefinitionListerMutex.RLock()
 	defer fake.registerCustomResourceDefinitionListerMutex.RUnlock()
 	argsForCall := fake.registerCustomResourceDefinitionListerArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeAPIExtensionsV1Lister) RegisterCustomResourceDefinitionListerArgs() []FakeAPIExtensionsV1ListerRegisterCustomResourceDefinitionListerArgs {
+	fake.registerCustomResourceDefinitionListerMutex.RLock()
+	defer fake.registerCustomResourceDefinitionListerMutex.RUnlock()
+	args := make([]FakeAPIExtensionsV1ListerRegisterCustomResourceDefinitionListerArgs, len(fake.registerCustomResourceDefinitionListerArgsForCall))
+	copy(args, fake.registerCustomResourceDefinitionListerArgsForCall)
+	return args
 }
 
 func (fake *FakeAPIExtensionsV1Lister) Invocations() map[string][][]interface{} {
@@ -123,9 +131,18 @@ func (fake *FakeAPIExtensionsV1Lister) Invocations() map[string][][]interface{} 
 	return copiedInvocations
 }
 
+func (fake *FakeAPIExtensionsV1Lister) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeAPIExtensionsV1Lister) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

@@ -11,9 +11,8 @@ import (
 type FakeAPIRegistrationV1Lister struct {
 	APIServiceListerStub        func() v1.APIServiceLister
 	aPIServiceListerMutex       sync.RWMutex
-	aPIServiceListerArgsForCall []struct {
-	}
-	aPIServiceListerReturns struct {
+	aPIServiceListerArgsForCall []struct{}
+	aPIServiceListerReturns     struct {
 		result1 v1.APIServiceLister
 	}
 	aPIServiceListerReturnsOnCall map[int]struct {
@@ -21,18 +20,21 @@ type FakeAPIRegistrationV1Lister struct {
 	}
 	RegisterAPIServiceListerStub        func(v1.APIServiceLister)
 	registerAPIServiceListerMutex       sync.RWMutex
-	registerAPIServiceListerArgsForCall []struct {
-		arg1 v1.APIServiceLister
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	registerAPIServiceListerArgsForCall []FakeAPIRegistrationV1ListerRegisterAPIServiceListerArgs
+	invocations                         map[string][][]interface{}
+	callOrder                           []string
+	invocationsMutex                    sync.RWMutex
+}
+
+// FakeAPIRegistrationV1ListerRegisterAPIServiceListerArgs holds the arguments of one call to RegisterAPIServiceLister.
+type FakeAPIRegistrationV1ListerRegisterAPIServiceListerArgs struct {
+	Arg1 v1.APIServiceLister
 }
 
 func (fake *FakeAPIRegistrationV1Lister) APIServiceLister() v1.APIServiceLister {
 	fake.aPIServiceListerMutex.Lock()
 	ret, specificReturn := fake.aPIServiceListerReturnsOnCall[len(fake.aPIServiceListerArgsForCall)]
-	fake.aPIServiceListerArgsForCall = append(fake.aPIServiceListerArgsForCall, struct {
-	}{})
+	fake.aPIServiceListerArgsForCall = append(fake.aPIServiceListerArgsForCall, struct{}{})
 	stub := fake.APIServiceListerStub
 	fakeReturns := fake.aPIServiceListerReturns
 	fake.recordInvocation("APIServiceLister", []interface{}{})
@@ -83,14 +85,12 @@ func (fake *FakeAPIRegistrationV1Lister) APIServiceListerReturnsOnCall(i int, re
 
 func (fake *FakeAPIRegistrationV1Lister) RegisterAPIServiceLister(arg1 v1.APIServiceLister) {
 	fake.registerAPIServiceListerMutex.Lock()
-	fake.registerAPIServiceListerArgsForCall = append(fake.registerAPIServiceListerArgsForCall, struct {
-		arg1 v1.APIServiceLister
-	}{arg1})
+	fake.registerAPIServiceListerArgsForCall = append(fake.registerAPIServiceListerArgsForCall, FakeAPIRegistrationV1ListerRegisterAPIServiceListerArgs{arg1})
 	stub := fake.RegisterAPIServiceListerStub
 	fake.recordInvocation("RegisterAPIServiceLister", []interface{}{arg1})
 	fake.registerAPIServiceListerMutex.Unlock()
 	if stub != nil {
-		fake.RegisterAPIServiceListerStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -110,7 +110,15 @@ func (fake *FakeAPIRegistrationV1Lister) RegisterAPIServiceListerArgsForCall(i i
 	fake.registerAPIServiceListerMutex.RLock()
 	defer fake.registerAPIServiceListerMutex.RUnlock()
 	argsForCall := fake.registerAPIServiceListerArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeAPIRegistrationV1Lister) RegisterAPIServiceListerArgs() []FakeAPIRegistrationV1ListerRegisterAPIServiceListerArgs {
+	fake.registerAPIServiceListerMutex.RLock()
+	defer fake.registerAPIServiceListerMutex.RUnlock()
+	args := make([]FakeAPIRegistrationV1ListerRegisterAPIServiceListerArgs, len(fake.registerAPIServiceListerArgsForCall))
+	copy(args, fake.registerAPIServiceListerArgsForCall)
+	return args
 }
 
 func (fake *FakeAPIRegistrationV1Lister) Invocations() map[string][][]interface{} {
@@ -123,9 +131,18 @@ func (fake *FakeAPIRegistrationV1Lister) Invocations() map[string][][]interface{
 	return copiedInvocations
 }
 
+func (fake *FakeAPIRegistrationV1Lister) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeAPIRegistrationV1Lister) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

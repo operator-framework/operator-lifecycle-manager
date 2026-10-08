@@ -12,10 +12,8 @@ import (
 type FakeRoleBindingNamespaceLister struct {
 	GetStub        func(string) (*v1a.RoleBinding, error)
 	getMutex       sync.RWMutex
-	getArgsForCall []struct {
-		arg1 string
-	}
-	getReturns struct {
+	getArgsForCall []FakeRoleBindingNamespaceListerGetArgs
+	getReturns     struct {
 		result1 *v1a.RoleBinding
 		result2 error
 	}
@@ -25,10 +23,8 @@ type FakeRoleBindingNamespaceLister struct {
 	}
 	ListStub        func(labels.Selector) ([]*v1a.RoleBinding, error)
 	listMutex       sync.RWMutex
-	listArgsForCall []struct {
-		arg1 labels.Selector
-	}
-	listReturns struct {
+	listArgsForCall []FakeRoleBindingNamespaceListerListArgs
+	listReturns     struct {
 		result1 []*v1a.RoleBinding
 		result2 error
 	}
@@ -37,15 +33,24 @@ type FakeRoleBindingNamespaceLister struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeRoleBindingNamespaceListerGetArgs holds the arguments of one call to Get.
+type FakeRoleBindingNamespaceListerGetArgs struct {
+	Arg1 string
+}
+
+// FakeRoleBindingNamespaceListerListArgs holds the arguments of one call to List.
+type FakeRoleBindingNamespaceListerListArgs struct {
+	Arg1 labels.Selector
 }
 
 func (fake *FakeRoleBindingNamespaceLister) Get(arg1 string) (*v1a.RoleBinding, error) {
 	fake.getMutex.Lock()
 	ret, specificReturn := fake.getReturnsOnCall[len(fake.getArgsForCall)]
-	fake.getArgsForCall = append(fake.getArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.getArgsForCall = append(fake.getArgsForCall, FakeRoleBindingNamespaceListerGetArgs{arg1})
 	stub := fake.GetStub
 	fakeReturns := fake.getReturns
 	fake.recordInvocation("Get", []interface{}{arg1})
@@ -75,7 +80,15 @@ func (fake *FakeRoleBindingNamespaceLister) GetArgsForCall(i int) string {
 	fake.getMutex.RLock()
 	defer fake.getMutex.RUnlock()
 	argsForCall := fake.getArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeRoleBindingNamespaceLister) GetArgs() []FakeRoleBindingNamespaceListerGetArgs {
+	fake.getMutex.RLock()
+	defer fake.getMutex.RUnlock()
+	args := make([]FakeRoleBindingNamespaceListerGetArgs, len(fake.getArgsForCall))
+	copy(args, fake.getArgsForCall)
+	return args
 }
 
 func (fake *FakeRoleBindingNamespaceLister) GetReturns(result1 *v1a.RoleBinding, result2 error) {
@@ -107,9 +120,7 @@ func (fake *FakeRoleBindingNamespaceLister) GetReturnsOnCall(i int, result1 *v1a
 func (fake *FakeRoleBindingNamespaceLister) List(arg1 labels.Selector) ([]*v1a.RoleBinding, error) {
 	fake.listMutex.Lock()
 	ret, specificReturn := fake.listReturnsOnCall[len(fake.listArgsForCall)]
-	fake.listArgsForCall = append(fake.listArgsForCall, struct {
-		arg1 labels.Selector
-	}{arg1})
+	fake.listArgsForCall = append(fake.listArgsForCall, FakeRoleBindingNamespaceListerListArgs{arg1})
 	stub := fake.ListStub
 	fakeReturns := fake.listReturns
 	fake.recordInvocation("List", []interface{}{arg1})
@@ -139,7 +150,15 @@ func (fake *FakeRoleBindingNamespaceLister) ListArgsForCall(i int) labels.Select
 	fake.listMutex.RLock()
 	defer fake.listMutex.RUnlock()
 	argsForCall := fake.listArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeRoleBindingNamespaceLister) ListArgs() []FakeRoleBindingNamespaceListerListArgs {
+	fake.listMutex.RLock()
+	defer fake.listMutex.RUnlock()
+	args := make([]FakeRoleBindingNamespaceListerListArgs, len(fake.listArgsForCall))
+	copy(args, fake.listArgsForCall)
+	return args
 }
 
 func (fake *FakeRoleBindingNamespaceLister) ListReturns(result1 []*v1a.RoleBinding, result2 error) {
@@ -178,9 +197,18 @@ func (fake *FakeRoleBindingNamespaceLister) Invocations() map[string][][]interfa
 	return copiedInvocations
 }
 
+func (fake *FakeRoleBindingNamespaceLister) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeRoleBindingNamespaceLister) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

@@ -14,17 +14,8 @@ import (
 type FakeStrategyResolverInterface struct {
 	InstallerForStrategyStub        func(string, operatorclient.ClientInterface, operatorlister.OperatorLister, ownerutil.Owner, map[string]string, []v1alpha1.APIServiceDescription, []v1alpha1.WebhookDescription, install.Strategy) install.StrategyInstaller
 	installerForStrategyMutex       sync.RWMutex
-	installerForStrategyArgsForCall []struct {
-		arg1 string
-		arg2 operatorclient.ClientInterface
-		arg3 operatorlister.OperatorLister
-		arg4 ownerutil.Owner
-		arg5 map[string]string
-		arg6 []v1alpha1.APIServiceDescription
-		arg7 []v1alpha1.WebhookDescription
-		arg8 install.Strategy
-	}
-	installerForStrategyReturns struct {
+	installerForStrategyArgsForCall []FakeStrategyResolverInterfaceInstallerForStrategyArgs
+	installerForStrategyReturns     struct {
 		result1 install.StrategyInstaller
 	}
 	installerForStrategyReturnsOnCall map[int]struct {
@@ -32,10 +23,8 @@ type FakeStrategyResolverInterface struct {
 	}
 	UnmarshalStrategyStub        func(v1alpha1.NamedInstallStrategy) (install.Strategy, error)
 	unmarshalStrategyMutex       sync.RWMutex
-	unmarshalStrategyArgsForCall []struct {
-		arg1 v1alpha1.NamedInstallStrategy
-	}
-	unmarshalStrategyReturns struct {
+	unmarshalStrategyArgsForCall []FakeStrategyResolverInterfaceUnmarshalStrategyArgs
+	unmarshalStrategyReturns     struct {
 		result1 install.Strategy
 		result2 error
 	}
@@ -44,7 +33,25 @@ type FakeStrategyResolverInterface struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeStrategyResolverInterfaceInstallerForStrategyArgs holds the arguments of one call to InstallerForStrategy.
+type FakeStrategyResolverInterfaceInstallerForStrategyArgs struct {
+	Arg1 string
+	Arg2 operatorclient.ClientInterface
+	Arg3 operatorlister.OperatorLister
+	Arg4 ownerutil.Owner
+	Arg5 map[string]string
+	Arg6 []v1alpha1.APIServiceDescription
+	Arg7 []v1alpha1.WebhookDescription
+	Arg8 install.Strategy
+}
+
+// FakeStrategyResolverInterfaceUnmarshalStrategyArgs holds the arguments of one call to UnmarshalStrategy.
+type FakeStrategyResolverInterfaceUnmarshalStrategyArgs struct {
+	Arg1 v1alpha1.NamedInstallStrategy
 }
 
 func (fake *FakeStrategyResolverInterface) InstallerForStrategy(arg1 string, arg2 operatorclient.ClientInterface, arg3 operatorlister.OperatorLister, arg4 ownerutil.Owner, arg5 map[string]string, arg6 []v1alpha1.APIServiceDescription, arg7 []v1alpha1.WebhookDescription, arg8 install.Strategy) install.StrategyInstaller {
@@ -60,16 +67,7 @@ func (fake *FakeStrategyResolverInterface) InstallerForStrategy(arg1 string, arg
 	}
 	fake.installerForStrategyMutex.Lock()
 	ret, specificReturn := fake.installerForStrategyReturnsOnCall[len(fake.installerForStrategyArgsForCall)]
-	fake.installerForStrategyArgsForCall = append(fake.installerForStrategyArgsForCall, struct {
-		arg1 string
-		arg2 operatorclient.ClientInterface
-		arg3 operatorlister.OperatorLister
-		arg4 ownerutil.Owner
-		arg5 map[string]string
-		arg6 []v1alpha1.APIServiceDescription
-		arg7 []v1alpha1.WebhookDescription
-		arg8 install.Strategy
-	}{arg1, arg2, arg3, arg4, arg5, arg6Copy, arg7Copy, arg8})
+	fake.installerForStrategyArgsForCall = append(fake.installerForStrategyArgsForCall, FakeStrategyResolverInterfaceInstallerForStrategyArgs{arg1, arg2, arg3, arg4, arg5, arg6Copy, arg7Copy, arg8})
 	stub := fake.InstallerForStrategyStub
 	fakeReturns := fake.installerForStrategyReturns
 	fake.recordInvocation("InstallerForStrategy", []interface{}{arg1, arg2, arg3, arg4, arg5, arg6Copy, arg7Copy, arg8})
@@ -99,7 +97,15 @@ func (fake *FakeStrategyResolverInterface) InstallerForStrategyArgsForCall(i int
 	fake.installerForStrategyMutex.RLock()
 	defer fake.installerForStrategyMutex.RUnlock()
 	argsForCall := fake.installerForStrategyArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5, argsForCall.arg6, argsForCall.arg7, argsForCall.arg8
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3, argsForCall.Arg4, argsForCall.Arg5, argsForCall.Arg6, argsForCall.Arg7, argsForCall.Arg8
+}
+
+func (fake *FakeStrategyResolverInterface) InstallerForStrategyArgs() []FakeStrategyResolverInterfaceInstallerForStrategyArgs {
+	fake.installerForStrategyMutex.RLock()
+	defer fake.installerForStrategyMutex.RUnlock()
+	args := make([]FakeStrategyResolverInterfaceInstallerForStrategyArgs, len(fake.installerForStrategyArgsForCall))
+	copy(args, fake.installerForStrategyArgsForCall)
+	return args
 }
 
 func (fake *FakeStrategyResolverInterface) InstallerForStrategyReturns(result1 install.StrategyInstaller) {
@@ -128,9 +134,7 @@ func (fake *FakeStrategyResolverInterface) InstallerForStrategyReturnsOnCall(i i
 func (fake *FakeStrategyResolverInterface) UnmarshalStrategy(arg1 v1alpha1.NamedInstallStrategy) (install.Strategy, error) {
 	fake.unmarshalStrategyMutex.Lock()
 	ret, specificReturn := fake.unmarshalStrategyReturnsOnCall[len(fake.unmarshalStrategyArgsForCall)]
-	fake.unmarshalStrategyArgsForCall = append(fake.unmarshalStrategyArgsForCall, struct {
-		arg1 v1alpha1.NamedInstallStrategy
-	}{arg1})
+	fake.unmarshalStrategyArgsForCall = append(fake.unmarshalStrategyArgsForCall, FakeStrategyResolverInterfaceUnmarshalStrategyArgs{arg1})
 	stub := fake.UnmarshalStrategyStub
 	fakeReturns := fake.unmarshalStrategyReturns
 	fake.recordInvocation("UnmarshalStrategy", []interface{}{arg1})
@@ -160,7 +164,15 @@ func (fake *FakeStrategyResolverInterface) UnmarshalStrategyArgsForCall(i int) v
 	fake.unmarshalStrategyMutex.RLock()
 	defer fake.unmarshalStrategyMutex.RUnlock()
 	argsForCall := fake.unmarshalStrategyArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeStrategyResolverInterface) UnmarshalStrategyArgs() []FakeStrategyResolverInterfaceUnmarshalStrategyArgs {
+	fake.unmarshalStrategyMutex.RLock()
+	defer fake.unmarshalStrategyMutex.RUnlock()
+	args := make([]FakeStrategyResolverInterfaceUnmarshalStrategyArgs, len(fake.unmarshalStrategyArgsForCall))
+	copy(args, fake.unmarshalStrategyArgsForCall)
+	return args
 }
 
 func (fake *FakeStrategyResolverInterface) UnmarshalStrategyReturns(result1 install.Strategy, result2 error) {
@@ -199,9 +211,18 @@ func (fake *FakeStrategyResolverInterface) Invocations() map[string][][]interfac
 	return copiedInvocations
 }
 
+func (fake *FakeStrategyResolverInterface) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeStrategyResolverInterface) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

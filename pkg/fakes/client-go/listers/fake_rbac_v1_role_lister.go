@@ -12,10 +12,8 @@ import (
 type FakeRoleLister struct {
 	ListStub        func(labels.Selector) ([]*v1a.Role, error)
 	listMutex       sync.RWMutex
-	listArgsForCall []struct {
-		arg1 labels.Selector
-	}
-	listReturns struct {
+	listArgsForCall []FakeRoleListerListArgs
+	listReturns     struct {
 		result1 []*v1a.Role
 		result2 error
 	}
@@ -25,25 +23,32 @@ type FakeRoleLister struct {
 	}
 	RolesStub        func(string) v1.RoleNamespaceLister
 	rolesMutex       sync.RWMutex
-	rolesArgsForCall []struct {
-		arg1 string
-	}
-	rolesReturns struct {
+	rolesArgsForCall []FakeRoleListerRolesArgs
+	rolesReturns     struct {
 		result1 v1.RoleNamespaceLister
 	}
 	rolesReturnsOnCall map[int]struct {
 		result1 v1.RoleNamespaceLister
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeRoleListerListArgs holds the arguments of one call to List.
+type FakeRoleListerListArgs struct {
+	Arg1 labels.Selector
+}
+
+// FakeRoleListerRolesArgs holds the arguments of one call to Roles.
+type FakeRoleListerRolesArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeRoleLister) List(arg1 labels.Selector) ([]*v1a.Role, error) {
 	fake.listMutex.Lock()
 	ret, specificReturn := fake.listReturnsOnCall[len(fake.listArgsForCall)]
-	fake.listArgsForCall = append(fake.listArgsForCall, struct {
-		arg1 labels.Selector
-	}{arg1})
+	fake.listArgsForCall = append(fake.listArgsForCall, FakeRoleListerListArgs{arg1})
 	stub := fake.ListStub
 	fakeReturns := fake.listReturns
 	fake.recordInvocation("List", []interface{}{arg1})
@@ -73,7 +78,15 @@ func (fake *FakeRoleLister) ListArgsForCall(i int) labels.Selector {
 	fake.listMutex.RLock()
 	defer fake.listMutex.RUnlock()
 	argsForCall := fake.listArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeRoleLister) ListArgs() []FakeRoleListerListArgs {
+	fake.listMutex.RLock()
+	defer fake.listMutex.RUnlock()
+	args := make([]FakeRoleListerListArgs, len(fake.listArgsForCall))
+	copy(args, fake.listArgsForCall)
+	return args
 }
 
 func (fake *FakeRoleLister) ListReturns(result1 []*v1a.Role, result2 error) {
@@ -105,9 +118,7 @@ func (fake *FakeRoleLister) ListReturnsOnCall(i int, result1 []*v1a.Role, result
 func (fake *FakeRoleLister) Roles(arg1 string) v1.RoleNamespaceLister {
 	fake.rolesMutex.Lock()
 	ret, specificReturn := fake.rolesReturnsOnCall[len(fake.rolesArgsForCall)]
-	fake.rolesArgsForCall = append(fake.rolesArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.rolesArgsForCall = append(fake.rolesArgsForCall, FakeRoleListerRolesArgs{arg1})
 	stub := fake.RolesStub
 	fakeReturns := fake.rolesReturns
 	fake.recordInvocation("Roles", []interface{}{arg1})
@@ -137,7 +148,15 @@ func (fake *FakeRoleLister) RolesArgsForCall(i int) string {
 	fake.rolesMutex.RLock()
 	defer fake.rolesMutex.RUnlock()
 	argsForCall := fake.rolesArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeRoleLister) RolesArgs() []FakeRoleListerRolesArgs {
+	fake.rolesMutex.RLock()
+	defer fake.rolesMutex.RUnlock()
+	args := make([]FakeRoleListerRolesArgs, len(fake.rolesArgsForCall))
+	copy(args, fake.rolesArgsForCall)
+	return args
 }
 
 func (fake *FakeRoleLister) RolesReturns(result1 v1.RoleNamespaceLister) {
@@ -173,9 +192,18 @@ func (fake *FakeRoleLister) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeRoleLister) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeRoleLister) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

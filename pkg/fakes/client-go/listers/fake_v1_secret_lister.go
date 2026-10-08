@@ -12,10 +12,8 @@ import (
 type FakeSecretLister struct {
 	ListStub        func(labels.Selector) ([]*v1a.Secret, error)
 	listMutex       sync.RWMutex
-	listArgsForCall []struct {
-		arg1 labels.Selector
-	}
-	listReturns struct {
+	listArgsForCall []FakeSecretListerListArgs
+	listReturns     struct {
 		result1 []*v1a.Secret
 		result2 error
 	}
@@ -25,25 +23,32 @@ type FakeSecretLister struct {
 	}
 	SecretsStub        func(string) v1.SecretNamespaceLister
 	secretsMutex       sync.RWMutex
-	secretsArgsForCall []struct {
-		arg1 string
-	}
-	secretsReturns struct {
+	secretsArgsForCall []FakeSecretListerSecretsArgs
+	secretsReturns     struct {
 		result1 v1.SecretNamespaceLister
 	}
 	secretsReturnsOnCall map[int]struct {
 		result1 v1.SecretNamespaceLister
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeSecretListerListArgs holds the arguments of one call to List.
+type FakeSecretListerListArgs struct {
+	Arg1 labels.Selector
+}
+
+// FakeSecretListerSecretsArgs holds the arguments of one call to Secrets.
+type FakeSecretListerSecretsArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeSecretLister) List(arg1 labels.Selector) ([]*v1a.Secret, error) {
 	fake.listMutex.Lock()
 	ret, specificReturn := fake.listReturnsOnCall[len(fake.listArgsForCall)]
-	fake.listArgsForCall = append(fake.listArgsForCall, struct {
-		arg1 labels.Selector
-	}{arg1})
+	fake.listArgsForCall = append(fake.listArgsForCall, FakeSecretListerListArgs{arg1})
 	stub := fake.ListStub
 	fakeReturns := fake.listReturns
 	fake.recordInvocation("List", []interface{}{arg1})
@@ -73,7 +78,15 @@ func (fake *FakeSecretLister) ListArgsForCall(i int) labels.Selector {
 	fake.listMutex.RLock()
 	defer fake.listMutex.RUnlock()
 	argsForCall := fake.listArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeSecretLister) ListArgs() []FakeSecretListerListArgs {
+	fake.listMutex.RLock()
+	defer fake.listMutex.RUnlock()
+	args := make([]FakeSecretListerListArgs, len(fake.listArgsForCall))
+	copy(args, fake.listArgsForCall)
+	return args
 }
 
 func (fake *FakeSecretLister) ListReturns(result1 []*v1a.Secret, result2 error) {
@@ -105,9 +118,7 @@ func (fake *FakeSecretLister) ListReturnsOnCall(i int, result1 []*v1a.Secret, re
 func (fake *FakeSecretLister) Secrets(arg1 string) v1.SecretNamespaceLister {
 	fake.secretsMutex.Lock()
 	ret, specificReturn := fake.secretsReturnsOnCall[len(fake.secretsArgsForCall)]
-	fake.secretsArgsForCall = append(fake.secretsArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.secretsArgsForCall = append(fake.secretsArgsForCall, FakeSecretListerSecretsArgs{arg1})
 	stub := fake.SecretsStub
 	fakeReturns := fake.secretsReturns
 	fake.recordInvocation("Secrets", []interface{}{arg1})
@@ -137,7 +148,15 @@ func (fake *FakeSecretLister) SecretsArgsForCall(i int) string {
 	fake.secretsMutex.RLock()
 	defer fake.secretsMutex.RUnlock()
 	argsForCall := fake.secretsArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeSecretLister) SecretsArgs() []FakeSecretListerSecretsArgs {
+	fake.secretsMutex.RLock()
+	defer fake.secretsMutex.RUnlock()
+	args := make([]FakeSecretListerSecretsArgs, len(fake.secretsArgsForCall))
+	copy(args, fake.secretsArgsForCall)
+	return args
 }
 
 func (fake *FakeSecretLister) SecretsReturns(result1 v1.SecretNamespaceLister) {
@@ -173,9 +192,18 @@ func (fake *FakeSecretLister) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeSecretLister) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeSecretLister) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

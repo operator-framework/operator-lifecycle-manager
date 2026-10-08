@@ -12,11 +12,8 @@ import (
 type FakeRegistryReconciler struct {
 	CheckRegistryServerStub        func(*logrus.Entry, *v1alpha1.CatalogSource) (bool, error)
 	checkRegistryServerMutex       sync.RWMutex
-	checkRegistryServerArgsForCall []struct {
-		arg1 *logrus.Entry
-		arg2 *v1alpha1.CatalogSource
-	}
-	checkRegistryServerReturns struct {
+	checkRegistryServerArgsForCall []FakeRegistryReconcilerCheckRegistryServerArgs
+	checkRegistryServerReturns     struct {
 		result1 bool
 		result2 error
 	}
@@ -26,27 +23,34 @@ type FakeRegistryReconciler struct {
 	}
 	EnsureRegistryServerStub        func(*logrus.Entry, *v1alpha1.CatalogSource) error
 	ensureRegistryServerMutex       sync.RWMutex
-	ensureRegistryServerArgsForCall []struct {
-		arg1 *logrus.Entry
-		arg2 *v1alpha1.CatalogSource
-	}
-	ensureRegistryServerReturns struct {
+	ensureRegistryServerArgsForCall []FakeRegistryReconcilerEnsureRegistryServerArgs
+	ensureRegistryServerReturns     struct {
 		result1 error
 	}
 	ensureRegistryServerReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeRegistryReconcilerCheckRegistryServerArgs holds the arguments of one call to CheckRegistryServer.
+type FakeRegistryReconcilerCheckRegistryServerArgs struct {
+	Arg1 *logrus.Entry
+	Arg2 *v1alpha1.CatalogSource
+}
+
+// FakeRegistryReconcilerEnsureRegistryServerArgs holds the arguments of one call to EnsureRegistryServer.
+type FakeRegistryReconcilerEnsureRegistryServerArgs struct {
+	Arg1 *logrus.Entry
+	Arg2 *v1alpha1.CatalogSource
 }
 
 func (fake *FakeRegistryReconciler) CheckRegistryServer(arg1 *logrus.Entry, arg2 *v1alpha1.CatalogSource) (bool, error) {
 	fake.checkRegistryServerMutex.Lock()
 	ret, specificReturn := fake.checkRegistryServerReturnsOnCall[len(fake.checkRegistryServerArgsForCall)]
-	fake.checkRegistryServerArgsForCall = append(fake.checkRegistryServerArgsForCall, struct {
-		arg1 *logrus.Entry
-		arg2 *v1alpha1.CatalogSource
-	}{arg1, arg2})
+	fake.checkRegistryServerArgsForCall = append(fake.checkRegistryServerArgsForCall, FakeRegistryReconcilerCheckRegistryServerArgs{arg1, arg2})
 	stub := fake.CheckRegistryServerStub
 	fakeReturns := fake.checkRegistryServerReturns
 	fake.recordInvocation("CheckRegistryServer", []interface{}{arg1, arg2})
@@ -76,7 +80,15 @@ func (fake *FakeRegistryReconciler) CheckRegistryServerArgsForCall(i int) (*logr
 	fake.checkRegistryServerMutex.RLock()
 	defer fake.checkRegistryServerMutex.RUnlock()
 	argsForCall := fake.checkRegistryServerArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeRegistryReconciler) CheckRegistryServerArgs() []FakeRegistryReconcilerCheckRegistryServerArgs {
+	fake.checkRegistryServerMutex.RLock()
+	defer fake.checkRegistryServerMutex.RUnlock()
+	args := make([]FakeRegistryReconcilerCheckRegistryServerArgs, len(fake.checkRegistryServerArgsForCall))
+	copy(args, fake.checkRegistryServerArgsForCall)
+	return args
 }
 
 func (fake *FakeRegistryReconciler) CheckRegistryServerReturns(result1 bool, result2 error) {
@@ -108,10 +120,7 @@ func (fake *FakeRegistryReconciler) CheckRegistryServerReturnsOnCall(i int, resu
 func (fake *FakeRegistryReconciler) EnsureRegistryServer(arg1 *logrus.Entry, arg2 *v1alpha1.CatalogSource) error {
 	fake.ensureRegistryServerMutex.Lock()
 	ret, specificReturn := fake.ensureRegistryServerReturnsOnCall[len(fake.ensureRegistryServerArgsForCall)]
-	fake.ensureRegistryServerArgsForCall = append(fake.ensureRegistryServerArgsForCall, struct {
-		arg1 *logrus.Entry
-		arg2 *v1alpha1.CatalogSource
-	}{arg1, arg2})
+	fake.ensureRegistryServerArgsForCall = append(fake.ensureRegistryServerArgsForCall, FakeRegistryReconcilerEnsureRegistryServerArgs{arg1, arg2})
 	stub := fake.EnsureRegistryServerStub
 	fakeReturns := fake.ensureRegistryServerReturns
 	fake.recordInvocation("EnsureRegistryServer", []interface{}{arg1, arg2})
@@ -141,7 +150,15 @@ func (fake *FakeRegistryReconciler) EnsureRegistryServerArgsForCall(i int) (*log
 	fake.ensureRegistryServerMutex.RLock()
 	defer fake.ensureRegistryServerMutex.RUnlock()
 	argsForCall := fake.ensureRegistryServerArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeRegistryReconciler) EnsureRegistryServerArgs() []FakeRegistryReconcilerEnsureRegistryServerArgs {
+	fake.ensureRegistryServerMutex.RLock()
+	defer fake.ensureRegistryServerMutex.RUnlock()
+	args := make([]FakeRegistryReconcilerEnsureRegistryServerArgs, len(fake.ensureRegistryServerArgsForCall))
+	copy(args, fake.ensureRegistryServerArgsForCall)
+	return args
 }
 
 func (fake *FakeRegistryReconciler) EnsureRegistryServerReturns(result1 error) {
@@ -177,9 +194,18 @@ func (fake *FakeRegistryReconciler) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeRegistryReconciler) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeRegistryReconciler) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

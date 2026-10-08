@@ -12,10 +12,8 @@ import (
 type FakeRoleBindingLister struct {
 	ListStub        func(labels.Selector) ([]*v1a.RoleBinding, error)
 	listMutex       sync.RWMutex
-	listArgsForCall []struct {
-		arg1 labels.Selector
-	}
-	listReturns struct {
+	listArgsForCall []FakeRoleBindingListerListArgs
+	listReturns     struct {
 		result1 []*v1a.RoleBinding
 		result2 error
 	}
@@ -25,25 +23,32 @@ type FakeRoleBindingLister struct {
 	}
 	RoleBindingsStub        func(string) v1.RoleBindingNamespaceLister
 	roleBindingsMutex       sync.RWMutex
-	roleBindingsArgsForCall []struct {
-		arg1 string
-	}
-	roleBindingsReturns struct {
+	roleBindingsArgsForCall []FakeRoleBindingListerRoleBindingsArgs
+	roleBindingsReturns     struct {
 		result1 v1.RoleBindingNamespaceLister
 	}
 	roleBindingsReturnsOnCall map[int]struct {
 		result1 v1.RoleBindingNamespaceLister
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeRoleBindingListerListArgs holds the arguments of one call to List.
+type FakeRoleBindingListerListArgs struct {
+	Arg1 labels.Selector
+}
+
+// FakeRoleBindingListerRoleBindingsArgs holds the arguments of one call to RoleBindings.
+type FakeRoleBindingListerRoleBindingsArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeRoleBindingLister) List(arg1 labels.Selector) ([]*v1a.RoleBinding, error) {
 	fake.listMutex.Lock()
 	ret, specificReturn := fake.listReturnsOnCall[len(fake.listArgsForCall)]
-	fake.listArgsForCall = append(fake.listArgsForCall, struct {
-		arg1 labels.Selector
-	}{arg1})
+	fake.listArgsForCall = append(fake.listArgsForCall, FakeRoleBindingListerListArgs{arg1})
 	stub := fake.ListStub
 	fakeReturns := fake.listReturns
 	fake.recordInvocation("List", []interface{}{arg1})
@@ -73,7 +78,15 @@ func (fake *FakeRoleBindingLister) ListArgsForCall(i int) labels.Selector {
 	fake.listMutex.RLock()
 	defer fake.listMutex.RUnlock()
 	argsForCall := fake.listArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeRoleBindingLister) ListArgs() []FakeRoleBindingListerListArgs {
+	fake.listMutex.RLock()
+	defer fake.listMutex.RUnlock()
+	args := make([]FakeRoleBindingListerListArgs, len(fake.listArgsForCall))
+	copy(args, fake.listArgsForCall)
+	return args
 }
 
 func (fake *FakeRoleBindingLister) ListReturns(result1 []*v1a.RoleBinding, result2 error) {
@@ -105,9 +118,7 @@ func (fake *FakeRoleBindingLister) ListReturnsOnCall(i int, result1 []*v1a.RoleB
 func (fake *FakeRoleBindingLister) RoleBindings(arg1 string) v1.RoleBindingNamespaceLister {
 	fake.roleBindingsMutex.Lock()
 	ret, specificReturn := fake.roleBindingsReturnsOnCall[len(fake.roleBindingsArgsForCall)]
-	fake.roleBindingsArgsForCall = append(fake.roleBindingsArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.roleBindingsArgsForCall = append(fake.roleBindingsArgsForCall, FakeRoleBindingListerRoleBindingsArgs{arg1})
 	stub := fake.RoleBindingsStub
 	fakeReturns := fake.roleBindingsReturns
 	fake.recordInvocation("RoleBindings", []interface{}{arg1})
@@ -137,7 +148,15 @@ func (fake *FakeRoleBindingLister) RoleBindingsArgsForCall(i int) string {
 	fake.roleBindingsMutex.RLock()
 	defer fake.roleBindingsMutex.RUnlock()
 	argsForCall := fake.roleBindingsArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeRoleBindingLister) RoleBindingsArgs() []FakeRoleBindingListerRoleBindingsArgs {
+	fake.roleBindingsMutex.RLock()
+	defer fake.roleBindingsMutex.RUnlock()
+	args := make([]FakeRoleBindingListerRoleBindingsArgs, len(fake.roleBindingsArgsForCall))
+	copy(args, fake.roleBindingsArgsForCall)
+	return args
 }
 
 func (fake *FakeRoleBindingLister) RoleBindingsReturns(result1 v1.RoleBindingNamespaceLister) {
@@ -173,9 +192,18 @@ func (fake *FakeRoleBindingLister) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeRoleBindingLister) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeRoleBindingLister) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}
