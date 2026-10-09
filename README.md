@@ -155,6 +155,15 @@ This will keep the etcd `ClusterServiceVersion` up to date as new versions becom
 
 Catalogs are served internally over a grpc interface to OLM from [operator-registry](https://github.com/operator-framework/operator-registry) pods.  Catalog data such as `bundles` are documented [there](https://github.com/operator-framework/operator-registry#manifest-format) as well.
 
+### Package Server Refresh Configuration
+
+The package server bounds concurrent package refreshes and staggers catalog refreshes to reduce bursts of registry requests. Its command-line flags are:
+
+- `--package-refresh-workers` (default `4`, range `1`-`128`): maximum concurrent package refresh workers shared across all catalogs in a package server process. Each worker retrieves a package and its channel bundles before releasing its slot.
+- `--catalog-refresh-jitter` (default `0.2`, range `0`-`1`): maximum additional randomized delay for each periodic catalog resync, as a fraction of the effective sync interval. The interval still defaults to `12h` and can be set with `--interval` or overridden by `OLMConfig.spec.features.packageServerSyncInterval`. With defaults, resyncs receive up to `2h24m` of additional delay.
+
+Initial catalog connections are queued immediately. Initial-ready, reconnect, and watch-update refreshes receive a separate randomized delay of up to `30s`, rather than waiting for the periodic resync window. Setting `--catalog-refresh-jitter=0` disables both delays. Queueing and worker contention can add further wait time. The existing five-minute catalog refresh RPC timeout is unchanged.
+
 ## Samples
 
 To explore any operator samples using the OLM, see the [https://operatorhub.io/](https://operatorhub.io/) and its resources in [Community Operators](https://github.com/k8s-operatorhub/community-operators/tree/main/operators).
