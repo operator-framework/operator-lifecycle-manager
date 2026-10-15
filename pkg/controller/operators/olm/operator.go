@@ -101,6 +101,7 @@ type Operator struct {
 	copiedCSVLister              operatorsv1alpha1listers.ClusterServiceVersionLister
 	ogQueueSet                   *queueinformer.ResourceQueueSet
 	csvQueueSet                  *queueinformer.ResourceQueueSet
+	healthCheckBackoff           *csvHealthCheckBackoff
 	olmConfigQueue               workqueue.TypedRateLimitingInterface[types.NamespacedName]
 	csvCopyQueueSet              *queueinformer.ResourceQueueSet
 	copiedCSVQueueSet            *queueinformer.ResourceQueueSet
@@ -209,13 +210,14 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	}
 
 	op := &Operator{
-		Operator:    queueOperator,
-		clock:       config.clock,
-		logger:      config.logger,
-		opClient:    config.operatorClient,
-		client:      config.externalClient,
-		ogQueueSet:  queueinformer.NewEmptyResourceQueueSet(),
-		csvQueueSet: queueinformer.NewEmptyResourceQueueSet(),
+		Operator:           queueOperator,
+		clock:              config.clock,
+		logger:             config.logger,
+		opClient:           config.operatorClient,
+		client:             config.externalClient,
+		ogQueueSet:         queueinformer.NewEmptyResourceQueueSet(),
+		csvQueueSet:        queueinformer.NewEmptyResourceQueueSet(),
+		healthCheckBackoff: newCSVHealthCheckBackoff(),
 		olmConfigQueue: workqueue.NewTypedRateLimitingQueueWithConfig[types.NamespacedName](
 			workqueue.DefaultTypedControllerRateLimiter[types.NamespacedName](),
 			workqueue.TypedRateLimitingQueueConfig[types.NamespacedName]{
@@ -1187,6 +1189,11 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 			return
 		}
 	}
+
+	a.healthCheckBackoff.forget(types.NamespacedName{
+		Namespace: clusterServiceVersion.GetNamespace(),
+		Name:      clusterServiceVersion.GetName(),
+	})
 
 	if a.csvNotification != nil {
 		a.csvNotification.OnDelete(clusterServiceVersion)
@@ -2611,6 +2618,10 @@ func (a *Operator) checkReplacementsAndUpdateStatus(csv *v1alpha1.ClusterService
 func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, installer install.StrategyInstaller, strategy install.Strategy, requeuePhase v1alpha1.ClusterServiceVersionPhase, requeueConditionReason v1alpha1.ConditionReason) error {
 	strategyInstalled, strategyErr := installer.CheckInstalled(strategy)
 	now := a.now()
+	key := types.NamespacedName{Namespace: csv.GetNamespace(), Name: csv.GetName()}
+	if strategyErr == nil {
+		a.healthCheckBackoff.forget(key)
+	}
 
 	if strategyErr != nil {
 		a.logger.WithError(strategyErr).Debug("operator not installed")
@@ -2686,7 +2697,7 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 		} else {
 			csv.SetPhaseWithEventIfChanged(requeuePhase, requeueConditionReason, fmt.Sprintf("installing: %s", strategyErr), now, a.recorder)
 		}
-		if err := a.csvQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
+		if err := a.requeueAfterStrategyError(csv, strategyErr); err != nil {
 			a.logger.Warn(err.Error())
 		}
 
