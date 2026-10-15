@@ -61,6 +61,8 @@ func NewCommandStartPackageServer(ctx context.Context, defaults *PackageServerOp
 
 	flags := cmd.Flags()
 	flags.DurationVar(&defaults.DefaultSyncInterval, "interval", defaults.DefaultSyncInterval, "default interval at which to re-sync CatalogSources")
+	flags.IntVar(&defaults.PackageRefreshWorkers, "package-refresh-workers", defaults.PackageRefreshWorkers, "maximum concurrent package refresh workers across catalogs (1-128)")
+	flags.Float64Var(&defaults.CatalogRefreshJitter, "catalog-refresh-jitter", defaults.CatalogRefreshJitter, "maximum extra resync delay as a fraction of interval (0-1); zero also disables the initial/reconnect stagger of up to 30s")
 	flags.StringVar(&defaults.GlobalNamespace, "global-namespace", defaults.GlobalNamespace, "Name of the namespace where the global CatalogSources are located")
 	flags.StringVar(&defaults.Kubeconfig, "kubeconfig", defaults.Kubeconfig, "path to the kubeconfig used to connect to the Kubernetes API server and the Kubelets (defaults to in-cluster config)")
 	flags.BoolVar(&defaults.Debug, "debug", defaults.Debug, "use debug log level")
@@ -79,9 +81,11 @@ type PackageServerOptions struct {
 	Authorization  *genericoptions.DelegatingAuthorizationOptions
 	Features       *genericoptions.FeatureOptions
 
-	GlobalNamespace     string
-	DefaultSyncInterval time.Duration
-	CurrentSyncInterval time.Duration
+	GlobalNamespace       string
+	DefaultSyncInterval   time.Duration
+	CurrentSyncInterval   time.Duration
+	PackageRefreshWorkers int
+	CatalogRefreshJitter  float64
 
 	Kubeconfig   string
 	RegistryAddr string
@@ -104,8 +108,10 @@ func NewPackageServerOptions(out, errOut io.Writer) *PackageServerOptions {
 		Authorization:  genericoptions.NewDelegatingAuthorizationOptions(),
 		Features:       genericoptions.NewFeatureOptions(),
 
-		DefaultSyncInterval: DefaultWakeupInterval,
-		CurrentSyncInterval: DefaultWakeupInterval,
+		DefaultSyncInterval:   DefaultWakeupInterval,
+		CurrentSyncInterval:   DefaultWakeupInterval,
+		PackageRefreshWorkers: provider.DefaultPackageRefreshWorkers,
+		CatalogRefreshJitter:  provider.DefaultCatalogRefreshJitter,
 
 		DisableAuthForTesting: false,
 		Debug:                 false,
@@ -198,6 +204,9 @@ func (o *PackageServerOptions) Config(ctx context.Context) (*apiserver.Config, e
 
 // Run starts a new packageserver for the PackageServerOptions.
 func (o *PackageServerOptions) Run(ctx context.Context) error {
+	if err := provider.ValidateRefreshOptions(o.PackageRefreshWorkers, o.CatalogRefreshJitter); err != nil {
+		return err
+	}
 	if o.Debug {
 		log.SetLevel(log.DebugLevel)
 	}
@@ -301,7 +310,7 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 		}
 	}
 
-	sourceProvider, err := provider.NewRegistryProvider(ctx, crClient, queueOperator, o.CurrentSyncInterval, o.GlobalNamespace)
+	sourceProvider, err := provider.NewRegistryProvider(ctx, crClient, queueOperator, o.CurrentSyncInterval, o.GlobalNamespace, o.PackageRefreshWorkers, o.CatalogRefreshJitter)
 	if err != nil {
 		return err
 	}
