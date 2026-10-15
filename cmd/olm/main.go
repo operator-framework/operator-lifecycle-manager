@@ -73,6 +73,14 @@ var (
 
 	clientCAPath = pflag.String("client-ca", "", "path to watch for client ca bundle")
 
+	clientCAAuthorization = pflag.Bool("client-ca-authorization", false,
+		"authorize metrics scrapers by verifying their client certificate against the --client-ca bundle (mutual TLS) "+
+			"instead of using Kubernetes token/SubjectAccessReview authorization; requires --tls-cert, --tls-key, and --client-ca")
+
+	clientCAAllowedCommonNames = pflag.StringSlice("client-ca-allowed-cn", nil,
+		"comma-separated list of client certificate common names authorized to scrape metrics when --client-ca-authorization is set; "+
+			"if empty, any certificate that verifies against --client-ca is authorized")
+
 	namespace = pflag.String(
 		"namespace", "", "namespace where cleanup runs")
 )
@@ -176,6 +184,8 @@ func main() {
 	listenAndServe, err := server.GetListenAndServeFunc(
 		server.WithLogger(logger),
 		server.WithTLS(tlsCertPath, tlsKeyPath, clientCAPath),
+		server.WithClientCAAuthorization(*clientCAAuthorization),
+		server.WithClientCAAllowedCommonNames(*clientCAAllowedCommonNames),
 		server.WithKubeConfig(config),
 		server.WithAPIServerTLSQuerier(apiServerTLSQuerier),
 		server.WithDebug(*debug),

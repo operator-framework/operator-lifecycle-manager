@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"slices"
+	"time"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/apiserver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/filemonitor"
@@ -16,6 +18,14 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
+)
+
+const (
+	// metricsReadHeaderTimeout bounds how long a client may take to send request
+	// headers (slowloris protection).
+	metricsReadHeaderTimeout = 10 * time.Second
+	// metricsIdleTimeout bounds how long idle keep-alive connections are retained.
+	metricsIdleTimeout = 120 * time.Second
 )
 
 // certPoolGetter is an interface for getting a certificate pool
@@ -59,6 +69,37 @@ func WithKubeConfig(config *rest.Config) Option {
 	}
 }
 
+// WithClientCAAuthorization configures the metrics endpoint to authorize
+// scrapers by verifying their client certificate (mutual TLS) against the
+// configured client CA bundle, instead of using the token-based
+// authentication/authorization filter (TokenReview + SubjectAccessReview).
+//
+// This is required in environments where the scraper authenticates with a
+// client certificate rather than a bearer token, and where the operator's
+// kubeConfig does not point at the same API server that can authenticate the
+// scraper's identity (so TokenReview/SubjectAccessReview cannot be used to
+// authorize the scraper).
+//
+// When enabled, both TLS (--tls-cert/--tls-key) and a client CA bundle
+// (--client-ca) are required.
+func WithClientCAAuthorization(enabled bool) Option {
+	return func(sc *serverConfig) {
+		sc.clientCAAuthorization = enabled
+	}
+}
+
+// WithClientCAAllowedCommonNames restricts client-certificate authorization to
+// scrapers whose certificate common name is in the given set. It only takes
+// effect together with WithClientCAAuthorization. When empty (the default), any
+// client certificate that verifies against the configured client CA bundle is
+// authorized - the CA bundle itself is the allowlist. When non-empty, a verified
+// certificate whose common name is not in the set is rejected with 403.
+func WithClientCAAllowedCommonNames(commonNames []string) Option {
+	return func(sc *serverConfig) {
+		sc.clientCAAllowedCommonNames = commonNames
+	}
+}
+
 func WithAPIServerTLSQuerier(querier apiserver.Querier) Option {
 	return func(sc *serverConfig) {
 		sc.apiServerTLSQuerier = querier
@@ -66,13 +107,15 @@ func WithAPIServerTLSQuerier(querier apiserver.Querier) Option {
 }
 
 type serverConfig struct {
-	logger              *logrus.Logger
-	tlsCertPath         *string
-	tlsKeyPath          *string
-	clientCAPath        *string
-	kubeConfig          *rest.Config
-	apiServerTLSQuerier apiserver.Querier
-	debug               bool
+	logger                     *logrus.Logger
+	tlsCertPath                *string
+	tlsKeyPath                 *string
+	clientCAPath               *string
+	kubeConfig                 *rest.Config
+	apiServerTLSQuerier        apiserver.Querier
+	debug                      bool
+	clientCAAuthorization      bool
+	clientCAAllowedCommonNames []string
 }
 
 func (sc *serverConfig) apply(options []Option) {
@@ -83,13 +126,15 @@ func (sc *serverConfig) apply(options []Option) {
 
 func defaultServerConfig() serverConfig {
 	return serverConfig{
-		tlsCertPath:         nil,
-		tlsKeyPath:          nil,
-		clientCAPath:        nil,
-		kubeConfig:          nil,
-		logger:              nil,
-		apiServerTLSQuerier: nil,
-		debug:               false,
+		tlsCertPath:                nil,
+		tlsKeyPath:                 nil,
+		clientCAPath:               nil,
+		kubeConfig:                 nil,
+		logger:                     nil,
+		apiServerTLSQuerier:        nil,
+		debug:                      false,
+		clientCAAuthorization:      false,
+		clientCAAllowedCommonNames: nil,
 	}
 }
 func (sc *serverConfig) tlsEnabled() (bool, error) {
@@ -119,14 +164,52 @@ func (sc serverConfig) getListenAndServeFunc() (func() error, error) {
 		return nil, fmt.Errorf("both --tls-key and --tls-crt must be provided for TLS to be enabled")
 	}
 
+	// Build the client CA pool early (when TLS and a client CA bundle are
+	// configured) so the metrics handler can re-verify client certificates
+	// against the current bundle on every request, and so the same hot-reloaded
+	// pool backs the TLS handshake below.
+	var certPoolStore certPoolGetter
+	if tlsEnabled && sc.clientCAEnabled() {
+		cps, err := filemonitor.NewCertPoolStore(*sc.clientCAPath)
+		if err != nil {
+			return nil, fmt.Errorf("certificate monitoring for client-ca failed: %v", err)
+		}
+		cpsw, err := filemonitor.NewWatch(sc.logger, []string{filepath.Dir(*sc.clientCAPath)}, cps.HandleCABundleUpdate)
+		if err != nil {
+			return nil, fmt.Errorf("error creating cert file watcher: %v", err)
+		}
+		cpsw.Run(context.Background())
+		certPoolStore = cps
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	profile.RegisterHandlers(mux, profile.WithTLS(tlsEnabled || !sc.debug))
 
-	// Set up authenticated metrics endpoint if kubeConfig is provided
-	if sc.kubeConfig != nil && tlsEnabled {
+	// Set up the metrics endpoint. There are three mutually-exclusive modes:
+	//
+	//  1. client-certificate authorization (mutual TLS): scrapers are authorized
+	//     by verifying their client certificate against the configured client CA
+	//     bundle. Used when the scraper authenticates with a client certificate
+	//     rather than a bearer token.
+	//  2. token-based authentication/authorization: scrapers are authenticated and
+	//     authorized via TokenReview/SubjectAccessReview against the kubeConfig's
+	//     API server. This is the default on standalone clusters.
+	//  3. unprotected: development/testing fallback.
+	switch {
+	case sc.clientCAAuthorization:
+		if !tlsEnabled {
+			return nil, fmt.Errorf("--client-ca-authorization requires TLS (--tls-cert and --tls-key)")
+		}
+		if !sc.clientCAEnabled() {
+			return nil, fmt.Errorf("--client-ca-authorization requires a client CA bundle (--client-ca)")
+		}
+		sc.logger.Info("Setting up metrics endpoint with client-certificate authorization")
+		mux.Handle("/metrics", requireVerifiedClientCert(sc.logger, certPoolStore, sc.clientCAAllowedCommonNames, promhttp.Handler()))
+		sc.logger.Info("Metrics endpoint configured with client-certificate authorization")
+	case sc.kubeConfig != nil && tlsEnabled:
 		sc.logger.Info("Setting up authenticated metrics endpoint")
 		// Create HTTP client with proper TLS configuration from kubeConfig
 		// This is necessary for TokenReview/SubjectAccessReview API calls to verify API server certificates
@@ -157,7 +240,7 @@ func (sc serverConfig) getListenAndServeFunc() (func() error, error) {
 			mux.Handle("/metrics", authenticatedMetricsHandler)
 		}
 		sc.logger.Info("Metrics endpoint configured with authentication and authorization")
-	} else {
+	default:
 		// Fallback to unprotected metrics (for development/testing)
 		mux.Handle("/metrics", promhttp.Handler())
 		if sc.kubeConfig == nil {
@@ -170,6 +253,10 @@ func (sc serverConfig) getListenAndServeFunc() (func() error, error) {
 	s := http.Server{
 		Handler: mux,
 		Addr:    sc.getAddress(tlsEnabled),
+		// The read/write timeouts are intentionally left unset so that
+		// long-running pprof profiles are not truncated.
+		ReadHeaderTimeout: metricsReadHeaderTimeout,
+		IdleTimeout:       metricsIdleTimeout,
 	}
 
 	if !tlsEnabled {
@@ -188,20 +275,8 @@ func (sc serverConfig) getListenAndServeFunc() (func() error, error) {
 	}
 	csw.Run(context.Background())
 
-	// Only setup client CA monitoring if clientCAPath is provided
-	var certPoolStore certPoolGetter
-	if sc.clientCAEnabled() {
-		cps, err := filemonitor.NewCertPoolStore(*sc.clientCAPath)
-		if err != nil {
-			return nil, fmt.Errorf("certificate monitoring for client-ca failed: %v", err)
-		}
-		cpsw, err := filemonitor.NewWatch(sc.logger, []string{filepath.Dir(*sc.clientCAPath)}, cps.HandleCABundleUpdate)
-		if err != nil {
-			return nil, fmt.Errorf("error creating cert file watcher: %v", err)
-		}
-		cpsw.Run(context.Background())
-		certPoolStore = cps
-	} else {
+	// certPoolStore was built earlier (when a client CA bundle is configured).
+	if certPoolStore == nil {
 		sc.logger.Info("No client CA provided, client certificate verification disabled")
 	}
 
@@ -237,4 +312,74 @@ func (sc serverConfig) getListenAndServeFunc() (func() error, error) {
 	return func() error {
 		return s.ListenAndServeTLS("", "")
 	}, nil
+}
+
+// requireVerifiedClientCert wraps the given handler and rejects any request
+// whose client certificate does not verify against the server's current client
+// CA bundle. The TLS layer is configured with tls.VerifyClientCertIfGiven so
+// certificate-less connections still complete (e.g. health probes on other
+// endpoints); this handler enforces certificate presence and validity for the
+// metrics endpoint.
+//
+// Verification is performed against clientCAs on every request rather than
+// trusting the handshake-time r.TLS.VerifiedChains. This ensures that a rotation
+// of the client CA bundle (e.g. a revoked scraper) takes effect immediately,
+// even on a reused keep-alive connection whose VerifiedChains was computed
+// against the previous bundle.
+//
+// Requests without a client certificate, or with one that no longer verifies,
+// receive 401. When allowedCommonNames is non-empty, a certificate whose common
+// name is not in the set is also rejected with 401 (indistinguishable from a
+// failed CA verification, so the rejection reason is not leaked to the client).
+func requireVerifiedClientCert(logger *logrus.Logger, clientCAs certPoolGetter, allowedCommonNames []string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+			if logger != nil {
+				logger.WithField("remote", r.RemoteAddr).Warn("rejecting metrics request without a client certificate")
+			}
+			http.Error(w, "client certificate required", http.StatusUnauthorized)
+			return
+		}
+		if err := verifyPeerCertificate(r.TLS.PeerCertificates, clientCAs); err != nil {
+			if logger != nil {
+				logger.WithField("remote", r.RemoteAddr).WithError(err).Warn("rejecting metrics request with an unverifiable client certificate")
+			}
+			http.Error(w, "client certificate verification failed", http.StatusUnauthorized)
+			return
+		}
+		if len(allowedCommonNames) > 0 {
+			commonName := r.TLS.PeerCertificates[0].Subject.CommonName
+			if !slices.Contains(allowedCommonNames, commonName) {
+				if logger != nil {
+					logger.WithField("commonName", commonName).Warn("rejecting metrics request from client certificate with unauthorized common name")
+				}
+				// Return the same 401 and message as a failed CA verification so a
+				// client cannot distinguish "trusted by the CA but wrong common
+				// name" from "not trusted by the CA". The common name is recorded
+				// in the server log above for debugging.
+				http.Error(w, "client certificate verification failed", http.StatusUnauthorized)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// verifyPeerCertificate verifies the leaf of peerCertificates (the client's
+// certificate) against the current client CA pool, using any additionally
+// presented certificates as intermediates.
+func verifyPeerCertificate(peerCertificates []*x509.Certificate, clientCAs certPoolGetter) error {
+	if clientCAs == nil {
+		return fmt.Errorf("no client CA bundle configured")
+	}
+	intermediates := x509.NewCertPool()
+	for _, cert := range peerCertificates[1:] {
+		intermediates.AddCert(cert)
+	}
+	_, err := peerCertificates[0].Verify(x509.VerifyOptions{
+		Roots:         clientCAs.GetCertPool(),
+		Intermediates: intermediates,
+		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	})
+	return err
 }

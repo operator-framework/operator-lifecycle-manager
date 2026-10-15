@@ -13,19 +13,21 @@ import (
 )
 
 type options struct {
-	kubeconfig           string
-	catalogNamespace     string
-	configMapServerImage string
-	opmImage             string
-	utilImage            string
-	writeStatusName      string
-	debug                bool
-	version              bool
-	profiling            bool
-	tlsKeyPath           string
-	tlsCertPath          string
-	clientCAPath         string
-	setWorkloadUserID    bool
+	kubeconfig                 string
+	catalogNamespace           string
+	configMapServerImage       string
+	opmImage                   string
+	utilImage                  string
+	writeStatusName            string
+	debug                      bool
+	version                    bool
+	profiling                  bool
+	tlsKeyPath                 string
+	tlsCertPath                string
+	clientCAPath               string
+	clientCAAuthorization      bool
+	clientCAAllowedCommonNames []string
+	setWorkloadUserID          bool
 
 	installPlanTimeout  time.Duration
 	bundleUnpackTimeout time.Duration
@@ -77,6 +79,12 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&o.tlsKeyPath, "tls-key", "", "path to use for private key (requires tls-cert)")
 	cmd.Flags().StringVar(&o.tlsCertPath, "tls-cert", "", "path to use for certificate key (requires tls-key)")
 	cmd.Flags().StringVar(&o.clientCAPath, "client-ca", "", "path to watch for client ca bundle")
+	cmd.Flags().BoolVar(&o.clientCAAuthorization, "client-ca-authorization", false,
+		"authorize metrics scrapers by verifying their client certificate against the --client-ca bundle (mutual TLS) "+
+			"instead of using Kubernetes token/SubjectAccessReview authorization; requires --tls-cert, --tls-key, and --client-ca")
+	cmd.Flags().StringSliceVar(&o.clientCAAllowedCommonNames, "client-ca-allowed-cn", nil,
+		"comma-separated list of client certificate common names authorized to scrape metrics when --client-ca-authorization is set; "+
+			"if empty, any certificate that verifies against --client-ca is authorized")
 
 	cmd.Flags().DurationVar(&o.wakeupInterval, "interval", defaultWakeupInterval, "wakeup interval")
 	cmd.Flags().DurationVar(&o.bundleUnpackTimeout, "bundle-unpack-timeout", 10*time.Minute, "The time limit for bundle unpacking, after which InstallPlan execution is considered to have failed. 0 is considered as having no timeout.")
