@@ -123,6 +123,14 @@ func (i *StrategyDeploymentInstaller) createOrUpdateCertResourcesForDeployment()
 				return err
 			}
 		case *webhookDescriptionWithCAPEM:
+			// ConversionWebhook CRD patching is deferred to the post-Install readiness
+			// check (areWebhooksAvailable) so that spec.conversion is only written once
+			// the new deployment's pods are actually serving /convert. Writing it here
+			// during Install() — before any pod is ready — causes a window where the
+			// apiserver routes conversion calls to pods that return HTTP 404.
+			if d.webhookDescription.Type == v1alpha1.ConversionWebhook {
+				continue
+			}
 			err := i.createOrUpdateWebhook(d.caPEM, d.webhookDescription)
 			if err != nil {
 				return err
@@ -132,6 +140,47 @@ func (i *StrategyDeploymentInstaller) createOrUpdateCertResourcesForDeployment()
 		}
 	}
 	return nil
+}
+
+// EnsureConversionWebhooks writes spec.conversion on CRDs for any ConversionWebhook
+// entries in the cert resources. Called after the deployment is confirmed ready so that
+// the conversion endpoint is only activated when the new pods are serving /convert.
+func (i *StrategyDeploymentInstaller) EnsureConversionWebhooks() error {
+	for _, desc := range i.getCertResources() {
+		d, ok := desc.(*webhookDescriptionWithCAPEM)
+		if !ok || d.webhookDescription.Type != v1alpha1.ConversionWebhook {
+			continue
+		}
+
+		caPEM, err := i.conversionWebhookCAPEM(d)
+		if err != nil {
+			return err
+		}
+
+		if err := i.createOrUpdateConversionWebhook(caPEM, d.webhookDescription); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (i *StrategyDeploymentInstaller) conversionWebhookCAPEM(desc *webhookDescriptionWithCAPEM) ([]byte, error) {
+	if len(desc.caPEM) > 0 {
+		return desc.caPEM, nil
+	}
+
+	secretName := SecretName(ServiceName(desc.webhookDescription.DeploymentName))
+	secret, err := i.strategyClient.GetOpLister().CoreV1().SecretLister().Secrets(i.owner.GetNamespace()).Get(secretName)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get conversion webhook CA Secret %s: %w", secretName, err)
+	}
+
+	caPEM := secret.Data[OLMCAPEMKey]
+	if len(caPEM) == 0 {
+		return nil, fmt.Errorf("conversion webhook CA Secret %s does not contain %s", secretName, OLMCAPEMKey)
+	}
+	desc.caPEM = caPEM
+	return caPEM, nil
 }
 
 func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1.DeploymentSpec, specLabels k8slabels.Set) (deployment *appsv1.Deployment, hash string, err error) {
