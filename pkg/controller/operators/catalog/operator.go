@@ -1668,10 +1668,40 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 
 	ip, err := o.client.OperatorsV1alpha1().InstallPlans(sub.GetNamespace()).Get(context.TODO(), ipName, metav1.GetOptions{})
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// The annotated installplan may have been GC'd. Not an error:
+			// there is nothing to adopt, and returning an error here blocks
+			// resolution for the whole namespace.
+			logger.WithField("installplan", ipName).Debug("generating installplan no longer exists, skipping adoption")
+			return sub, false, nil
+		}
 		logger.WithField("installplan", ipName).Warn("unable to get installplan from cache")
 		return nil, false, err
 	}
 	logger.WithField("installplan", ipName).Debug("found installplan that generated subscription")
+
+	// A plan in a terminal phase is only worth adopting right after it
+	// created this subscription, while spec.startingCSV still names an
+	// existing CSV: adoption then links the subscription to the CSV the
+	// plan installed. Once that CSV is gone the plan is a historical
+	// record, and adopting it would reset the subscription to
+	// UpgradePending with a currentCSV that no longer exists, blocking
+	// resolution. Failed plans are still adopted when fail-forward is
+	// enabled, which depends on the subscription referencing them.
+	if ip.Status.Phase == v1alpha1.InstallPlanPhaseComplete || (ip.Status.Phase == v1alpha1.InstallPlanPhaseFailed && !failForwardEnabled) {
+		startingCSVExists := false
+		if sub.Spec.StartingCSV != "" {
+			_, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(sub.GetNamespace()).Get(context.TODO(), sub.Spec.StartingCSV, metav1.GetOptions{})
+			if err != nil && !apierrors.IsNotFound(err) {
+				return nil, false, err
+			}
+			startingCSVExists = err == nil
+		}
+		if !startingCSVExists {
+			logger.WithField("installplan", ipName).Debug("generating installplan in terminal phase and startingCSV not present, skipping adoption")
+			return sub, false, nil
+		}
+	}
 
 	out := sub.DeepCopy()
 	ref, err := reference.GetReference(ip)

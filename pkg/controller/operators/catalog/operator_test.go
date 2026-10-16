@@ -43,6 +43,7 @@ import (
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
+	clitesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
@@ -2680,4 +2681,264 @@ func TestEnsureInstallPlanConcurrency(t *testing.T) {
 	// Verify the created InstallPlan has the correct generation
 	createdIP := &ipList.Items[0]
 	require.Equal(t, gen, createdIP.Spec.Generation, "InstallPlan should have the correct generation")
+}
+
+func TestEnsureSubscriptionInstallPlanState(t *testing.T) {
+	namespace := "ns"
+	newSub := func(annotations map[string]string) *v1alpha1.Subscription {
+		return &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "sub",
+				Namespace:   namespace,
+				Annotations: annotations,
+			},
+			Spec: &v1alpha1.SubscriptionSpec{StartingCSV: "testop.v0.1.0"},
+		}
+	}
+	logger := logrus.NewEntry(logrus.New())
+
+	t.Run("GeneratedByPlanMissingIsNotAnError", func(t *testing.T) {
+		// OCPBUGS-82532: the plan named by the generated-by annotation may
+		// have been GC'd. This must not be an error: syncResolvingNamespace
+		// bails out on error before resolving, so no new installplan would
+		// ever be created for the namespace.
+		ctx, cancel := context.WithCancel(context.TODO())
+		defer cancel()
+		sub := newSub(map[string]string{generatedByKey: "install-gone"})
+		op, err := NewFakeOperator(ctx, namespace, []string{namespace})
+		require.NoError(t, err)
+
+		out, changed, err := op.ensureSubscriptionInstallPlanState(logger, sub, false)
+		require.NoError(t, err)
+		require.False(t, changed)
+		require.Equal(t, sub, out)
+	})
+
+	t.Run("GeneratedByPlanExistsIsAdopted", func(t *testing.T) {
+		// The generating plan exists and is still in progress: its
+		// reference is adopted into the subscription status.
+		ctx, cancel := context.WithCancel(context.TODO())
+		defer cancel()
+		ip := &v1alpha1.InstallPlan{
+			ObjectMeta: metav1.ObjectMeta{Name: "install-123", Namespace: namespace},
+		}
+		sub := newSub(map[string]string{generatedByKey: ip.GetName()})
+		op, err := NewFakeOperator(ctx, namespace, []string{namespace}, withClientObjs(ip))
+		require.NoError(t, err)
+
+		out, changed, err := op.ensureSubscriptionInstallPlanState(logger, sub, false)
+		require.NoError(t, err)
+		require.True(t, changed)
+		require.Equal(t, ip.GetName(), out.Status.InstallPlanRef.Name)
+		require.Equal(t, v1alpha1.SubscriptionState(v1alpha1.SubscriptionStateUpgradePending), out.Status.State)
+		require.Equal(t, sub.Spec.StartingCSV, out.Status.CurrentCSV)
+	})
+}
+
+func TestEnsureSubscriptionInstallPlanStateTransientError(t *testing.T) {
+	// Only NotFound is safe to skip; any other error fetching the
+	// generated-by plan must still fail the sync so it is retried.
+	namespace := "ns"
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	sub := &v1alpha1.Subscription{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "sub",
+			Namespace:   namespace,
+			Annotations: map[string]string{generatedByKey: "install-123"},
+		},
+		Spec: &v1alpha1.SubscriptionSpec{StartingCSV: "testop.v0.1.0"},
+	}
+	transientErr := errors.New("transient apiserver error")
+	op, err := NewFakeOperator(ctx, namespace, []string{namespace},
+		withFakeClientOptions(func(c clientfake.ClientsetDecorator) {
+			c.PrependReactor("get", "installplans", func(clitesting.Action) (bool, runtime.Object, error) {
+				return true, nil, transientErr
+			})
+		}),
+	)
+	require.NoError(t, err)
+
+	out, changed, err := op.ensureSubscriptionInstallPlanState(logrus.NewEntry(logrus.New()), sub, false)
+	require.ErrorIs(t, err, transientErr)
+	require.False(t, changed)
+	require.Nil(t, out)
+}
+
+func TestEnsureSubscriptionInstallPlanStateTerminalPlanNotAdopted(t *testing.T) {
+	// OCPBUGS-82532: the generated-by annotation may name a plan that still
+	// exists but completed long ago, with the startingCSV removed by
+	// subsequent upgrades. Adopting it resets the subscription to
+	// UpgradePending with a currentCSV that no longer exists, and
+	// resolution never runs again. Terminal plans must not be adopted
+	// when their startingCSV is gone.
+	namespace := "ns"
+	for _, phase := range []v1alpha1.InstallPlanPhase{v1alpha1.InstallPlanPhaseComplete, v1alpha1.InstallPlanPhaseFailed} {
+		t.Run(string(phase), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+			ip := &v1alpha1.InstallPlan{
+				ObjectMeta: metav1.ObjectMeta{Name: "install-old", Namespace: namespace},
+				Status:     v1alpha1.InstallPlanStatus{Phase: phase},
+			}
+			sub := &v1alpha1.Subscription{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "sub",
+					Namespace:   namespace,
+					Annotations: map[string]string{generatedByKey: ip.GetName()},
+				},
+				Spec: &v1alpha1.SubscriptionSpec{StartingCSV: "testop.v0.1.0"},
+			}
+			op, err := NewFakeOperator(ctx, namespace, []string{namespace}, withClientObjs(ip))
+			require.NoError(t, err)
+
+			out, changed, err := op.ensureSubscriptionInstallPlanState(logrus.NewEntry(logrus.New()), sub, false)
+			require.NoError(t, err)
+			require.False(t, changed)
+			require.Equal(t, sub, out)
+		})
+	}
+}
+
+func TestEnsureSubscriptionInstallPlanStateFailedPlanAdoptedWithFailForward(t *testing.T) {
+	// With fail-forward enabled a Failed generating plan is still adopted:
+	// fail-forward depends on the subscription referencing the failed plan.
+	namespace := "ns"
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	ip := &v1alpha1.InstallPlan{
+		ObjectMeta: metav1.ObjectMeta{Name: "install-failed", Namespace: namespace},
+		Status:     v1alpha1.InstallPlanStatus{Phase: v1alpha1.InstallPlanPhaseFailed},
+	}
+	sub := &v1alpha1.Subscription{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "sub",
+			Namespace:   namespace,
+			Annotations: map[string]string{generatedByKey: ip.GetName()},
+		},
+		Spec: &v1alpha1.SubscriptionSpec{StartingCSV: "testop.v0.1.0"},
+	}
+	op, err := NewFakeOperator(ctx, namespace, []string{namespace}, withClientObjs(ip))
+	require.NoError(t, err)
+
+	const failForwardEnabled = true
+	out, changed, err := op.ensureSubscriptionInstallPlanState(logrus.NewEntry(logrus.New()), sub, failForwardEnabled)
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.Equal(t, ip.GetName(), out.Status.InstallPlanRef.Name)
+	require.Equal(t, v1alpha1.SubscriptionState(v1alpha1.SubscriptionStateFailed), out.Status.State)
+}
+
+func TestEnsureSubscriptionInstallPlanStateCompletePlanAdoptedWhenStartingCSVExists(t *testing.T) {
+	// A dependency subscription created by an installplan may get its first
+	// sync after that plan has already completed. Adoption is what links the
+	// subscription to the CSV the plan installed, so a Complete plan must
+	// still be adopted while spec.startingCSV names an existing CSV.
+	// Caught by e2e: dependency subscriptions never reached AtLatestKnown
+	// when adoption of Complete plans was skipped unconditionally.
+	namespace := "ns"
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	ip := &v1alpha1.InstallPlan{
+		ObjectMeta: metav1.ObjectMeta{Name: "install-done", Namespace: namespace},
+		Status:     v1alpha1.InstallPlanStatus{Phase: v1alpha1.InstallPlanPhaseComplete},
+	}
+	csv := &v1alpha1.ClusterServiceVersion{
+		ObjectMeta: metav1.ObjectMeta{Name: "testdep.v0.1.0", Namespace: namespace},
+	}
+	sub := &v1alpha1.Subscription{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "sub",
+			Namespace:   namespace,
+			Annotations: map[string]string{generatedByKey: ip.GetName()},
+		},
+		Spec: &v1alpha1.SubscriptionSpec{StartingCSV: csv.GetName()},
+	}
+	op, err := NewFakeOperator(ctx, namespace, []string{namespace}, withClientObjs(ip, csv))
+	require.NoError(t, err)
+
+	out, changed, err := op.ensureSubscriptionInstallPlanState(logrus.NewEntry(logrus.New()), sub, false)
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.Equal(t, ip.GetName(), out.Status.InstallPlanRef.Name)
+	require.Equal(t, csv.GetName(), out.Status.CurrentCSV)
+}
+
+func TestEnsureSubscriptionInstallPlanStateNoopCases(t *testing.T) {
+	// Subscriptions with an existing installplan reference, and subscriptions
+	// without a generated-by annotation, pass through unchanged.
+	namespace := "ns"
+	for _, tc := range []struct {
+		name string
+		sub  *v1alpha1.Subscription
+	}{
+		{
+			name: "RefAlreadySet",
+			sub: &v1alpha1.Subscription{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "sub",
+					Namespace:   namespace,
+					Annotations: map[string]string{generatedByKey: "install-123"},
+				},
+				Spec: &v1alpha1.SubscriptionSpec{},
+				Status: v1alpha1.SubscriptionStatus{
+					InstallPlanRef: &corev1.ObjectReference{Name: "install-123", Namespace: namespace},
+					Install:        &v1alpha1.InstallPlanReference{Name: "install-123"},
+				},
+			},
+		},
+		{
+			name: "NoAnnotation",
+			sub: &v1alpha1.Subscription{
+				ObjectMeta: metav1.ObjectMeta{Name: "sub", Namespace: namespace},
+				Spec:       &v1alpha1.SubscriptionSpec{},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+			op, err := NewFakeOperator(ctx, namespace, []string{namespace})
+			require.NoError(t, err)
+
+			out, changed, err := op.ensureSubscriptionInstallPlanState(logrus.NewEntry(logrus.New()), tc.sub, false)
+			require.NoError(t, err)
+			require.False(t, changed)
+			require.Equal(t, tc.sub, out)
+		})
+	}
+}
+
+func TestEnsureSubscriptionInstallPlanStateTerminalPlanCSVLookupTransientError(t *testing.T) {
+	// A non-NotFound error on the startingCSV lookup inside the terminal-plan
+	// check must fail the sync so it is retried.
+	namespace := "ns"
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	ip := &v1alpha1.InstallPlan{
+		ObjectMeta: metav1.ObjectMeta{Name: "install-done", Namespace: namespace},
+		Status:     v1alpha1.InstallPlanStatus{Phase: v1alpha1.InstallPlanPhaseComplete},
+	}
+	sub := &v1alpha1.Subscription{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "sub",
+			Namespace:   namespace,
+			Annotations: map[string]string{generatedByKey: ip.GetName()},
+		},
+		Spec: &v1alpha1.SubscriptionSpec{StartingCSV: "testop.v0.1.0"},
+	}
+	transientErr := errors.New("transient apiserver error")
+	op, err := NewFakeOperator(ctx, namespace, []string{namespace}, withClientObjs(ip),
+		withFakeClientOptions(func(c clientfake.ClientsetDecorator) {
+			c.PrependReactor("get", "clusterserviceversions", func(clitesting.Action) (bool, runtime.Object, error) {
+				return true, nil, transientErr
+			})
+		}),
+	)
+	require.NoError(t, err)
+
+	out, changed, err := op.ensureSubscriptionInstallPlanState(logrus.NewEntry(logrus.New()), sub, false)
+	require.ErrorIs(t, err, transientErr)
+	require.False(t, changed)
+	require.Nil(t, out)
 }
