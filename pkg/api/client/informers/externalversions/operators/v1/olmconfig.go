@@ -32,11 +32,39 @@ import (
 )
 
 // OLMConfigInformer provides access to a shared informer and lister for
-// OLMConfigs.
+// OLMConfigs. Prefer using the type-safe variant (see [TypedOLMConfigInformer]).
 type OLMConfigInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() operatorsv1.OLMConfigLister
 }
+
+// TypedOLMConfigInformer provides access to a shared informer and lister for
+// OLMConfigs, including the type-safe TypedInformer variant.
+// It is a superset of OLMConfigInformer.
+type TypedOLMConfigInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() OLMConfigIndexInformer
+	Lister() operatorsv1.OLMConfigLister
+}
+
+// OLMConfigIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type OLMConfigIndexInformer cache.TypedSharedIndexInformer[*pkgoperatorsv1.OLMConfig]
+
+// OLMConfigHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for OLMConfig.
+type OLMConfigHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*pkgoperatorsv1.OLMConfig]
+
+// OLMConfigDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for OLMConfig.
+type OLMConfigDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*pkgoperatorsv1.OLMConfig]
+
+// OLMConfigFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for OLMConfig.
+type OLMConfigFilteringHandler = cache.TypedFilteringResourceEventHandler[*pkgoperatorsv1.OLMConfig]
+
+// OLMConfigIndexers is a specialization of [cache.TypedIndexers] for OLMConfig.
+type OLMConfigIndexers = cache.TypedIndexers[*pkgoperatorsv1.OLMConfig]
+
+// DeletedOLMConfig is a specialization of [cache.DeletedObject] for OLMConfig.
+type DeletedOLMConfig = cache.DeletedObject[*pkgoperatorsv1.OLMConfig]
 
 type oLMConfigInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -46,25 +74,49 @@ type oLMConfigInformer struct {
 // NewOLMConfigInformer constructs a new informer for OLMConfig type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedOLMConfigInformer]).
 func NewOLMConfigInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return NewOLMConfigInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedOLMConfigInformer constructs a new informer for OLMConfig type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedOLMConfigInformer(client versioned.Interface, resyncPeriod time.Duration, indexers OLMConfigIndexers) OLMConfigIndexInformer {
+	return NewTypedOLMConfigInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredOLMConfigInformer constructs a new informer for OLMConfig type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredOLMConfigInformer]).
 func NewFilteredOLMConfigInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return NewOLMConfigInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+	return NewTypedOLMConfigInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredOLMConfigInformer constructs a new informer for OLMConfig type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredOLMConfigInformer(client versioned.Interface, resyncPeriod time.Duration, indexers OLMConfigIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) OLMConfigIndexInformer {
+	return NewTypedOLMConfigInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
 }
 
 // NewOLMConfigInformerWithOptions constructs a new informer for OLMConfig type with additional options.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedOLMConfigInformerWithOptions]).
 func NewOLMConfigInformerWithOptions(client versioned.Interface, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedOLMConfigInformerWithOptions(client, options)
+}
+
+// NewTypedOLMConfigInformerWithOptions constructs a new informer for OLMConfig type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedOLMConfigInformerWithOptions(client versioned.Interface, options internalinterfaces.InformerOptions) OLMConfigIndexInformer {
 	gvr := schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1", Resource: "olmconfigs"}
 	identifier := options.InformerName.WithResource(gvr)
 	tweakListOptions := options.TweakListOptions
-	return cache.NewSharedIndexInformerWithOptions(
+	return cache.NewTypedSharedIndexInformer[*pkgoperatorsv1.OLMConfig](cache.NewSharedIndexInformerWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
@@ -97,17 +149,57 @@ func NewOLMConfigInformerWithOptions(client versioned.Interface, options interna
 			Indexers:     options.Indexers,
 			Identifier:   identifier,
 		},
-	)
+	))
 }
 
 func (f *oLMConfigInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewOLMConfigInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
+	return NewTypedOLMConfigInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *oLMConfigInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&pkgoperatorsv1.OLMConfig{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *oLMConfigInformer) TypedInformer() OLMConfigIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*pkgoperatorsv1.OLMConfig](f.factory.InformerFor(&pkgoperatorsv1.OLMConfig{}, f.defaultInformer))
 }
 
 func (f *oLMConfigInformer) Lister() operatorsv1.OLMConfigLister {
 	return operatorsv1.NewOLMConfigLister(f.Informer().GetIndexer())
+}
+
+// ToTypedOLMConfigInformer converts an untyped informer into a TypedOLMConfigInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *OLMConfig. If that is not the case, calling type-safe methods of the returned
+// TypedOLMConfigInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedOLMConfigInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedOLMConfigInformer(informer OLMConfigInformer) TypedOLMConfigInformer {
+	if informer, ok := informer.(TypedOLMConfigInformer); ok {
+		return informer
+	}
+	return &oLMConfigTypedInformerAdapter{informer}
+}
+
+type oLMConfigTypedInformerAdapter struct {
+	OLMConfigInformer
+}
+
+func (a *oLMConfigTypedInformerAdapter) TypedInformer() OLMConfigIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*pkgoperatorsv1.OLMConfig](a.Informer())
+}
+
+// ToOLMConfigIndexInformer converts an untyped informer into a OLMConfigIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *OLMConfig. If that is not the case, calling type-safe methods of the returned
+// OLMConfigIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a OLMConfigIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToOLMConfigIndexInformer(informer cache.SharedIndexInformer) OLMConfigIndexInformer {
+	if informer, ok := informer.(OLMConfigIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*pkgoperatorsv1.OLMConfig](informer)
 }

@@ -32,11 +32,39 @@ import (
 )
 
 // ClusterServiceVersionInformer provides access to a shared informer and lister for
-// ClusterServiceVersions.
+// ClusterServiceVersions. Prefer using the type-safe variant (see [TypedClusterServiceVersionInformer]).
 type ClusterServiceVersionInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() operatorsv1alpha1.ClusterServiceVersionLister
 }
+
+// TypedClusterServiceVersionInformer provides access to a shared informer and lister for
+// ClusterServiceVersions, including the type-safe TypedInformer variant.
+// It is a superset of ClusterServiceVersionInformer.
+type TypedClusterServiceVersionInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() ClusterServiceVersionIndexInformer
+	Lister() operatorsv1alpha1.ClusterServiceVersionLister
+}
+
+// ClusterServiceVersionIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type ClusterServiceVersionIndexInformer cache.TypedSharedIndexInformer[*pkgoperatorsv1alpha1.ClusterServiceVersion]
+
+// ClusterServiceVersionHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for ClusterServiceVersion.
+type ClusterServiceVersionHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*pkgoperatorsv1alpha1.ClusterServiceVersion]
+
+// ClusterServiceVersionDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for ClusterServiceVersion.
+type ClusterServiceVersionDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*pkgoperatorsv1alpha1.ClusterServiceVersion]
+
+// ClusterServiceVersionFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for ClusterServiceVersion.
+type ClusterServiceVersionFilteringHandler = cache.TypedFilteringResourceEventHandler[*pkgoperatorsv1alpha1.ClusterServiceVersion]
+
+// ClusterServiceVersionIndexers is a specialization of [cache.TypedIndexers] for ClusterServiceVersion.
+type ClusterServiceVersionIndexers = cache.TypedIndexers[*pkgoperatorsv1alpha1.ClusterServiceVersion]
+
+// DeletedClusterServiceVersion is a specialization of [cache.DeletedObject] for ClusterServiceVersion.
+type DeletedClusterServiceVersion = cache.DeletedObject[*pkgoperatorsv1alpha1.ClusterServiceVersion]
 
 type clusterServiceVersionInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -47,25 +75,49 @@ type clusterServiceVersionInformer struct {
 // NewClusterServiceVersionInformer constructs a new informer for ClusterServiceVersion type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedClusterServiceVersionInformer]).
 func NewClusterServiceVersionInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return NewClusterServiceVersionInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedClusterServiceVersionInformer constructs a new informer for ClusterServiceVersion type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedClusterServiceVersionInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers ClusterServiceVersionIndexers) ClusterServiceVersionIndexInformer {
+	return NewTypedClusterServiceVersionInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredClusterServiceVersionInformer constructs a new informer for ClusterServiceVersion type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredClusterServiceVersionInformer]).
 func NewFilteredClusterServiceVersionInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return NewClusterServiceVersionInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+	return NewTypedClusterServiceVersionInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredClusterServiceVersionInformer constructs a new informer for ClusterServiceVersion type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredClusterServiceVersionInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers ClusterServiceVersionIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) ClusterServiceVersionIndexInformer {
+	return NewTypedClusterServiceVersionInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
 }
 
 // NewClusterServiceVersionInformerWithOptions constructs a new informer for ClusterServiceVersion type with additional options.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedClusterServiceVersionInformerWithOptions]).
 func NewClusterServiceVersionInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedClusterServiceVersionInformerWithOptions(client, namespace, options)
+}
+
+// NewTypedClusterServiceVersionInformerWithOptions constructs a new informer for ClusterServiceVersion type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedClusterServiceVersionInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) ClusterServiceVersionIndexInformer {
 	gvr := schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "clusterserviceversions"}
 	identifier := options.InformerName.WithResource(gvr)
 	tweakListOptions := options.TweakListOptions
-	return cache.NewSharedIndexInformerWithOptions(
+	return cache.NewTypedSharedIndexInformer[*pkgoperatorsv1alpha1.ClusterServiceVersion](cache.NewSharedIndexInformerWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(opts v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
@@ -98,17 +150,57 @@ func NewClusterServiceVersionInformerWithOptions(client versioned.Interface, nam
 			Indexers:     options.Indexers,
 			Identifier:   identifier,
 		},
-	)
+	))
 }
 
 func (f *clusterServiceVersionInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewClusterServiceVersionInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
+	return NewTypedClusterServiceVersionInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *clusterServiceVersionInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&pkgoperatorsv1alpha1.ClusterServiceVersion{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *clusterServiceVersionInformer) TypedInformer() ClusterServiceVersionIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*pkgoperatorsv1alpha1.ClusterServiceVersion](f.factory.InformerFor(&pkgoperatorsv1alpha1.ClusterServiceVersion{}, f.defaultInformer))
 }
 
 func (f *clusterServiceVersionInformer) Lister() operatorsv1alpha1.ClusterServiceVersionLister {
 	return operatorsv1alpha1.NewClusterServiceVersionLister(f.Informer().GetIndexer())
+}
+
+// ToTypedClusterServiceVersionInformer converts an untyped informer into a TypedClusterServiceVersionInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *ClusterServiceVersion. If that is not the case, calling type-safe methods of the returned
+// TypedClusterServiceVersionInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedClusterServiceVersionInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedClusterServiceVersionInformer(informer ClusterServiceVersionInformer) TypedClusterServiceVersionInformer {
+	if informer, ok := informer.(TypedClusterServiceVersionInformer); ok {
+		return informer
+	}
+	return &clusterServiceVersionTypedInformerAdapter{informer}
+}
+
+type clusterServiceVersionTypedInformerAdapter struct {
+	ClusterServiceVersionInformer
+}
+
+func (a *clusterServiceVersionTypedInformerAdapter) TypedInformer() ClusterServiceVersionIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*pkgoperatorsv1alpha1.ClusterServiceVersion](a.Informer())
+}
+
+// ToClusterServiceVersionIndexInformer converts an untyped informer into a ClusterServiceVersionIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *ClusterServiceVersion. If that is not the case, calling type-safe methods of the returned
+// ClusterServiceVersionIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a ClusterServiceVersionIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToClusterServiceVersionIndexInformer(informer cache.SharedIndexInformer) ClusterServiceVersionIndexInformer {
+	if informer, ok := informer.(ClusterServiceVersionIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*pkgoperatorsv1alpha1.ClusterServiceVersion](informer)
 }
