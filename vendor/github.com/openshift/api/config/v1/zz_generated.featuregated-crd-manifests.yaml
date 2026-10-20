@@ -7,7 +7,8 @@ apiservers.config.openshift.io:
   Category: ""
   FeatureGates:
   - KMSEncryption
-  - KMSEncryptionProvider
+  - TLSAdherence
+  - TLSGroupPreferences
   FilenameOperatorName: config-operator
   FilenameOperatorOrdering: "01"
   FilenameRunLevel: "0000_10"
@@ -31,6 +32,7 @@ authentications.config.openshift.io:
   Category: ""
   FeatureGates:
   - ExternalOIDC
+  - ExternalOIDCExternalClaimsSourcing
   - ExternalOIDCWithUIDAndExtraClaimMappings
   - ExternalOIDCWithUpstreamParity
   FilenameOperatorName: config-operator
@@ -68,15 +70,36 @@ builds.config.openshift.io:
   TopLevelFeatureGates: []
   Version: v1
 
+criocredentialproviderconfigs.config.openshift.io:
+  Annotations: {}
+  ApprovedPRNumber: https://github.com/openshift/api/pull/2725
+  CRDName: criocredentialproviderconfigs.config.openshift.io
+  Capability: ""
+  Category: ""
+  FeatureGates:
+  - CRIOCredentialProviderConfig
+  FilenameOperatorName: config-operator
+  FilenameOperatorOrdering: "01"
+  FilenameRunLevel: "0000_10"
+  GroupName: config.openshift.io
+  HasStatus: true
+  KindName: CRIOCredentialProviderConfig
+  Labels: {}
+  PluralName: criocredentialproviderconfigs
+  PrinterColumns: []
+  Scope: Cluster
+  ShortNames: null
+  TopLevelFeatureGates:
+  - CRIOCredentialProviderConfig
+  Version: v1
+
 clusterimagepolicies.config.openshift.io:
   Annotations: {}
   ApprovedPRNumber: https://github.com/openshift/api/pull/2310
   CRDName: clusterimagepolicies.config.openshift.io
   Capability: ""
   Category: ""
-  FeatureGates:
-  - SigstoreImageVerification
-  - SigstoreImageVerificationPKI
+  FeatureGates: []
   FilenameOperatorName: config-operator
   FilenameOperatorOrdering: "01"
   FilenameRunLevel: "0000_10"
@@ -88,8 +111,7 @@ clusterimagepolicies.config.openshift.io:
   PrinterColumns: []
   Scope: Cluster
   ShortNames: null
-  TopLevelFeatureGates:
-  - SigstoreImageVerification
+  TopLevelFeatureGates: []
   Version: v1
 
 clusteroperators.config.openshift.io:
@@ -143,7 +165,11 @@ clusterversions.config.openshift.io:
   Capability: ""
   Category: ""
   FeatureGates:
+  - CRDCompatibilityRequirementOperator
+  - CRDCompatibilityRequirementOperator+ClusterAPIMachineManagement
+  - ClusterAPIMachineManagement
   - ClusterUpdateAcceptRisks
+  - ClusterUpdatePreflight
   - ImageStreamImportMode
   - SignatureStores
   FilenameOperatorName: cluster-version-operator
@@ -204,7 +230,8 @@ dnses.config.openshift.io:
   CRDName: dnses.config.openshift.io
   Capability: ""
   Category: ""
-  FeatureGates: []
+  FeatureGates:
+  - AWSEuropeanSovereignCloudInstall
   FilenameOperatorName: config-operator
   FilenameOperatorOrdering: "01"
   FilenameRunLevel: "0000_10"
@@ -315,9 +342,7 @@ imagepolicies.config.openshift.io:
   CRDName: imagepolicies.config.openshift.io
   Capability: ""
   Category: ""
-  FeatureGates:
-  - SigstoreImageVerification
-  - SigstoreImageVerificationPKI
+  FeatureGates: []
   FilenameOperatorName: config-operator
   FilenameOperatorOrdering: "01"
   FilenameRunLevel: "0000_10"
@@ -329,8 +354,7 @@ imagepolicies.config.openshift.io:
   PrinterColumns: []
   Scope: Namespaced
   ShortNames: null
-  TopLevelFeatureGates:
-  - SigstoreImageVerification
+  TopLevelFeatureGates: []
   Version: v1
 
 imagetagmirrorsets.config.openshift.io:
@@ -366,17 +390,16 @@ infrastructures.config.openshift.io:
   FeatureGates:
   - AWSClusterHostedDNSInstall
   - AWSDualStackInstall
-  - AzureClusterHostedDNSInstall
   - AzureDualStackInstall
+  - BGPBasedVIPManagement
   - DualReplica
   - DyanmicServiceEndpointIBMCloud
-  - GCPClusterHostedDNSInstall
-  - HighlyAvailableArbiter
-  - HighlyAvailableArbiter+DualReplica
+  - GCPSovereignCloudInstall
+  - MutableTopology
   - NutanixMultiSubnets
   - OnPremDNSRecords
   - VSphereHostVMGroupZonal
-  - VSphereMultiNetworks
+  - VSphereMultiVCenterDay2
   FilenameOperatorName: config-operator
   FilenameOperatorOrdering: "01"
   FilenameRunLevel: "0000_10"
@@ -398,7 +421,8 @@ ingresses.config.openshift.io:
   CRDName: ingresses.config.openshift.io
   Capability: ""
   Category: ""
-  FeatureGates: []
+  FeatureGates:
+  - IngressComponentRouteLabels
   FilenameOperatorName: config-operator
   FilenameOperatorOrdering: "01"
   FilenameRunLevel: "0000_10"
@@ -417,7 +441,7 @@ insightsdatagathers.config.openshift.io:
   Annotations: {}
   ApprovedPRNumber: https://github.com/openshift/api/pull/2448
   CRDName: insightsdatagathers.config.openshift.io
-  Capability: ""
+  Capability: Insights
   Category: ""
   FeatureGates:
   - InsightsConfig
@@ -444,7 +468,7 @@ networks.config.openshift.io:
   Capability: ""
   Category: ""
   FeatureGates:
-  - NetworkDiagnosticsConfig
+  - NetworkObservabilityInstall
   FilenameOperatorName: config-operator
   FilenameOperatorOrdering: "01"
   FilenameRunLevel: "0000_10"

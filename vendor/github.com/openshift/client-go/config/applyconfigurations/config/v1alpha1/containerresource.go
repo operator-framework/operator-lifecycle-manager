@@ -8,10 +8,29 @@ import (
 
 // ContainerResourceApplyConfiguration represents a declarative configuration of the ContainerResource type for use
 // with apply.
+//
+// MaxItems on []ContainerResource fields is kept at 5 to stay within the
+// Kubernetes CRD CEL validation cost budget (StaticEstimatedCRDCostLimit).
+// The quantity() CEL function has a high fixed estimated cost per invocation,
+// and the limit-vs-request comparison rule is costed per maxItems per location.
+// With multiple structs in ClusterMonitoringSpec embedding []ContainerResource,
+// maxItems > 5 causes the total estimated rule cost to exceed the budget.
+// ContainerResource defines a single resource requirement for a container.
 type ContainerResourceApplyConfiguration struct {
-	Name    *string            `json:"name,omitempty"`
+	// name of the resource (e.g. "cpu", "memory", "hugepages-2Mi").
+	// This field is required.
+	// name must consist only of alphanumeric characters, `-`, `_` and `.` and must start and end with an alphanumeric character.
+	Name *string `json:"name,omitempty"`
+	// request is the minimum amount of the resource required (e.g. "2Mi", "1Gi").
+	// This field is optional.
+	// When limit is specified, request cannot be greater than limit.
+	// The value must be greater than 0 when specified.
 	Request *resource.Quantity `json:"request,omitempty"`
-	Limit   *resource.Quantity `json:"limit,omitempty"`
+	// limit is the maximum amount of the resource allowed (e.g. "2Mi", "1Gi").
+	// This field is optional.
+	// When request is specified, limit cannot be less than request.
+	// The value must be greater than 0 when specified.
+	Limit *resource.Quantity `json:"limit,omitempty"`
 }
 
 // ContainerResourceApplyConfiguration constructs a declarative configuration of the ContainerResource type for use with

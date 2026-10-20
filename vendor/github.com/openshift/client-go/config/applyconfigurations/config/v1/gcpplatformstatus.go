@@ -4,12 +4,41 @@ package v1
 
 // GCPPlatformStatusApplyConfiguration represents a declarative configuration of the GCPPlatformStatus type for use
 // with apply.
+//
+// GCPPlatformStatus holds the current status of the Google Cloud Platform infrastructure provider.
 type GCPPlatformStatusApplyConfiguration struct {
-	ProjectID               *string                                    `json:"projectID,omitempty"`
-	Region                  *string                                    `json:"region,omitempty"`
-	ResourceLabels          []GCPResourceLabelApplyConfiguration       `json:"resourceLabels,omitempty"`
-	ResourceTags            []GCPResourceTagApplyConfiguration         `json:"resourceTags,omitempty"`
+	// resourceGroupName is the Project ID for new GCP resources created for the cluster.
+	ProjectID *string `json:"projectID,omitempty"`
+	// region holds the region for new GCP resources created for the cluster.
+	Region *string `json:"region,omitempty"`
+	// resourceLabels is a list of additional labels to apply to GCP resources created for the cluster.
+	// See https://cloud.google.com/compute/docs/labeling-resources for information on labeling GCP resources.
+	// GCP supports a maximum of 64 labels per resource. OpenShift reserves 32 labels for internal use,
+	// allowing 32 labels for user configuration.
+	ResourceLabels []GCPResourceLabelApplyConfiguration `json:"resourceLabels,omitempty"`
+	// resourceTags is a list of additional tags to apply to GCP resources created for the cluster.
+	// See https://cloud.google.com/resource-manager/docs/tags/tags-overview for information on
+	// tagging GCP resources. GCP supports a maximum of 50 tags per resource.
+	ResourceTags []GCPResourceTagApplyConfiguration `json:"resourceTags,omitempty"`
+	// cloudLoadBalancerConfig holds configuration related to DNS and cloud
+	// load balancers. It allows configuration of in-cluster DNS as an alternative
+	// to the platform default DNS implementation.
+	// When using the ClusterHosted DNS type, Load Balancer IP addresses
+	// must be provided for the API and internal API load balancers as well as the
+	// ingress load balancer.
 	CloudLoadBalancerConfig *CloudLoadBalancerConfigApplyConfiguration `json:"cloudLoadBalancerConfig,omitempty"`
+	// universeDomain is the GCP universe domain for the cluster, detected from
+	// the installer credentials. Components with their own GCP credentials should
+	// read the universe domain from those credentials, as they are the authoritative
+	// source. This field is provided for components that do not have GCP credentials
+	// and for general observability.
+	//
+	// When omitted, standard public GCP (googleapis.com) is assumed.
+	//
+	// universeDomain is an optional field that, when specified, must be non-empty and at most
+	// 253 characters. It must be a valid DNS subdomain: containing only lowercase alphanumeric
+	// characters, '-' or '.', and starting and ending with an alphanumeric character.
+	UniverseDomain *string `json:"universeDomain,omitempty"`
 }
 
 // GCPPlatformStatusApplyConfiguration constructs a declarative configuration of the GCPPlatformStatus type for use with
@@ -65,5 +94,13 @@ func (b *GCPPlatformStatusApplyConfiguration) WithResourceTags(values ...*GCPRes
 // If called multiple times, the CloudLoadBalancerConfig field is set to the value of the last call.
 func (b *GCPPlatformStatusApplyConfiguration) WithCloudLoadBalancerConfig(value *CloudLoadBalancerConfigApplyConfiguration) *GCPPlatformStatusApplyConfiguration {
 	b.CloudLoadBalancerConfig = value
+	return b
+}
+
+// WithUniverseDomain sets the UniverseDomain field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the UniverseDomain field is set to the value of the last call.
+func (b *GCPPlatformStatusApplyConfiguration) WithUniverseDomain(value string) *GCPPlatformStatusApplyConfiguration {
+	b.UniverseDomain = &value
 	return b
 }

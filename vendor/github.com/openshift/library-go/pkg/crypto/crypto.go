@@ -20,8 +20,10 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,17 +36,29 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 )
 
-// TLS versions that are known to golang. Go 1.13 adds support for
-// TLS 1.3 that's opt-out with a build flag.
-var versions = map[string]uint16{
+// TLS configuration
+//
+// The OpenShift API defines TLS profiles using OpenSSL cipher suite names.
+// Go's crypto/tls uses IANA-standard cipher suite names (which happen to
+// match the Go constant names). This package bridges the two naming schemes:
+// OpenSSLToIANACipherSuites translates API-level OpenSSL names into the IANA
+// names that Go understands, silently dropping any cipher that Go's crypto/tls
+// cannot negotiate. This silent narrowing is by design: Go literally cannot
+// serve those ciphers, so listing them would be misleading.
+
+// goTLSVersions lists all TLS versions that Go's crypto/tls can negotiate.
+// Kept in sync with the crypto/tls package by TestConstantMaps.
+var goTLSVersions = map[string]uint16{
 	"VersionTLS10": tls.VersionTLS10,
 	"VersionTLS11": tls.VersionTLS11,
 	"VersionTLS12": tls.VersionTLS12,
 	"VersionTLS13": tls.VersionTLS13,
 }
 
-// TLS versions that are enabled.
-var supportedVersions = map[string]uint16{
+// enabledTLSVersions is the subset of goTLSVersions that OpenShift allows
+// in TLS configurations. Remove an entry here (not from goTLSVersions) to
+// phase out a version while still being able to parse legacy references.
+var enabledTLSVersions = map[string]uint16{
 	"VersionTLS10": tls.VersionTLS10,
 	"VersionTLS11": tls.VersionTLS11,
 	"VersionTLS12": tls.VersionTLS12,
@@ -54,7 +68,7 @@ var supportedVersions = map[string]uint16{
 // TLSVersionToNameOrDie given a tls version as an int, return its readable name
 func TLSVersionToNameOrDie(intVal uint16) string {
 	matches := []string{}
-	for key, version := range versions {
+	for key, version := range goTLSVersions {
 		if version == intVal {
 			matches = append(matches, key)
 		}
@@ -73,7 +87,7 @@ func TLSVersion(versionName string) (uint16, error) {
 	if len(versionName) == 0 {
 		return DefaultTLSVersion(), nil
 	}
-	if version, ok := versions[versionName]; ok {
+	if version, ok := goTLSVersions[versionName]; ok {
 		return version, nil
 	}
 	return 0, fmt.Errorf("unknown tls version %q", versionName)
@@ -86,20 +100,22 @@ func TLSVersionOrDie(versionName string) uint16 {
 	return version
 }
 
-// TLS versions that are known to golang, but may not necessarily be enabled.
+// GolangTLSVersions returns all TLS versions known to this Go build.
+//
+// Deprecated: Use ValidTLSVersions instead.
 func GolangTLSVersions() []string {
 	supported := []string{}
-	for k := range versions {
+	for k := range goTLSVersions {
 		supported = append(supported, k)
 	}
 	sort.Strings(supported)
 	return supported
 }
 
-// Returns the build enabled TLS versions.
+// ValidTLSVersions returns the TLS versions that OpenShift allows in configurations.
 func ValidTLSVersions() []string {
 	validVersions := []string{}
-	for k := range supportedVersions {
+	for k := range enabledTLSVersions {
 		validVersions = append(validVersions, k)
 	}
 	sort.Strings(validVersions)
@@ -112,7 +128,9 @@ func DefaultTLSVersion() uint16 {
 	return tls.VersionTLS12
 }
 
-var ciphers = map[string]uint16{
+// goCipherSuites lists all cipher suites recognized by Go's crypto/tls, keyed
+// by IANA name. Kept in sync with the crypto/tls package by TestConstantMaps.
+var goCipherSuites = map[string]uint16{
 	"TLS_RSA_WITH_RC4_128_SHA":                      tls.TLS_RSA_WITH_RC4_128_SHA,
 	"TLS_RSA_WITH_3DES_EDE_CBC_SHA":                 tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA,
 	"TLS_RSA_WITH_AES_128_CBC_SHA":                  tls.TLS_RSA_WITH_AES_128_CBC_SHA,
@@ -142,10 +160,13 @@ var ciphers = map[string]uint16{
 	"TLS_CHACHA20_POLY1305_SHA256":                  tls.TLS_CHACHA20_POLY1305_SHA256,
 }
 
-// openSSLToIANACiphersMap maps OpenSSL cipher suite names to IANA names
-// ref: https://www.iana.org/assignments/tls-parameters/tls-parameters.xml
-var openSSLToIANACiphersMap = map[string]string{
-	// TLS 1.3 ciphers - not configurable in go 1.13, all of them are used in TLSv1.3 flows
+// openSSLToIANACiphers maps OpenSSL cipher suite names to IANA names for
+// every cipher that Go's crypto/tls can negotiate.
+// Ref: https://www.iana.org/assignments/tls-parameters/tls-parameters.xml
+// Ciphers defined in the API but absent from Go are tracked in
+// ciphersUnsupportedByGo (below) so tests detect when Go gains support.
+var openSSLToIANACiphers = map[string]string{
+	// TLS 1.3 ciphers - always negotiated by Go; not individually configurable.
 	"TLS_AES_128_GCM_SHA256":       "TLS_AES_128_GCM_SHA256",       // 0x13,0x01
 	"TLS_AES_256_GCM_SHA384":       "TLS_AES_256_GCM_SHA384",       // 0x13,0x02
 	"TLS_CHACHA20_POLY1305_SHA256": "TLS_CHACHA20_POLY1305_SHA256", // 0x13,0x03
@@ -159,17 +180,12 @@ var openSSLToIANACiphersMap = map[string]string{
 	"ECDHE-RSA-CHACHA20-POLY1305":   "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",   // 0xCC,0xA8
 	"ECDHE-ECDSA-AES128-SHA256":     "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",       // 0xC0,0x23
 	"ECDHE-RSA-AES128-SHA256":       "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",         // 0xC0,0x27
-	"ECDHE-ECDSA-AES256-SHA384":     "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",       // 0xC0,0x24
-	"ECDHE-RSA-AES256-SHA384":       "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",         // 0xC0,0x28
-	"DHE-RSA-AES128-GCM-SHA256":     "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",           // 0x00,0x9E
-	"DHE-RSA-AES256-GCM-SHA384":     "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384",           // 0x00,0x9F
-	"DHE-RSA-CHACHA20-POLY1305":     "TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256",     // 0xCC,0xAA
-	"DHE-RSA-AES128-SHA256":         "TLS_DHE_RSA_WITH_AES_128_CBC_SHA256",           // 0x00,0x67
-	"DHE-RSA-AES256-SHA256":         "TLS_DHE_RSA_WITH_AES_256_CBC_SHA256",           // 0x00,0x6B
 	"AES128-GCM-SHA256":             "TLS_RSA_WITH_AES_128_GCM_SHA256",               // 0x00,0x9C
 	"AES256-GCM-SHA384":             "TLS_RSA_WITH_AES_256_GCM_SHA384",               // 0x00,0x9D
 	"AES128-SHA256":                 "TLS_RSA_WITH_AES_128_CBC_SHA256",               // 0x00,0x3C
-	"AES256-SHA256":                 "TLS_RSA_WITH_AES_256_CBC_SHA256",               // 0x00,0x3D
+
+	// Ciphers defined in the API but not supported by Go are listed in
+	// ciphersUnsupportedByGo below.
 
 	// TLS 1
 	"ECDHE-ECDSA-AES128-SHA": "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA", // 0xC0,0x09
@@ -182,6 +198,30 @@ var openSSLToIANACiphersMap = map[string]string{
 	"AES256-SHA":             "TLS_RSA_WITH_AES_256_CBC_SHA",        // 0x00,0x35
 	"DES-CBC3-SHA":           "TLS_RSA_WITH_3DES_EDE_CBC_SHA",       // 0x00,0x0A
 	"ECDHE-RSA-DES-CBC3-SHA": "TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA", // 0xC0,0x12
+}
+
+// ciphersUnsupportedByGo lists cipher suites that are defined in the OpenShift API
+// TLS profiles (from the Mozilla guidelines) but are not supported by Go's crypto/tls.
+// These are intentionally excluded from openSSLToIANACiphers and silently filtered
+// out during profile translation. The IANA names come from the IANA TLS Cipher Suite
+// Registry (https://www.iana.org/assignments/tls-parameters/) and are retained so
+// TestCiphersUnsupportedByGoAreActuallyUnsupported can detect if a future Go
+// release adds support.
+var ciphersUnsupportedByGo = map[string]string{
+	"ECDHE-ECDSA-AES256-SHA384": "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
+	"ECDHE-RSA-AES256-SHA384":   "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+	"AES256-SHA256":             "TLS_RSA_WITH_AES_256_CBC_SHA256",
+}
+
+// tlsGroupToCurveID maps OpenShift API TLSGroup values to Go's tls.CurveID.
+var tlsGroupToCurveID = map[configv1.TLSGroup]tls.CurveID{
+	configv1.TLSGroupX25519:             tls.X25519,
+	configv1.TLSGroupSecP256r1:          tls.CurveP256,
+	configv1.TLSGroupSecP384r1:          tls.CurveP384,
+	configv1.TLSGroupSecP521r1:          tls.CurveP521,
+	configv1.TLSGroupX25519MLKEM768:     tls.X25519MLKEM768,
+	configv1.TLSGroupSecP256r1MLKEM768:  tls.SecP256r1MLKEM768,
+	configv1.TLSGroupSecP384r1MLKEM1024: tls.SecP384r1MLKEM1024,
 }
 
 // CipherSuitesToNamesOrDie given a list of cipher suites as ints, return their readable names
@@ -208,7 +248,7 @@ func CipherSuiteToNameOrDie(intVal uint16) string {
 	}
 
 	matches := []string{}
-	for key, version := range ciphers {
+	for key, version := range goCipherSuites {
 		if version == intVal {
 			matches = append(matches, key)
 		}
@@ -224,7 +264,7 @@ func CipherSuiteToNameOrDie(intVal uint16) string {
 }
 
 func CipherSuite(cipherName string) (uint16, error) {
-	if cipher, ok := ciphers[cipherName]; ok {
+	if cipher, ok := goCipherSuites[cipherName]; ok {
 		return cipher, nil
 	}
 
@@ -247,7 +287,7 @@ func CipherSuitesOrDie(cipherNames []string) []uint16 {
 }
 func ValidCipherSuites() []string {
 	validCipherSuites := []string{}
-	for k := range ciphers {
+	for k := range goCipherSuites {
 		validCipherSuites = append(validCipherSuites, k)
 	}
 	sort.Strings(validCipherSuites)
@@ -312,18 +352,86 @@ func SecureTLSConfig(config *tls.Config) *tls.Config {
 
 // OpenSSLToIANACipherSuites maps input OpenSSL Cipher Suite names to their
 // IANA counterparts.
-// Unknown ciphers are left out.
+// Ciphers that Go's crypto/tls cannot negotiate are silently dropped and
+// logged at V(4).
 func OpenSSLToIANACipherSuites(ciphers []string) []string {
 	ianaCiphers := make([]string, 0, len(ciphers))
 
 	for _, c := range ciphers {
-		ianaCipher, found := openSSLToIANACiphersMap[c]
+		ianaCipher, found := openSSLToIANACiphers[c]
 		if found {
 			ianaCiphers = append(ianaCiphers, ianaCipher)
+		} else {
+			klog.V(4).Infof("Dropping cipher %q: not supported by Go's crypto/tls", c)
 		}
 	}
 
 	return ianaCiphers
+}
+
+// TLSGroupToCurveID returns the Go tls.CurveID for an OpenShift API TLSGroup
+// constant, or (0, false) if the group is not recognized.
+func TLSGroupToCurveID(group configv1.TLSGroup) (tls.CurveID, bool) {
+	id, ok := tlsGroupToCurveID[group]
+	return id, ok
+}
+
+// TLSGroupsToCurveIDs converts a slice of TLSGroup values to their tls.CurveID
+// codes. Returns the mapped curve IDs and a list of unrecognized groups.
+// Unrecognized groups are silently filtered — callers should log warnings.
+func TLSGroupsToCurveIDs(groups []configv1.TLSGroup) ([]tls.CurveID, []configv1.TLSGroup) {
+	var curves []tls.CurveID
+	var unrecognized []configv1.TLSGroup
+
+	for _, group := range groups {
+		id, ok := TLSGroupToCurveID(group)
+		if !ok {
+			unrecognized = append(unrecognized, group)
+			continue
+		}
+		curves = append(curves, id)
+	}
+
+	return curves, unrecognized
+}
+
+// TLSGroupsToCurvePreferences converts OpenShift TLS group names to the numeric
+// curve IDs accepted by Kubernetes SecureServingOptions. T permits both the
+// API's []TLSGroup and []string values stored in observed configuration.
+// Unrecognized groups are omitted from the curve preferences and returned to
+// the caller.
+func TLSGroupsToCurvePreferences[T ~string](groups []T) ([]int32, []T) {
+	tlsGroups := make([]configv1.TLSGroup, len(groups))
+	for i, group := range groups {
+		tlsGroups[i] = configv1.TLSGroup(group)
+	}
+
+	curveIDs, unrecognizedTLSGroups := TLSGroupsToCurveIDs(tlsGroups)
+	curvePreferences := make([]int32, len(curveIDs))
+	for i, curveID := range curveIDs {
+		curvePreferences[i] = int32(curveID)
+	}
+	// Preserve nil when every group is recognized, matching TLSGroupsToCurveIDs.
+	var unrecognizedGroups []T
+	if len(unrecognizedTLSGroups) > 0 {
+		unrecognizedGroups = make([]T, len(unrecognizedTLSGroups))
+		for i, group := range unrecognizedTLSGroups {
+			unrecognizedGroups[i] = T(group)
+		}
+	}
+	return curvePreferences, unrecognizedGroups
+}
+
+// ValidTLSGroups returns the recognized TLS group names, sorted alphabetically.
+func ValidTLSGroups() []configv1.TLSGroup {
+	groups := make([]configv1.TLSGroup, 0, len(tlsGroupToCurveID))
+	for g := range tlsGroupToCurveID {
+		groups = append(groups, g)
+	}
+	slices.SortFunc(groups, func(a, b configv1.TLSGroup) int {
+		return strings.Compare(string(a), string(b))
+	})
+	return groups
 }
 
 type TLSCertificateConfig struct {

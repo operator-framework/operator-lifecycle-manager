@@ -19,6 +19,7 @@ import (
 // +kubebuilder:resource:path=infrastructures,scope=Cluster
 // +kubebuilder:subresource:status
 // +kubebuilder:metadata:annotations=release.openshift.io/bootstrap-required=true
+// +openshift:validation:FeatureGateAwareXValidation:featureGate=MutableTopology,rule="!has(self.spec.controlPlaneTopology) || (has(oldSelf.spec.controlPlaneTopology) && self.spec.controlPlaneTopology == oldSelf.spec.controlPlaneTopology) || (has(self.status.controlPlaneTopology) && self.spec.controlPlaneTopology == self.status.controlPlaneTopology) || (has(self.status.controlPlaneTopology) && self.status.controlPlaneTopology == 'SingleReplica' && self.spec.controlPlaneTopology == 'HighlyAvailable')",message="spec.controlPlaneTopology must match status.controlPlaneTopology or be set to HighlyAvailable when status.controlPlaneTopology is SingleReplica"
 type Infrastructure struct {
 	metav1.TypeMeta `json:",inline"`
 
@@ -55,6 +56,37 @@ type InfrastructureSpec struct {
 	// platformSpec holds desired information specific to the underlying
 	// infrastructure provider.
 	PlatformSpec PlatformSpec `json:"platformSpec,omitempty"`
+
+	// controlPlaneTopology expresses the desired topology configuration for control nodes.
+	//
+	// When status.controlPlaneTopology is 'SingleReplica' and spec.controlPlaneTopology is set to 'HighlyAvailable',
+	// a transition will be triggered to reconfigure the cluster from SingleReplica to HighlyAvailable.
+	//
+	// When left blank or status.controlPlaneTopology and spec.controlPlaneTopology are the same value,
+	// no changes are required and no transitions will be triggered.
+	//
+	// This value may be set to match status.controlPlaneTopology regardless of the current value.
+	//
+	// +openshift:enable:FeatureGate=MutableTopology
+	// +kubebuilder:validation:Enum=HighlyAvailable;SingleReplica
+	// +optional
+	ControlPlaneTopology TopologyMode `json:"controlPlaneTopology,omitempty"`
+
+	// infrastructureTopology expresses the desired topology for infrastructure
+	// services that do not run on control plane nodes, indicating how
+	// infrastructure workloads are distributed across nodes.
+	//
+	// When omitted, no topology transition override has been expressed.
+	// Once populated, the field represents the desired topology state.
+	//
+	// When the value differs from status.infrastructureTopology, the cluster
+	// evaluates whether the requested transition can proceed. Not all
+	// transitions may be permitted.
+	//
+	// +openshift:enable:FeatureGate=MutableTopology
+	// +kubebuilder:validation:Enum=HighlyAvailable;SingleReplica
+	// +optional
+	InfrastructureTopology TopologyMode `json:"infrastructureTopology,omitempty"`
 }
 
 // InfrastructureStatus describes the infrastructure the cluster is leveraging.
@@ -102,11 +134,11 @@ type InfrastructureStatus struct {
 	// and the operators should not configure the operand for highly-available operation
 	// The 'External' mode indicates that the control plane is hosted externally to the cluster and that
 	// its components are not visible within the cluster.
+	// The 'HighlyAvailableArbiter' mode indicates that the control plane will consist of 2 control-plane nodes
+	// that run conventional services and 1 smaller sized arbiter node that runs a bare minimum of services to maintain quorum.
 	// +kubebuilder:default=HighlyAvailable
-	// +openshift:validation:FeatureGateAwareEnum:featureGate="",enum=HighlyAvailable;SingleReplica;External
-	// +openshift:validation:FeatureGateAwareEnum:featureGate=HighlyAvailableArbiter,enum=HighlyAvailable;HighlyAvailableArbiter;SingleReplica;External
-	// +openshift:validation:FeatureGateAwareEnum:featureGate=DualReplica,enum=HighlyAvailable;SingleReplica;DualReplica;External
-	// +openshift:validation:FeatureGateAwareEnum:requiredFeatureGate=HighlyAvailableArbiter;DualReplica,enum=HighlyAvailable;HighlyAvailableArbiter;SingleReplica;DualReplica;External
+	// +openshift:validation:FeatureGateAwareEnum:featureGate="",enum=HighlyAvailable;HighlyAvailableArbiter;SingleReplica;External
+	// +openshift:validation:FeatureGateAwareEnum:featureGate=DualReplica,enum=HighlyAvailable;HighlyAvailableArbiter;SingleReplica;DualReplica;External
 	// +optional
 	ControlPlaneTopology TopologyMode `json:"controlPlaneTopology"`
 
@@ -121,6 +153,16 @@ type InfrastructureStatus struct {
 	// +kubebuilder:validation:Enum=HighlyAvailable;SingleReplica
 	// +optional
 	InfrastructureTopology TopologyMode `json:"infrastructureTopology,omitempty"`
+
+	// topologyTransitionStatus reports evaluations of supported topology transitions
+	// and the status of a requested transition, if any.
+	// It is optional and is omitted until the topology controller reports transition status.
+	// A transition is requested through spec.controlPlaneTopology. The controller
+	// reports completion only after both topologies reach that transition's target
+	// and post-transition checks pass; reaching the target topology alone is not completion.
+	// +openshift:enable:FeatureGate=MutableTopology
+	// +optional
+	TopologyTransitionStatus TopologyTransitionStatus `json:"topologyTransitionStatus,omitzero"`
 
 	// cpuPartitioning expresses if CPU partitioning is a currently enabled feature in the cluster.
 	// CPU Partitioning means that this cluster can support partitioning workloads to specific CPU Sets.
@@ -192,6 +234,21 @@ type DNSRecordsType string
 const (
 	DNSRecordsTypeExternal DNSRecordsType = "External"
 	DNSRecordsTypeInternal DNSRecordsType = "Internal"
+)
+
+// VIPManagementType defines which mechanism manages the API and Ingress
+// VIPs on an on-premise cluster.
+// +kubebuilder:validation:Enum=Keepalived;BGP
+// +enum
+type VIPManagementType string
+
+const (
+	// VIPManagementTypeKeepalived means the VIPs are managed by the default
+	// keepalived/VRRP mechanism.
+	VIPManagementTypeKeepalived VIPManagementType = "Keepalived"
+	// VIPManagementTypeBGP means the VIPs are advertised via BGP by kube-vip
+	// (Routing Table Mode) and frr-k8s running as static pods.
+	VIPManagementTypeBGP VIPManagementType = "BGP"
 )
 
 // PlatformType is a specific supported infrastructure provider.
@@ -295,7 +352,8 @@ type ExternalPlatformSpec struct {
 // PlatformSpec holds the desired state specific to the underlying infrastructure provider
 // of the current cluster. Since these are used at spec-level for the underlying cluster, it
 // is supposed that only one of the spec structs is set.
-// +kubebuilder:validation:XValidation:rule="!has(oldSelf.vsphere) && has(self.vsphere) ? size(self.vsphere.vcenters) < 2 : true",message="vcenters can have at most 1 item when configured post-install"
+// +openshift:validation:FeatureGateAwareXValidation:featureGate="",rule="!has(oldSelf.vsphere) && has(self.vsphere) ? (has(self.vsphere.vcenters) && size(self.vsphere.vcenters) < 2) : true",message="vcenters can have at most 1 item when configured post-install"
+// +openshift:validation:FeatureGateAwareXValidation:featureGate=VSphereMultiVCenterDay2,rule="oldSelf.?vsphere.vcenters.hasValue() ? self.?vsphere.vcenters.hasValue() : true",message="vcenters is required once set and cannot be removed"
 type PlatformSpec struct {
 	// type is the underlying infrastructure provider for the cluster. This
 	// value controls whether infrastructure automation such as service load
@@ -569,6 +627,15 @@ type AWSPlatformStatus struct {
 	// IPv4-only, or dual-stack networking with IPv4 or IPv6 as the primary
 	// protocol family.
 	//
+	// Valid values are:
+	// * "IPv4" (default): Cloud platform resources use IPv4 addressing only.
+	// * "DualStackIPv6Primary": Cloud platform resources use dual-stack networking with IPv6 as the primary protocol family.
+	// * "DualStackIPv4Primary": Cloud platform resources use dual-stack networking with IPv4 as the primary protocol family.
+	//
+	// When omitted, this field defaults to "IPv4".
+	//
+	// This field is immutable and cannot be changed once set.
+	//
 	// +default="IPv4"
 	// +kubebuilder:default="IPv4"
 	// +kubebuilder:validation:XValidation:rule="oldSelf == '' || self == oldSelf",message="ipFamily is immutable once set"
@@ -643,7 +710,6 @@ type AzurePlatformStatus struct {
 	//
 	// +default={"dnsType": "PlatformDefault"}
 	// +kubebuilder:default={"dnsType": "PlatformDefault"}
-	// +openshift:enable:FeatureGate=AzureClusterHostedDNSInstall
 	// +optional
 	CloudLoadBalancerConfig *CloudLoadBalancerConfig `json:"cloudLoadBalancerConfig,omitempty"`
 
@@ -680,7 +746,7 @@ type AzureResourceTag struct {
 }
 
 // AzureCloudEnvironment is the name of the Azure cloud environment
-// +kubebuilder:validation:Enum="";AzurePublicCloud;AzureUSGovernmentCloud;AzureChinaCloud;AzureGermanCloud;AzureStackCloud
+// +kubebuilder:validation:Enum="";AzurePublicCloud;AzureUSGovernmentCloud;AzureChinaCloud;AzureGermanCloud;AzureStackCloud;AzureUSSecCloud
 type AzureCloudEnvironment string
 
 const (
@@ -698,6 +764,9 @@ const (
 
 	// AzureStackCloud is the Azure cloud environment used at the edge and on premises.
 	AzureStackCloud AzureCloudEnvironment = "AzureStackCloud"
+
+	// AzureUSSecCloud is the Azure cloud environment for US Government Secret (IL6) workloads.
+	AzureUSSecCloud AzureCloudEnvironment = "AzureUSSecCloud"
 )
 
 // Start: TOMBSTONE
@@ -787,10 +856,28 @@ type GCPPlatformStatus struct {
 	//
 	// +default={"dnsType": "PlatformDefault"}
 	// +kubebuilder:default={"dnsType": "PlatformDefault"}
-	// +openshift:enable:FeatureGate=GCPClusterHostedDNSInstall
 	// +optional
 	// +nullable
 	CloudLoadBalancerConfig *CloudLoadBalancerConfig `json:"cloudLoadBalancerConfig,omitempty"`
+
+	// universeDomain is the GCP universe domain for the cluster, detected from
+	// the installer credentials. Components with their own GCP credentials should
+	// read the universe domain from those credentials, as they are the authoritative
+	// source. This field is provided for components that do not have GCP credentials
+	// and for general observability.
+	//
+	// When omitted, standard public GCP (googleapis.com) is assumed.
+	//
+	// universeDomain is an optional field that, when specified, must be non-empty and at most
+	// 253 characters. It must be a valid DNS subdomain: containing only lowercase alphanumeric
+	// characters, '-' or '.', and starting and ending with an alphanumeric character.
+	//
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:XValidation:rule="!format.dns1123Subdomain().validate(self).hasValue()",message="universeDomain must be a valid DNS subdomain: contain no more than 253 characters, contain only lowercase alphanumeric characters, '-' or '.', and start and end with an alphanumeric character"
+	// +optional
+	// +openshift:enable:FeatureGate=GCPSovereignCloudInstall
+	UniverseDomain string `json:"universeDomain,omitempty"`
 
 	// This field was introduced and removed under tech preview.
 	// serviceEndpoints specifies endpoints that override the default endpoints
@@ -1058,6 +1145,21 @@ type BareMetalPlatformStatus struct {
 	// +kubebuilder:default={"type": "OpenShiftManagedDefault"}
 	// +optional
 	LoadBalancer *BareMetalPlatformLoadBalancer `json:"loadBalancer,omitempty"`
+
+	// vipManagement indicates which VIP management mechanism is active
+	// on this cluster.
+	// Allowed values are `Keepalived`, `BGP`, and omitted.
+	// Once set to a non-empty value, this field is immutable.
+	// When set to `BGP`, kube-vip (Routing Table Mode) and frr-k8s are
+	// deployed as static pods to advertise VIPs via BGP, replacing the
+	// default keepalived/VRRP mechanism.
+	// When set to `Keepalived`, the default keepalived-based VIP
+	// management is used.
+	// When omitted, the default keepalived-based VIP management is used.
+	// +kubebuilder:validation:XValidation:rule="oldSelf == '' || self == oldSelf",message="vipManagement is immutable once set"
+	// +openshift:enable:FeatureGate=BGPBasedVIPManagement
+	// +optional
+	VIPManagement VIPManagementType `json:"vipManagement,omitempty"`
 
 	// dnsRecordsType determines whether records for api, api-int, and ingress
 	// are provided by the internal DNS service or externally.
@@ -1408,6 +1510,9 @@ type VSpherePlatformFailureDomainSpec struct {
 	ZoneAffinity *VSphereFailureDomainZoneAffinity `json:"zoneAffinity,omitempty"`
 
 	// server is the fully-qualified domain name or the IP address of the vCenter server.
+	// This must match the server field of an entry in the vcenters list.
+	// The match is case-sensitive; the value must be specified exactly as it appears in the vcenters entry.
+	// The value must be between 1 and 255 characters long.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=255
@@ -1439,7 +1544,7 @@ type VSpherePlatformTopology struct {
 	ComputeCluster string `json:"computeCluster"`
 
 	// networks is the list of port group network names within this failure domain.
-	// If feature gate VSphereMultiNetworks is enabled, up to 10 network adapters may be defined.
+	// Up to 10 network adapters may be defined.
 	// 10 is the maximum number of virtual network devices which may be attached to a VM as defined by:
 	// https://configmax.esp.vmware.com/guest?vmwareproduct=vSphere&release=vSphere%208.0&categories=1-0
 	// The available networks (port groups) can be listed using
@@ -1447,8 +1552,7 @@ type VSpherePlatformTopology struct {
 	// Networks should be in the form of an absolute path:
 	// /<datacenter>/network/<portgroup>.
 	// +required
-	// +openshift:validation:FeatureGateAwareMaxItems:featureGate="",maxItems=1
-	// +openshift:validation:FeatureGateAwareMaxItems:featureGate=VSphereMultiNetworks,maxItems=10
+	// +kubebuilder:validation:MaxItems=10
 	// +kubebuilder:validation:MinItems=1
 	// +listType=atomic
 	Networks []string `json:"networks"`
@@ -1642,27 +1746,30 @@ type VSpherePlatformNodeNetworking struct {
 // use these fields for configuration.
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.apiServerInternalIPs) || has(self.apiServerInternalIPs)",message="apiServerInternalIPs list is required once set"
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.ingressIPs) || has(self.ingressIPs)",message="ingressIPs list is required once set"
-// +kubebuilder:validation:XValidation:rule="!has(oldSelf.vcenters) && has(self.vcenters) ? size(self.vcenters) < 2 : true",message="vcenters can have at most 1 item when configured post-install"
+// +openshift:validation:FeatureGateAwareXValidation:featureGate=VSphereMultiVCenterDay2,rule="!has(self.failureDomains) || size(self.failureDomains) == 0 || (has(self.vcenters) && self.failureDomains.all(fd, self.vcenters.exists(vc, vc.server == fd.server)))",message="all failure domains must have a corresponding vCenter entry"
 type VSpherePlatformSpec struct {
 	// vcenters holds the connection details for services to communicate with vCenter.
-	// Currently, only a single vCenter is supported, but in tech preview 3 vCenters are supported.
-	// Once the cluster has been installed, you are unable to change the current number of defined
-	// vCenters except in the case where the cluster has been upgraded from a version of OpenShift
-	// where the vsphere platform spec was not present.  You may make modifications to the existing
-	// vCenters that are defined in the vcenters list in order to match with any added or modified
-	// failure domains.
+	// Up to 3 vCenters are supported.
+	// After installation, you can add or change vCenters, or remove some of them, but you must keep
+	// at least one and may not add and remove vCenters during the same update.  You may make modifications
+	// to the existing vCenters that are defined in the vcenters list in order to match with any added or
+	// modified failure domains.
 	// ---
 	// + If VCenters is not defined use the existing cloud-config configmap defined
 	// + in openshift-config.
-	// +kubebuilder:validation:MinItems=0
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=3
-	// +kubebuilder:validation:XValidation:rule="size(self) != size(oldSelf) ? size(oldSelf) == 0 && size(self) < 2 : true",message="vcenters cannot be added or removed once set"
+	// +openshift:validation:FeatureGateAwareXValidation:featureGate="",rule="size(self) != size(oldSelf) ? size(oldSelf) == 0 && size(self) < 2 : true",message="vcenters cannot be added or removed once set"
+	// +openshift:validation:FeatureGateAwareXValidation:featureGate=VSphereMultiVCenterDay2,rule="size(self) >= size(oldSelf) ? oldSelf.all(x, self.exists(y, y.server == x.server)) : true",message="Cannot add and remove vCenters at the same time"
+	// +openshift:validation:FeatureGateAwareXValidation:featureGate=VSphereMultiVCenterDay2,rule="size(self) < size(oldSelf) ? self.all(x, oldSelf.exists(y, y.server == x.server)) : true",message="Cannot add and remove vCenters at the same time"
+	// +kubebuilder:validation:XValidation:rule="self.all(x, self.exists_one(y, y.server == x.server))",message="vcenters must have unique server values"
 	// +listType=atomic
 	// +optional
 	VCenters []VSpherePlatformVCenterSpec `json:"vcenters,omitempty"`
 
 	// failureDomains contains the definition of region, zone and the vCenter topology.
 	// If this is omitted failure domains (regions and zones) will not be used.
+	// Each failure domain's server must match the server field of an entry in the vcenters list.
 	// +listType=map
 	// +listMapKey=name
 	// +optional
@@ -1799,7 +1906,7 @@ type VSpherePlatformStatus struct {
 // override existing defaults of IBM Cloud Services.
 type IBMCloudServiceEndpoint struct {
 	// name is the name of the IBM Cloud service.
-	// Possible values are: CIS, COS, COSConfig, DNSServices, GlobalCatalog, GlobalSearch, GlobalTagging, HyperProtect, IAM, KeyProtect, ResourceController, ResourceManager, or VPC.
+	// Possible values are: CIS, COS, COSConfig, DNSServices, GlobalCatalog, GlobalSearch, GlobalTagging, HyperProtect, IAM, KeyProtect, ResourceController, ResourceManager, VPC, TransitGateway, or PowerVS.
 	// For example, the IBM Cloud Private IAM service could be configured with the
 	// service `name` of `IAM` and `url` of `https://private.iam.cloud.ibm.com`
 	// Whereas the IBM Cloud Private VPC service for US South (Dallas) could be configured
@@ -1831,8 +1938,8 @@ type IBMCloudPlatformSpec struct {
 	// overridden. The CCCMO reads in the IBMCloudPlatformSpec and validates each
 	// endpoint is resolvable. Once validated, the cloud config and IBMCloudPlatformStatus
 	// are updated to reflect the same custom endpoints.
-	// A maximum of 13 service endpoints overrides are supported.
-	// +kubebuilder:validation:MaxItems=13
+	// A maximum of 15 service endpoints overrides are supported.
+	// +kubebuilder:validation:MaxItems=15
 	// +listType=map
 	// +listMapKey=name
 	// +optional
@@ -1865,7 +1972,7 @@ type IBMCloudPlatformStatus struct {
 	// overridden. The CCCMO reads in the IBMCloudPlatformSpec and validates each
 	// endpoint is resolvable. Once validated, the cloud config and IBMCloudPlatformStatus
 	// are updated to reflect the same custom endpoints.
-	// +openshift:validation:FeatureGateAwareMaxItems:featureGate=DyanmicServiceEndpointIBMCloud,maxItems=13
+	// +openshift:validation:FeatureGateAwareMaxItems:featureGate=DyanmicServiceEndpointIBMCloud,maxItems=15
 	// +listType=map
 	// +listMapKey=name
 	// +optional
@@ -1916,7 +2023,7 @@ type PowerVSServiceEndpoint struct {
 	// Power Cloud - https://cloud.ibm.com/apidocs/power-cloud
 	//
 	// +required
-	// +kubebuilder:validation:Enum=CIS;COS;COSConfig;DNSServices;GlobalCatalog;GlobalSearch;GlobalTagging;HyperProtect;IAM;KeyProtect;Power;ResourceController;ResourceManager;VPC
+	// +kubebuilder:validation:Enum=CIS;COS;COSConfig;DNSServices;GlobalCatalog;GlobalSearch;GlobalTagging;HyperProtect;IAM;KeyProtect;Power;ResourceController;ResourceManager;VPC;TransitGateway
 	Name string `json:"name"`
 
 	// url is fully qualified URI with scheme https, that overrides the default generated

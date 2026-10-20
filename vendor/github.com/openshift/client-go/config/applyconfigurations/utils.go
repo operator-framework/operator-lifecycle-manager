@@ -20,6 +20,8 @@ import (
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
 	// Group=config.openshift.io, Version=v1
+	case v1.SchemeGroupVersion.WithKind("AcceptRisk"):
+		return &configv1.AcceptRiskApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("AlibabaCloudPlatformStatus"):
 		return &configv1.AlibabaCloudPlatformStatusApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("AlibabaCloudResourceTag"):
@@ -48,8 +50,6 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &configv1.AWSDNSSpecApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("AWSIngressSpec"):
 		return &configv1.AWSIngressSpecApplyConfiguration{}
-	case v1.SchemeGroupVersion.WithKind("AWSKMSConfig"):
-		return &configv1.AWSKMSConfigApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("AWSPlatformSpec"):
 		return &configv1.AWSPlatformSpecApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("AWSPlatformStatus"):
@@ -78,6 +78,10 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &configv1.BuildOverridesApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("BuildSpec"):
 		return &configv1.BuildSpecApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("ClientCredentialConfig"):
+		return &configv1.ClientCredentialConfigApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("ClientSecretSecretReference"):
+		return &configv1.ClientSecretSecretReferenceApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("CloudControllerManagerStatus"):
 		return &configv1.CloudControllerManagerStatusApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("CloudLoadBalancerConfig"):
@@ -132,6 +136,12 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &configv1.ConsoleSpecApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("ConsoleStatus"):
 		return &configv1.ConsoleStatusApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("CRIOCredentialProviderConfig"):
+		return &configv1.CRIOCredentialProviderConfigApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("CRIOCredentialProviderConfigSpec"):
+		return &configv1.CRIOCredentialProviderConfigSpecApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("CRIOCredentialProviderConfigStatus"):
+		return &configv1.CRIOCredentialProviderConfigStatusApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("Custom"):
 		return &configv1.CustomApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("CustomFeatureGates"):
@@ -150,6 +160,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &configv1.DNSZoneApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("EquinixMetalPlatformStatus"):
 		return &configv1.EquinixMetalPlatformStatusApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("ExternalClaimsSource"):
+		return &configv1.ExternalClaimsSourceApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("ExternalIPConfig"):
 		return &configv1.ExternalIPConfigApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("ExternalIPPolicy"):
@@ -158,6 +170,14 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &configv1.ExternalPlatformSpecApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("ExternalPlatformStatus"):
 		return &configv1.ExternalPlatformStatusApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("ExternalSourceAuthentication"):
+		return &configv1.ExternalSourceAuthenticationApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("ExternalSourceCertificateAuthorityConfigMapReference"):
+		return &configv1.ExternalSourceCertificateAuthorityConfigMapReferenceApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("ExternalSourcePredicate"):
+		return &configv1.ExternalSourcePredicateApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("ExternalSourceTLS"):
+		return &configv1.ExternalSourceTLSApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("ExtraMapping"):
 		return &configv1.ExtraMappingApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("FeatureGate"):
@@ -264,8 +284,10 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &configv1.InsightsDataGatherSpecApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("KeystoneIdentityProvider"):
 		return &configv1.KeystoneIdentityProviderApplyConfiguration{}
-	case v1.SchemeGroupVersion.WithKind("KMSConfig"):
-		return &configv1.KMSConfigApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("KMSPluginConfig"):
+		return &configv1.KMSPluginConfigApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("KMSPluginConfigReference"):
+		return &configv1.KMSPluginConfigReferenceApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("KubevirtPlatformStatus"):
 		return &configv1.KubevirtPlatformStatusApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("LDAPAttributeMapping"):
@@ -290,6 +312,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &configv1.NetworkDiagnosticsTargetPlacementApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NetworkMigration"):
 		return &configv1.NetworkMigrationApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("NetworkObservabilitySpec"):
+		return &configv1.NetworkObservabilitySpecApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NetworkSpec"):
 		return &configv1.NetworkSpecApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NetworkStatus"):
@@ -416,6 +440,10 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &configv1.SecretNameReferenceApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("SignatureStore"):
 		return &configv1.SignatureStoreApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("SourcedClaimMapping"):
+		return &configv1.SourcedClaimMappingApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("SourceURL"):
+		return &configv1.SourceURLApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("Storage"):
 		return &configv1.StorageApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("TemplateReference"):
@@ -430,6 +458,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &configv1.TokenClaimMappingsApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("TokenClaimOrExpressionMapping"):
 		return &configv1.TokenClaimOrExpressionMappingApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("TokenClaimValidationCELRule"):
+		return &configv1.TokenClaimValidationCELRuleApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("TokenClaimValidationRule"):
 		return &configv1.TokenClaimValidationRuleApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("TokenConfig"):
@@ -438,6 +468,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &configv1.TokenIssuerApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("TokenRequiredClaim"):
 		return &configv1.TokenRequiredClaimApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("TokenUserValidationRule"):
+		return &configv1.TokenUserValidationRuleApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("Update"):
 		return &configv1.UpdateApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("UpdateHistory"):
@@ -472,76 +504,184 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &configv1.WebhookTokenAuthenticatorApplyConfiguration{}
 
 		// Group=config.openshift.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithKind("AdditionalAlertmanagerConfig"):
+		return &configv1alpha1.AdditionalAlertmanagerConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("AlertmanagerConfig"):
 		return &configv1alpha1.AlertmanagerConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("AlertmanagerCustomConfig"):
 		return &configv1alpha1.AlertmanagerCustomConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("Audit"):
 		return &configv1alpha1.AuditApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("AuthorizationConfig"):
+		return &configv1alpha1.AuthorizationConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("Backup"):
 		return &configv1alpha1.BackupApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("BackupSpec"):
 		return &configv1alpha1.BackupSpecApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("ClusterImagePolicy"):
-		return &configv1alpha1.ClusterImagePolicyApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("ClusterImagePolicySpec"):
-		return &configv1alpha1.ClusterImagePolicySpecApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("ClusterImagePolicyStatus"):
-		return &configv1alpha1.ClusterImagePolicyStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("BasicAuth"):
+		return &configv1alpha1.BasicAuthApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("CertificateConfig"):
+		return &configv1alpha1.CertificateConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("ClusterMonitoring"):
 		return &configv1alpha1.ClusterMonitoringApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("ClusterMonitoringSpec"):
 		return &configv1alpha1.ClusterMonitoringSpecApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("ContainerResource"):
 		return &configv1alpha1.ContainerResourceApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("ControllerManager"):
+		return &configv1alpha1.ControllerManagerApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("ControllerManagerSpec"):
+		return &configv1alpha1.ControllerManagerSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("CRIOCredentialProviderConfig"):
+		return &configv1alpha1.CRIOCredentialProviderConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("CRIOCredentialProviderConfigSpec"):
+		return &configv1alpha1.CRIOCredentialProviderConfigSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("CRIOCredentialProviderConfigStatus"):
+		return &configv1alpha1.CRIOCredentialProviderConfigStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("CustomPKIPolicy"):
+		return &configv1alpha1.CustomPKIPolicyApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("DefaultCertificateConfig"):
+		return &configv1alpha1.DefaultCertificateConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("DropEqualActionConfig"):
+		return &configv1alpha1.DropEqualActionConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("ECDSAKeyConfig"):
+		return &configv1alpha1.ECDSAKeyConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("EtcdBackupSpec"):
 		return &configv1alpha1.EtcdBackupSpecApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("GatherConfig"):
 		return &configv1alpha1.GatherConfigApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("ImagePolicy"):
-		return &configv1alpha1.ImagePolicyApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("ImagePolicyFulcioCAWithRekorRootOfTrust"):
-		return &configv1alpha1.ImagePolicyFulcioCAWithRekorRootOfTrustApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("ImagePolicyPKIRootOfTrust"):
-		return &configv1alpha1.ImagePolicyPKIRootOfTrustApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("ImagePolicyPublicKeyRootOfTrust"):
-		return &configv1alpha1.ImagePolicyPublicKeyRootOfTrustApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("ImagePolicySpec"):
-		return &configv1alpha1.ImagePolicySpecApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("ImagePolicyStatus"):
-		return &configv1alpha1.ImagePolicyStatusApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("ImageSigstoreVerificationPolicy"):
-		return &configv1alpha1.ImageSigstoreVerificationPolicyApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("HashModActionConfig"):
+		return &configv1alpha1.HashModActionConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("InsightsDataGather"):
 		return &configv1alpha1.InsightsDataGatherApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("InsightsDataGatherSpec"):
 		return &configv1alpha1.InsightsDataGatherSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("KeepEqualActionConfig"):
+		return &configv1alpha1.KeepEqualActionConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("KeyConfig"):
+		return &configv1alpha1.KeyConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("KubeStateMetricsConfig"):
+		return &configv1alpha1.KubeStateMetricsConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("KubeStateMetricsResourceLabels"):
+		return &configv1alpha1.KubeStateMetricsResourceLabelsApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("Label"):
+		return &configv1alpha1.LabelApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("LabelMapActionConfig"):
+		return &configv1alpha1.LabelMapActionConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("LowercaseActionConfig"):
+		return &configv1alpha1.LowercaseActionConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("MetadataConfig"):
+		return &configv1alpha1.MetadataConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("MetadataConfigCustom"):
+		return &configv1alpha1.MetadataConfigCustomApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("MetricsServerConfig"):
 		return &configv1alpha1.MetricsServerConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("MonitoringPluginConfig"):
+		return &configv1alpha1.MonitoringPluginConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorBuddyInfoConfig"):
+		return &configv1alpha1.NodeExporterCollectorBuddyInfoConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorConfig"):
+		return &configv1alpha1.NodeExporterCollectorConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorCpufreqConfig"):
+		return &configv1alpha1.NodeExporterCollectorCpufreqConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorDeviceMapperMultipathConfig"):
+		return &configv1alpha1.NodeExporterCollectorDeviceMapperMultipathConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorEthtoolConfig"):
+		return &configv1alpha1.NodeExporterCollectorEthtoolConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorInterruptsCollectConfig"):
+		return &configv1alpha1.NodeExporterCollectorInterruptsCollectConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorInterruptsConfig"):
+		return &configv1alpha1.NodeExporterCollectorInterruptsConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorKSMDConfig"):
+		return &configv1alpha1.NodeExporterCollectorKSMDConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorMountStatsConfig"):
+		return &configv1alpha1.NodeExporterCollectorMountStatsConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorNetClassCollectConfig"):
+		return &configv1alpha1.NodeExporterCollectorNetClassCollectConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorNetClassConfig"):
+		return &configv1alpha1.NodeExporterCollectorNetClassConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorNetDevConfig"):
+		return &configv1alpha1.NodeExporterCollectorNetDevConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorNVMExpressSubsystemConfig"):
+		return &configv1alpha1.NodeExporterCollectorNVMExpressSubsystemConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorProcessesConfig"):
+		return &configv1alpha1.NodeExporterCollectorProcessesConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorSoftirqsConfig"):
+		return &configv1alpha1.NodeExporterCollectorSoftirqsConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorSystemdCollectConfig"):
+		return &configv1alpha1.NodeExporterCollectorSystemdCollectConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorSystemdConfig"):
+		return &configv1alpha1.NodeExporterCollectorSystemdConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorTcpStatConfig"):
+		return &configv1alpha1.NodeExporterCollectorTcpStatConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterCollectorZoneinfoConfig"):
+		return &configv1alpha1.NodeExporterCollectorZoneinfoConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NodeExporterConfig"):
+		return &configv1alpha1.NodeExporterConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("OAuth2"):
+		return &configv1alpha1.OAuth2ApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("OAuth2EndpointParam"):
+		return &configv1alpha1.OAuth2EndpointParamApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("OpenShiftStateMetricsConfig"):
+		return &configv1alpha1.OpenShiftStateMetricsConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("PersistentVolumeClaimReference"):
 		return &configv1alpha1.PersistentVolumeClaimReferenceApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("PersistentVolumeConfig"):
 		return &configv1alpha1.PersistentVolumeConfigApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("PKICertificateSubject"):
-		return &configv1alpha1.PKICertificateSubjectApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("PolicyFulcioSubject"):
-		return &configv1alpha1.PolicyFulcioSubjectApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("PolicyIdentity"):
-		return &configv1alpha1.PolicyIdentityApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("PolicyMatchExactRepository"):
-		return &configv1alpha1.PolicyMatchExactRepositoryApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("PolicyMatchRemapIdentity"):
-		return &configv1alpha1.PolicyMatchRemapIdentityApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("PolicyRootOfTrust"):
-		return &configv1alpha1.PolicyRootOfTrustApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("PKI"):
+		return &configv1alpha1.PKIApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("PKICertificateManagement"):
+		return &configv1alpha1.PKICertificateManagementApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("PKIProfile"):
+		return &configv1alpha1.PKIProfileApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("PKISpec"):
+		return &configv1alpha1.PKISpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("PrometheusConfig"):
+		return &configv1alpha1.PrometheusConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("PrometheusOperatorAdmissionWebhookConfig"):
+		return &configv1alpha1.PrometheusOperatorAdmissionWebhookConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("PrometheusOperatorConfig"):
+		return &configv1alpha1.PrometheusOperatorConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("PrometheusRemoteWriteHeader"):
+		return &configv1alpha1.PrometheusRemoteWriteHeaderApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("QueueConfig"):
+		return &configv1alpha1.QueueConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("RelabelActionConfig"):
+		return &configv1alpha1.RelabelActionConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("RelabelConfig"):
+		return &configv1alpha1.RelabelConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("RemoteWriteAuthorization"):
+		return &configv1alpha1.RemoteWriteAuthorizationApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("RemoteWriteSpec"):
+		return &configv1alpha1.RemoteWriteSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("ReplaceActionConfig"):
+		return &configv1alpha1.ReplaceActionConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("Retention"):
+		return &configv1alpha1.RetentionApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("RetentionNumberConfig"):
 		return &configv1alpha1.RetentionNumberConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("RetentionPolicy"):
 		return &configv1alpha1.RetentionPolicyApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("RetentionSizeConfig"):
 		return &configv1alpha1.RetentionSizeConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("RSAKeyConfig"):
+		return &configv1alpha1.RSAKeyConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("SecretKeySelector"):
+		return &configv1alpha1.SecretKeySelectorApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("Sigv4"):
+		return &configv1alpha1.Sigv4ApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("Storage"):
 		return &configv1alpha1.StorageApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("TelemeterClientConfig"):
+		return &configv1alpha1.TelemeterClientConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("ThanosQuerierConfig"):
+		return &configv1alpha1.ThanosQuerierConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("ThanosQuerierRequestLoggingConfig"):
+		return &configv1alpha1.ThanosQuerierRequestLoggingConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("TLSConfig"):
+		return &configv1alpha1.TLSConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("UppercaseActionConfig"):
+		return &configv1alpha1.UppercaseActionConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("UserDefinedMonitoring"):
 		return &configv1alpha1.UserDefinedMonitoringApplyConfiguration{}
 

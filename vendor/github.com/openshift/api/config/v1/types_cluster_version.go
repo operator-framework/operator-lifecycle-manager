@@ -18,7 +18,8 @@ import (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=clusterversions,scope=Cluster
-// +kubebuilder:validation:XValidation:rule="has(self.spec.capabilities) && has(self.spec.capabilities.additionalEnabledCapabilities) && self.spec.capabilities.baselineCapabilitySet == 'None' && 'marketplace' in self.spec.capabilities.additionalEnabledCapabilities ? 'OperatorLifecycleManager' in self.spec.capabilities.additionalEnabledCapabilities || (has(self.status) && has(self.status.capabilities) && has(self.status.capabilities.enabledCapabilities) && 'OperatorLifecycleManager' in self.status.capabilities.enabledCapabilities) : true",message="the `marketplace` capability requires the `OperatorLifecycleManager` capability, which is neither explicitly or implicitly enabled in this cluster, please enable the `OperatorLifecycleManager` capability"
+// +openshift:validation:FeatureGateAwareXValidation:featureGate="";CRDCompatibilityRequirementOperator;ClusterAPIMachineManagement,rule="has(self.spec.capabilities) && has(self.spec.capabilities.additionalEnabledCapabilities) && self.spec.capabilities.baselineCapabilitySet == 'None' && 'marketplace' in self.spec.capabilities.additionalEnabledCapabilities ? 'OperatorLifecycleManager' in self.spec.capabilities.additionalEnabledCapabilities || (has(self.status) && has(self.status.capabilities) && has(self.status.capabilities.enabledCapabilities) && 'OperatorLifecycleManager' in self.status.capabilities.enabledCapabilities) : true",message="the `marketplace` capability requires the `OperatorLifecycleManager` capability, which is neither explicitly or implicitly enabled in this cluster, please enable the `OperatorLifecycleManager` capability"
+// +openshift:validation:FeatureGateAwareXValidation:requiredFeatureGate=CRDCompatibilityRequirementOperator;ClusterAPIMachineManagement,rule="has(self.spec.capabilities) && has(self.spec.capabilities.additionalEnabledCapabilities) && 'ClusterAPI' in self.spec.capabilities.additionalEnabledCapabilities ? 'CompatibilityRequirements' in self.spec.capabilities.additionalEnabledCapabilities || (has(self.status) && has(self.status.capabilities) && has(self.status.capabilities.enabledCapabilities) && 'CompatibilityRequirements' in self.status.capabilities.enabledCapabilities) : true",message="the `ClusterAPI` capability requires the `CompatibilityRequirements` capability, which is neither explicitly or implicitly enabled in this cluster, please enable the `CompatibilityRequirements` capability"
 // +kubebuilder:printcolumn:name=Version,JSONPath=.status.history[?(@.state=="Completed")].version,type=string
 // +kubebuilder:printcolumn:name=Available,JSONPath=.status.conditions[?(@.type=="Available")].status,type=string
 // +kubebuilder:printcolumn:name=Progressing,JSONPath=.status.conditions[?(@.type=="Progressing")].status,type=string
@@ -283,6 +284,16 @@ type UpdateHistory struct {
 // ClusterID is string RFC4122 uuid.
 type ClusterID string
 
+// UpdateMode defines how an update should be processed.
+// +enum
+// +kubebuilder:validation:Enum=Preflight
+type UpdateMode string
+
+const (
+	// UpdateModePreflight allows an update to be checked for compatibility without committing to updating the cluster.
+	UpdateModePreflight UpdateMode = "Preflight"
+)
+
 // ClusterVersionArchitecture enumerates valid cluster architectures.
 // +kubebuilder:validation:Enum="Multi";""
 type ClusterVersionArchitecture string
@@ -294,7 +305,10 @@ const (
 )
 
 // ClusterVersionCapability enumerates optional, core cluster components.
-// +kubebuilder:validation:Enum=openshift-samples;baremetal;marketplace;Console;Insights;Storage;CSISnapshot;NodeTuning;MachineAPI;Build;DeploymentConfig;ImageRegistry;OperatorLifecycleManager;CloudCredential;Ingress;CloudControllerManager;OperatorLifecycleManagerV1
+// +openshift:validation:FeatureGateAwareEnum:featureGate="",enum=openshift-samples;baremetal;marketplace;Console;Insights;Storage;CSISnapshot;NodeTuning;MachineAPI;Build;DeploymentConfig;ImageRegistry;OperatorLifecycleManager;CloudCredential;Ingress;CloudControllerManager;OperatorLifecycleManagerV1
+// +openshift:validation:FeatureGateAwareEnum:featureGate=CRDCompatibilityRequirementOperator,enum=openshift-samples;baremetal;marketplace;Console;Insights;Storage;CSISnapshot;NodeTuning;MachineAPI;Build;DeploymentConfig;ImageRegistry;OperatorLifecycleManager;CloudCredential;Ingress;CloudControllerManager;OperatorLifecycleManagerV1;CompatibilityRequirements
+// +openshift:validation:FeatureGateAwareEnum:featureGate=ClusterAPIMachineManagement,enum=openshift-samples;baremetal;marketplace;Console;Insights;Storage;CSISnapshot;NodeTuning;MachineAPI;Build;DeploymentConfig;ImageRegistry;OperatorLifecycleManager;CloudCredential;Ingress;CloudControllerManager;OperatorLifecycleManagerV1;CompatibilityRequirements;ClusterAPI
+// +openshift:validation:FeatureGateAwareEnum:requiredFeatureGate=CRDCompatibilityRequirementOperator;ClusterAPIMachineManagement,enum=openshift-samples;baremetal;marketplace;Console;Insights;Storage;CSISnapshot;NodeTuning;MachineAPI;Build;DeploymentConfig;ImageRegistry;OperatorLifecycleManager;CloudCredential;Ingress;CloudControllerManager;OperatorLifecycleManagerV1;CompatibilityRequirements;ClusterAPI
 type ClusterVersionCapability string
 
 const (
@@ -415,6 +429,19 @@ const (
 	// Managers deployed on top of OpenShift. They help you to work with cloud
 	// provider API and embeds cloud-specific control logic.
 	ClusterVersionCapabilityCloudControllerManager ClusterVersionCapability = "CloudControllerManager"
+
+	// ClusterVersionCapabilityCompatibilityRequirements manages the Compatibility
+	// Requirements operator which enforces CRD compatibility constraints via
+	// validating webhooks.
+	ClusterVersionCapabilityCompatibilityRequirements ClusterVersionCapability = "CompatibilityRequirements"
+
+	// ClusterVersionCapabilityClusterAPI manages the Cluster API operator and
+	// controllers which provide forward-compatible machine management for
+	// OpenShift clusters.
+	//
+	// Note that Cluster API has a hard requirement on CompatibilityRequirements.
+	// CompatibilityRequirements cannot be disabled while Cluster API is enabled.
+	ClusterVersionCapabilityClusterAPI ClusterVersionCapability = "ClusterAPI"
 )
 
 // KnownClusterVersionCapabilities includes all known optional, core cluster components.
@@ -436,6 +463,8 @@ var KnownClusterVersionCapabilities = []ClusterVersionCapability{
 	ClusterVersionCapabilityCloudCredential,
 	ClusterVersionCapabilityIngress,
 	ClusterVersionCapabilityCloudControllerManager,
+	ClusterVersionCapabilityCompatibilityRequirements,
+	ClusterVersionCapabilityClusterAPI,
 }
 
 // ClusterVersionCapabilitySet defines sets of cluster version capabilities.
@@ -634,6 +663,8 @@ var ClusterVersionCapabilitySets = map[ClusterVersionCapabilitySet][]ClusterVers
 		ClusterVersionCapabilityCloudCredential,
 		ClusterVersionCapabilityIngress,
 		ClusterVersionCapabilityCloudControllerManager,
+		ClusterVersionCapabilityCompatibilityRequirements,
+		ClusterVersionCapabilityClusterAPI,
 	},
 }
 
@@ -760,6 +791,22 @@ type Update struct {
 	// +listMapKey=name
 	// +optional
 	AcceptRisks []AcceptRisk `json:"acceptRisks,omitempty"`
+
+	// mode determines how an update should be processed.
+	// The only valid value is "Preflight".
+	// When omitted, the cluster performs a normal update by applying the specified version or image to the cluster.
+	// This is the standard update behavior.
+	// When set to "Preflight", the cluster runs compatibility checks against the target release without
+	// performing an actual update. Compatibility results, including any detected risks, are reported
+	// in status.conditionalUpdates and status.conditionalUpdateRisks alongside risks from the update
+	// recommendation service.
+	// This allows administrators to assess update readiness and address issues before committing to the update.
+	// Preflight mode is particularly useful for skip-level updates where upgrade compatibility needs to be
+	// verified across multiple minor versions.
+	// When mode is set to "Preflight", the same rules for version, image, and architecture apply as for normal updates.
+	// +openshift:enable:FeatureGate=ClusterUpdatePreflight
+	// +optional
+	Mode UpdateMode `json:"mode,omitempty"`
 }
 
 // AcceptRisk represents a risk that is considered acceptable.
