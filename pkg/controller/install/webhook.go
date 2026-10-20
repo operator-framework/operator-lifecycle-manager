@@ -261,6 +261,28 @@ func (i *StrategyDeploymentInstaller) createOrUpdateConversionWebhook(caPEM []by
 				},
 			}
 
+			// If catalog-operator deferred a storage-version promotion, apply it now in the
+			// same write that activates the conversion webhook, making the transition atomic.
+			// See PendingStorageVersionAnnotation for the full protocol.
+			if pending, ok := crd.Annotations[PendingStorageVersionAnnotation]; ok && pending != "" {
+				found := false
+				for _, v := range crd.Spec.Versions {
+					if v.Name == pending {
+						found = true
+						break
+					}
+				}
+				if found {
+					for idx := range crd.Spec.Versions {
+						crd.Spec.Versions[idx].Storage = crd.Spec.Versions[idx].Name == pending
+					}
+					delete(crd.Annotations, PendingStorageVersionAnnotation)
+					log.Infof("atomically promoted storage version %q on CRD %s with conversion webhook", pending, conversionCRD)
+				} else {
+					log.Warnf("pending storage version %q not found in CRD %s spec; skipping promotion (annotation retained for investigation)", pending, conversionCRD)
+				}
+			}
+
 			// update CRD conversion Specs
 			if _, err = i.strategyClient.GetOpClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{}); err != nil {
 				return fmt.Errorf("Error updating CRD with Conversion info: %w", err)
@@ -276,6 +298,14 @@ func (i *StrategyDeploymentInstaller) createOrUpdateConversionWebhook(caPEM []by
 
 const WebhookDescKey = "olm.webhook-description-generate-name"
 const WebhookHashKey = "olm.webhook-description-hash"
+
+// PendingStorageVersionAnnotation is written by catalog-operator when it defers a
+// storage-version promotion. The value is the version name to promote.
+// createOrUpdateConversionWebhook reads it and promotes storage atomically with
+// webhook activation, then deletes it. If the operator is deleted before
+// olm-operator processes it the annotation remains on the CRD; a later reinstall
+// completes the promotion.
+const PendingStorageVersionAnnotation = "olm.operatorframework.io/pending-storage-version"
 
 // addWebhookLabels adds webhook labels to an object
 func addWebhookLabels(object metav1.Object, webhookDesc v1alpha1.WebhookDescription) error {
