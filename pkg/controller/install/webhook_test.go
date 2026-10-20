@@ -26,8 +26,6 @@ const (
 
 // singletonCSV returns a CSV that satisfies isSingletonOperator (AllNamespaces only).
 func singletonCSV(crdName string) *v1alpha1.ClusterServiceVersion {
-	port := int32(443)
-	_ = port
 	return &v1alpha1.ClusterServiceVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testCSVName,

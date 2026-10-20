@@ -189,7 +189,17 @@ Validation Error: %s
 							conversionMissing := crd.Spec.Conversion == nil ||
 								crd.Spec.Conversion.Strategy == "" ||
 								crd.Spec.Conversion.Strategy == apiextensionsv1.NoneConverter
-							if conversionMissing && csvDeclaresConversionWebhookForCRD(b.plan, step.Resolving, step.Resource.Name) {
+							// Also verify currentVer is still present in the new bundle spec.
+							// If it was removed, reverting storage to currentVer would produce
+							// a CRD with no Storage=true version (API server rejects with 422).
+							currentVerInNewSpec := false
+							for _, v := range crd.Spec.Versions {
+								if v.Name == currentVer {
+									currentVerInNewSpec = true
+									break
+								}
+							}
+							if conversionMissing && currentVerInNewSpec && csvDeclaresConversionWebhookForCRD(b.plan, step.Resolving, step.Resource.Name) {
 								for idx := range crd.Spec.Versions {
 									crd.Spec.Versions[idx].Storage = crd.Spec.Versions[idx].Name == currentVer
 								}
@@ -337,6 +347,7 @@ func csvDeclaresConversionWebhookForCRD(plan *v1alpha1.InstallPlan, csvName, crd
 		}
 		csv := &v1alpha1.ClusterServiceVersion{}
 		if err := json.Unmarshal([]byte(step.Resource.Manifest), csv); err != nil {
+			logrus.Warnf("csvDeclaresConversionWebhookForCRD: failed to unmarshal CSV manifest for %q: %v", step.Resource.Name, err)
 			return false
 		}
 		for _, wh := range csv.Spec.WebhookDefinitions {

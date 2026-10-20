@@ -330,6 +330,44 @@ func TestNewCRDV1Step_SkipsDeferenceWhenStorageVersionUnchanged(t *testing.T) {
 		"annotation should not be set when storage version does not change")
 }
 
+// TestNewCRDV1Step_SkipsDeferenceWhenCurrentVersionDroppedFromNewSpec verifies that
+// the deferral block does not revert storage markers when the current storage version
+// is absent from the new bundle's spec. Reverting in that case would produce a CRD
+// with no Storage=true version, which the API server rejects with 422.
+func TestNewCRDV1Step_SkipsDeferenceWhenCurrentVersionDroppedFromNewSpec(t *testing.T) {
+	const crdName = "tests.example.com"
+	const csvName = "operator.v1.0.0"
+
+	// Current cluster CRD: only v2 as storage; Status.StoredVersions is empty so
+	// SafeStorageVersionUpgrade won't block the removal of v2 from the new spec.
+	currentCRD := buildCRD(crdName, nil, storedVersion("v2", true))
+	// No Status.StoredVersions — SafeStorageVersionUpgrade passes even though v2 is dropped.
+
+	// New bundle: drops v2 entirely, promotes v3 as the sole version.
+	newCRD := buildCRD(crdName, nil, storedVersion("v3", true))
+
+	b, crdFake := buildBuilder(t, currentCRD, newCRD, csvName, csvManifestWithConversionWebhook(t, csvName, crdName))
+	step := stepFor(crdName, csvName)
+
+	s, err := b.create(step)
+	require.NoError(t, err)
+	_, err = s.Status()
+	require.NoError(t, err)
+
+	updated, err := crdFake.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	assert.NotContains(t, updated.Annotations, install.PendingStorageVersionAnnotation,
+		"annotation should not be set when currentVer is absent from the new bundle spec — reverting would produce zero storage versions")
+	var storageVersions []string
+	for _, v := range updated.Spec.Versions {
+		if v.Storage {
+			storageVersions = append(storageVersions, v.Name)
+		}
+	}
+	assert.Equal(t, []string{"v3"}, storageVersions, "v3 should be written as storage=true as the bundle intended")
+}
+
 func TestNewCRDV1Step_SkipsDeferenceWhenCSVHasNoConversionWebhook(t *testing.T) {
 	const crdName = "tests.example.com"
 	const csvName = "operator.v1.0.0"
