@@ -51,8 +51,8 @@ type builder struct {
 
 	annotator alongside.Annotator
 
-	// csvConversionCache is built once from plan.Status.Plan. Key is "csvName/crdName";
-	// value is true when that CSV declares a ConversionWebhook for that CRD.
+	// csvConversionCache is built once from plan.Status.Plan. The key is "csvName/crdName".
+	// The value is true when that CSV declares a ConversionWebhook for that CRD.
 	// This avoids re-parsing the CSV manifest on every CRD step that reaches the
 	// storage-version deference check.
 	csvConversionCache map[string]bool
@@ -214,9 +214,14 @@ Validation Error: %s
 					// but carries no conversion webhook. Atomically promoting storage with
 					// the webhook (see createOrUpdateConversionWebhook) eliminates the window
 					// where a new storage version is active without field conversion.
-					// Guard: only defer when the CSV that owns this CRD declares a
-					// ConversionWebhook for it; operators that legitimately promote storage
-					// without a webhook would otherwise be stuck at the old version forever.
+					// Three guards must all be true before deferral fires:
+					//   1. The bundle carries no conversion webhook (conversionMissing).
+					//   2. The current storage version is still present in the new bundle spec.
+					//      If it was removed, reverting to it would produce a CRD with no
+					//      Storage=true version, which the API server rejects with 422.
+					//   3. The CSV that owns this CRD declares a ConversionWebhook for it.
+					//      Without this guard, operators that legitimately promote storage
+					//      without a webhook would be stuck at the old version forever.
 					if newVer, ok := storageVersionInSpec(crd); ok {
 						if currentVer, hasCurrent := storageVersionInSpec(currentCRD); hasCurrent && newVer != currentVer {
 							conversionMissing := crd.Spec.Conversion == nil ||

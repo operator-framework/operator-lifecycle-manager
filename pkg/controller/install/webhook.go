@@ -309,7 +309,7 @@ const WebhookHashKey = "olm.webhook-description-hash"
 // storage-version promotion. The value is the version name to promote.
 // createOrUpdateConversionWebhook reads it and promotes storage atomically with
 // webhook activation, then deletes it. If the operator is deleted before
-// olm-operator processes it the annotation remains on the CRD; a later reinstall
+// olm-operator processes it, the annotation remains on the CRD. A later reinstall
 // completes the promotion.
 const PendingStorageVersionAnnotation = "olm.operatorframework.io/pending-storage-version"
 
