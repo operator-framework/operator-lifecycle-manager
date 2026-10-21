@@ -12,13 +12,13 @@ import (
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	fakedynamic "k8s.io/client-go/dynamic/fake"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/record"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
-	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister/operatorlisterfakes"
@@ -27,7 +27,7 @@ import (
 // staticResolver implements ManifestResolver and always returns the same manifest.
 type staticResolver struct{ manifest string }
 
-func (r staticResolver) ManifestForStep(_ *v1alpha1.Step) (string, error) {
+func (r staticResolver) ManifestForStep(_ *operatorsv1alpha1.Step) (string, error) {
 	return r.manifest, nil
 }
 
@@ -81,16 +81,16 @@ func crdManifest(t *testing.T, crd *apiextensionsv1.CustomResourceDefinition) st
 // csvManifestWithConversionWebhook JSON-encodes a CSV that declares a ConversionWebhook for crdName.
 func csvManifestWithConversionWebhook(t *testing.T, csvName, crdName string) string {
 	t.Helper()
-	csv := &v1alpha1.ClusterServiceVersion{
+	csv := &operatorsv1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "operators.coreos.com/v1alpha1",
 			Kind:       "ClusterServiceVersion",
 		},
 		ObjectMeta: metav1.ObjectMeta{Name: csvName},
-		Spec: v1alpha1.ClusterServiceVersionSpec{
-			WebhookDefinitions: []v1alpha1.WebhookDescription{
+		Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+			WebhookDefinitions: []operatorsv1alpha1.WebhookDescription{
 				{
-					Type:           v1alpha1.ConversionWebhook,
+					Type:           operatorsv1alpha1.ConversionWebhook,
 					GenerateName:   "test-webhook",
 					ConversionCRDs: []string{crdName},
 				},
@@ -124,11 +124,11 @@ func buildBuilder(t *testing.T, currentCRD *apiextensionsv1.CustomResourceDefini
 	fakeLister := &operatorlisterfakes.FakeOperatorLister{}
 	csvFakeLister := &operatorlisterfakes.FakeClusterServiceVersionLister{}
 
-	plan := &v1alpha1.InstallPlan{
-		Status: v1alpha1.InstallPlanStatus{
-			Plan: []*v1alpha1.Step{
+	plan := &operatorsv1alpha1.InstallPlan{
+		Status: operatorsv1alpha1.InstallPlanStatus{
+			Plan: []*operatorsv1alpha1.Step{
 				{
-					Resource: v1alpha1.StepResource{
+					Resource: operatorsv1alpha1.StepResource{
 						Kind:     "ClusterServiceVersion",
 						Name:     csvName,
 						Manifest: csvManifest,
@@ -147,10 +147,10 @@ func buildBuilder(t *testing.T, currentCRD *apiextensionsv1.CustomResourceDefini
 }
 
 // stepFor builds a Step for a CRD update (status Unknown = triggers the create/update path).
-func stepFor(crdName, csvName string) v1alpha1.Step {
-	return v1alpha1.Step{
-		Status: v1alpha1.StepStatusUnknown,
-		Resource: v1alpha1.StepResource{
+func stepFor(crdName, csvName string) operatorsv1alpha1.Step {
+	return operatorsv1alpha1.Step{
+		Status: operatorsv1alpha1.StepStatusUnknown,
+		Resource: operatorsv1alpha1.StepResource{
 			Kind:    crdKind,
 			Name:    crdName,
 			Version: "v1",
@@ -195,10 +195,10 @@ func TestCsvDeclaresConversionWebhook_ReturnsTrueWhenDeclared(t *testing.T) {
 	crdName := "tests.example.com"
 	csvJSON := csvManifestWithConversionWebhook(t, csvName, crdName)
 
-	plan := &v1alpha1.InstallPlan{
-		Status: v1alpha1.InstallPlanStatus{
-			Plan: []*v1alpha1.Step{
-				{Resource: v1alpha1.StepResource{Kind: "ClusterServiceVersion", Name: csvName, Manifest: csvJSON}},
+	plan := &operatorsv1alpha1.InstallPlan{
+		Status: operatorsv1alpha1.InstallPlanStatus{
+			Plan: []*operatorsv1alpha1.Step{
+				{Resource: operatorsv1alpha1.StepResource{Kind: "ClusterServiceVersion", Name: csvName, Manifest: csvJSON}},
 			},
 		},
 	}
@@ -210,10 +210,10 @@ func TestCsvDeclaresConversionWebhook_ReturnsFalseWhenNotDeclared(t *testing.T) 
 	crdName := "tests.example.com"
 	csvJSON := csvManifestWithConversionWebhook(t, csvName, "other.example.com")
 
-	plan := &v1alpha1.InstallPlan{
-		Status: v1alpha1.InstallPlanStatus{
-			Plan: []*v1alpha1.Step{
-				{Resource: v1alpha1.StepResource{Kind: "ClusterServiceVersion", Name: csvName, Manifest: csvJSON}},
+	plan := &operatorsv1alpha1.InstallPlan{
+		Status: operatorsv1alpha1.InstallPlanStatus{
+			Plan: []*operatorsv1alpha1.Step{
+				{Resource: operatorsv1alpha1.StepResource{Kind: "ClusterServiceVersion", Name: csvName, Manifest: csvJSON}},
 			},
 		},
 	}
@@ -221,8 +221,8 @@ func TestCsvDeclaresConversionWebhook_ReturnsFalseWhenNotDeclared(t *testing.T) 
 }
 
 func TestCsvDeclaresConversionWebhook_ReturnsFalseWhenCSVAbsentFromPlan(t *testing.T) {
-	plan := &v1alpha1.InstallPlan{
-		Status: v1alpha1.InstallPlanStatus{Plan: []*v1alpha1.Step{}},
+	plan := &operatorsv1alpha1.InstallPlan{
+		Status: operatorsv1alpha1.InstallPlanStatus{Plan: []*operatorsv1alpha1.Step{}},
 	}
 	assert.False(t, csvDeclaresConversionWebhookForCRD(plan, "missing-csv", "tests.example.com"))
 }

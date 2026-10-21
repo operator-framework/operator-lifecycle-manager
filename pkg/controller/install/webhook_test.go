@@ -12,7 +12,7 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
-	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister/operatorlisterfakes"
@@ -25,21 +25,21 @@ const (
 )
 
 // singletonCSV returns a CSV that satisfies isSingletonOperator (AllNamespaces only).
-func singletonCSV(crdName string) *v1alpha1.ClusterServiceVersion {
-	return &v1alpha1.ClusterServiceVersion{
+func singletonCSV(crdName string) *operatorsv1alpha1.ClusterServiceVersion {
+	return &operatorsv1alpha1.ClusterServiceVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testCSVName,
 			Namespace: testNamespace,
 		},
-		Spec: v1alpha1.ClusterServiceVersionSpec{
-			InstallModes: []v1alpha1.InstallMode{
-				{Type: v1alpha1.InstallModeTypeAllNamespaces, Supported: true},
-				{Type: v1alpha1.InstallModeTypeSingleNamespace, Supported: false},
-				{Type: v1alpha1.InstallModeTypeMultiNamespace, Supported: false},
-				{Type: v1alpha1.InstallModeTypeOwnNamespace, Supported: false},
+		Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+			InstallModes: []operatorsv1alpha1.InstallMode{
+				{Type: operatorsv1alpha1.InstallModeTypeAllNamespaces, Supported: true},
+				{Type: operatorsv1alpha1.InstallModeTypeSingleNamespace, Supported: false},
+				{Type: operatorsv1alpha1.InstallModeTypeMultiNamespace, Supported: false},
+				{Type: operatorsv1alpha1.InstallModeTypeOwnNamespace, Supported: false},
 			},
-			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-				Owned: []v1alpha1.CRDDescription{
+			CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+				Owned: []operatorsv1alpha1.CRDDescription{
 					{Name: crdName, Version: "v2", Kind: "Test"},
 				},
 			},
@@ -48,10 +48,10 @@ func singletonCSV(crdName string) *v1alpha1.ClusterServiceVersion {
 }
 
 // conversionDesc returns a WebhookDescription of type ConversionWebhook for crdName.
-func conversionDesc(crdName string) v1alpha1.WebhookDescription {
+func conversionDesc(crdName string) operatorsv1alpha1.WebhookDescription {
 	port := int32(443)
-	return v1alpha1.WebhookDescription{
-		Type:                    v1alpha1.ConversionWebhook,
+	return operatorsv1alpha1.WebhookDescription{
+		Type:                    operatorsv1alpha1.ConversionWebhook,
 		GenerateName:            "test-webhook",
 		ConversionCRDs:          []string{crdName},
 		AdmissionReviewVersions: []string{"v1"},
@@ -164,7 +164,7 @@ func TestConversionWebhook_NoAnnotation(t *testing.T) {
 
 // TestConversionWebhook_StaleAnnotationVersionNotInSpec verifies that when the
 // PendingStorageVersionAnnotation names a version that does not exist in the CRD spec,
-// storage markers are left untouched, the annotation is retained, and the conversion
+// storage markers are left untouched, the annotation is cleared, and the conversion
 // webhook is still set successfully.
 func TestConversionWebhook_StaleAnnotationVersionNotInSpec(t *testing.T) {
 	crd := crdWithVersions(
