@@ -50,18 +50,51 @@ type builder struct {
 	eventRecorder    record.EventRecorder
 
 	annotator alongside.Annotator
+
+	// csvConversionCache is built once from plan.Status.Plan. Key is "csvName/crdName";
+	// value is true when that CSV declares a ConversionWebhook for that CRD.
+	// This avoids re-parsing the CSV manifest on every CRD step that reaches the
+	// storage-version deference check.
+	csvConversionCache map[string]bool
 }
 
 func newBuilder(plan *v1alpha1.InstallPlan, csvLister listersv1alpha1.ClusterServiceVersionLister, opclient operatorclient.ClientInterface, dynamicClient dynamic.Interface, manifestResolver ManifestResolver, logger logrus.FieldLogger, er record.EventRecorder) *builder {
 	return &builder{
-		plan:             plan,
-		csvLister:        csvLister,
-		opclient:         opclient,
-		dynamicClient:    dynamicClient,
-		manifestResolver: manifestResolver,
-		logger:           logger,
-		eventRecorder:    er,
+		plan:               plan,
+		csvLister:          csvLister,
+		opclient:           opclient,
+		dynamicClient:      dynamicClient,
+		manifestResolver:   manifestResolver,
+		logger:             logger,
+		eventRecorder:      er,
+		csvConversionCache: buildCSVConversionWebhookCache(plan),
 	}
+}
+
+// buildCSVConversionWebhookCache scans plan.Status.Plan once and returns a map whose
+// keys are "csvName/crdName" for every (CSV, CRD) pair where the CSV declares a
+// ConversionWebhook for that CRD. All CSV manifests are parsed exactly once.
+func buildCSVConversionWebhookCache(plan *v1alpha1.InstallPlan) map[string]bool {
+	cache := make(map[string]bool)
+	for _, step := range plan.Status.Plan {
+		if step.Resource.Kind != "ClusterServiceVersion" {
+			continue
+		}
+		csv := &v1alpha1.ClusterServiceVersion{}
+		if err := json.Unmarshal([]byte(step.Resource.Manifest), csv); err != nil {
+			logrus.Warnf("buildCSVConversionWebhookCache: failed to parse CSV manifest for %q: %v", step.Resource.Name, err)
+			continue
+		}
+		for _, wh := range csv.Spec.WebhookDefinitions {
+			if wh.Type != v1alpha1.ConversionWebhook {
+				continue
+			}
+			for _, crdName := range wh.ConversionCRDs {
+				cache[step.Resource.Name+"/"+crdName] = true
+			}
+		}
+	}
+	return cache
 }
 
 type notSupportedStepperErr struct {
@@ -199,7 +232,7 @@ Validation Error: %s
 									break
 								}
 							}
-							if conversionMissing && currentVerInNewSpec && csvDeclaresConversionWebhookForCRD(b.plan, step.Resolving, step.Resource.Name) {
+							if conversionMissing && currentVerInNewSpec && b.csvConversionCache[step.Resolving+"/"+step.Resource.Name] {
 								for idx := range crd.Spec.Versions {
 									crd.Spec.Versions[idx].Storage = crd.Spec.Versions[idx].Name == currentVer
 								}
