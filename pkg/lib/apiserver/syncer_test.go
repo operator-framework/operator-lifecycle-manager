@@ -58,7 +58,7 @@ func TestSyncer_SyncAPIServer_IntermediateProfile(t *testing.T) {
 	}
 
 	// Test that GetSecurityProfileConfig returns expected values for Intermediate
-	minVersion, cipherSuites := apiserver.GetSecurityProfileConfig(server.Spec.TLSSecurityProfile)
+	minVersion, cipherSuites, _ := apiserver.GetSecurityProfileConfig(server.Spec.TLSSecurityProfile)
 
 	assert.Equal(t, uint16(tls.VersionTLS12), minVersion, "Intermediate should use TLS 1.2")
 	assert.NotEmpty(t, cipherSuites, "Should have cipher suites")
@@ -79,7 +79,7 @@ func TestSyncer_SyncAPIServer_ModernProfile(t *testing.T) {
 	}
 
 	// Test that GetSecurityProfileConfig returns expected values for Modern
-	minVersion, cipherSuites := apiserver.GetSecurityProfileConfig(server.Spec.TLSSecurityProfile)
+	minVersion, cipherSuites, _ := apiserver.GetSecurityProfileConfig(server.Spec.TLSSecurityProfile)
 
 	assert.Equal(t, uint16(tls.VersionTLS13), minVersion, "Modern should use TLS 1.3")
 	assert.NotEmpty(t, cipherSuites, "Should have cipher suites")
@@ -108,7 +108,7 @@ func TestSyncer_SyncAPIServer_CustomProfile(t *testing.T) {
 	}
 
 	// Test that GetSecurityProfileConfig returns expected values for Custom
-	minVersion, cipherSuites := apiserver.GetSecurityProfileConfig(server.Spec.TLSSecurityProfile)
+	minVersion, cipherSuites, _ := apiserver.GetSecurityProfileConfig(server.Spec.TLSSecurityProfile)
 
 	assert.Equal(t, uint16(tls.VersionTLS13), minVersion, "Custom should respect MinTLSVersion")
 	assert.NotEmpty(t, cipherSuites, "Should have cipher suites")

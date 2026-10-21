@@ -56,7 +56,7 @@ func TestApplyClusterTLSProfileWithClients_NonOpenShift(t *testing.T) {
 }
 
 // TestApplyClusterTLSProfileWithClients_IntermediateProfile verifies that the
-// Intermediate TLS profile populates MinTLSVersion and CipherSuites.
+// Intermediate TLS profile populates MinTLSVersion, CipherSuites, and CurvePreferences.
 func TestApplyClusterTLSProfileWithClients_IntermediateProfile(t *testing.T) {
 	apiServer := clusterAPIServer(&apiconfigv1.TLSSecurityProfile{
 		Type: apiconfigv1.TLSProfileIntermediateType,

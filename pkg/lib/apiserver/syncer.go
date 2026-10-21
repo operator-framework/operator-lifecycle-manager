@@ -131,7 +131,7 @@ func newTLSConfigHolder() *tlsConfigHolder {
 }
 
 // update atomically updates the stored TLS configuration.
-func (h *tlsConfigHolder) update(minVersion uint16, cipherSuites []uint16) {
+func (h *tlsConfigHolder) update(minVersion uint16, cipherSuites []uint16, curvePreferences []tls.CurveID) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -139,6 +139,7 @@ func (h *tlsConfigHolder) update(minVersion uint16, cipherSuites []uint16) {
 	// Make a defensive copy of the slice
 	h.config.CipherSuites = make([]uint16, len(cipherSuites))
 	copy(h.config.CipherSuites, cipherSuites)
+	h.config.CurvePreferences = append([]tls.CurveID(nil), curvePreferences...)
 	h.config.PreferServerCipherSuites = true
 }
 
@@ -152,6 +153,7 @@ func (h *tlsConfigHolder) copyTo(config *tls.Config) {
 	config.MinVersion = h.config.MinVersion
 	config.CipherSuites = make([]uint16, len(h.config.CipherSuites))
 	copy(config.CipherSuites, h.config.CipherSuites)
+	config.CurvePreferences = append([]tls.CurveID(nil), h.config.CurvePreferences...)
 	config.PreferServerCipherSuites = h.config.PreferServerCipherSuites
 }
 
@@ -177,21 +179,21 @@ func (w *Syncer) SyncAPIServer(object interface{}) error {
 	}
 
 	// Convert the TLS security profile to get new settings
-	minVersion, cipherSuites := GetSecurityProfileConfig(apiserver.Spec.TLSSecurityProfile)
+	minVersion, cipherSuites, curvePreferences := GetSecurityProfileConfig(apiserver.Spec.TLSSecurityProfile)
 
 	// Check if configuration changed (before updating)
-	changed := w.hasConfigChanged(minVersion, cipherSuites)
+	changed := w.hasConfigChanged(minVersion, cipherSuites, curvePreferences)
 
 	// Update the stored configuration atomically
-	w.currentConfig.update(minVersion, cipherSuites)
+	w.currentConfig.update(minVersion, cipherSuites, curvePreferences)
 
 	// Log if configuration changed
 	if changed {
 		profileName := getProfileName(apiserver.Spec.TLSSecurityProfile)
-		w.logger.Infof("APIServer TLS configuration changed: profile=%s, minVersion=%s, cipherCount=%d",
+		w.logger.Infof("APIServer TLS configuration changed: profile=%s, minVersion=%s, cipherCount=%d, curvePreferences=%v",
 			profileName,
 			tlsVersionToString(minVersion),
-			len(cipherSuites))
+			len(cipherSuites), curvePreferences)
 	}
 
 	return nil
@@ -206,14 +208,15 @@ func (w *Syncer) HandleAPIServerDelete(object interface{}) {
 	}
 
 	// Reset to secure defaults (Intermediate profile)
-	w.currentConfig.update(GetSecurityProfileConfig(nil))
+	minVersion, cipherSuites, curvePreferences := GetSecurityProfileConfig(nil)
+	w.currentConfig.update(minVersion, cipherSuites, curvePreferences)
 
 	w.logger.Info("APIServer TLS configuration deleted, reverted to secure defaults")
 	return
 }
 
 // hasConfigChanged checks if the new TLS settings differ from the current cached settings.
-func (w *Syncer) hasConfigChanged(minVersion uint16, cipherSuites []uint16) bool {
+func (w *Syncer) hasConfigChanged(minVersion uint16, cipherSuites []uint16, curvePreferences []tls.CurveID) bool {
 	w.currentConfig.mu.RLock()
 	defer w.currentConfig.mu.RUnlock()
 
@@ -225,6 +228,14 @@ func (w *Syncer) hasConfigChanged(minVersion uint16, cipherSuites []uint16) bool
 	}
 	for i := range cipherSuites {
 		if w.currentConfig.config.CipherSuites[i] != cipherSuites[i] {
+			return true
+		}
+	}
+	if len(w.currentConfig.config.CurvePreferences) != len(curvePreferences) {
+		return true
+	}
+	for i := range curvePreferences {
+		if w.currentConfig.config.CurvePreferences[i] != curvePreferences[i] {
 			return true
 		}
 	}

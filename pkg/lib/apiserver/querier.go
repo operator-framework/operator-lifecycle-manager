@@ -14,7 +14,8 @@ func NoopQuerier() Querier {
 // Querier is an interface that wraps the QueryTLSConfig method.
 //
 // QueryTLSConfig updates the provided TLS configuration with cluster-wide
-// TLS security profile settings (MinVersion, CipherSuites, PreferServerCipherSuites).
+// TLS security profile settings (MinVersion, CipherSuites, CurvePreferences,
+// PreferServerCipherSuites).
 type Querier interface {
 	QueryTLSConfig(config *tls.Config) error
 }
