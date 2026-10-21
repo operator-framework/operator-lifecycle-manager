@@ -159,6 +159,41 @@ func stepFor(crdName, csvName string) operatorsv1alpha1.Step {
 	}
 }
 
+// TestNewCRDV1Step_StripsBundleSuppliedPendingAnnotation verifies that when a bundle
+// CRD arrives with PendingStorageVersionAnnotation already set in its manifest, the
+// annotation is removed before the CRD is written to the cluster. Only the deference
+// block may set this annotation; a bundle-supplied value must never reach the promotion
+// block in createOrUpdateConversionWebhook.
+func TestNewCRDV1Step_StripsBundleSuppliedPendingAnnotation(t *testing.T) {
+	const crdName = "tests.example.com"
+	const csvName = "operator.v1.0.0"
+
+	currentCRD := buildCRD(crdName, nil, storedVersion("v2", true))
+	currentCRD.Status.StoredVersions = []string{"v2"}
+
+	// New bundle carries the same storage version (no promotion) but has the
+	// reserved annotation pre-set in its manifest — simulating a malicious or
+	// accidentally-annotated bundle.
+	newCRD := buildCRD(crdName,
+		map[string]string{install.PendingStorageVersionAnnotation: "v2"},
+		storedVersion("v2", true),
+	)
+
+	b, crdFake := buildBuilder(t, currentCRD, newCRD, csvName, csvManifestWithConversionWebhook(t, csvName, crdName))
+	step := stepFor(crdName, csvName)
+
+	s, err := b.create(step)
+	require.NoError(t, err)
+	_, err = s.Status()
+	require.NoError(t, err)
+
+	updated, err := crdFake.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	assert.NotContains(t, updated.Annotations, install.PendingStorageVersionAnnotation,
+		"bundle-supplied PendingStorageVersionAnnotation must be stripped before writing to the cluster")
+}
+
 // ── storageVersionInSpec ──────────────────────────────────────────────────────
 
 func TestStorageVersionInSpec_ReturnsStorageVersion(t *testing.T) {

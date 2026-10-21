@@ -166,6 +166,12 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 				return v1alpha1.StepStatusUnknown, err
 			}
 
+			// Strip the reserved hand-off annotation before any further processing.
+			// UnmarshalV1 preserves all bundle annotations; a bundle that ships this
+			// annotation would otherwise reach createOrUpdateConversionWebhook and
+			// trigger an unintended storage-version promotion.
+			delete(crd.Annotations, install.PendingStorageVersionAnnotation)
+
 			setInstalledAlongsideAnnotation(b.annotator, crd, b.plan.GetNamespace(), step.Resolving, b.csvLister, crd)
 			if crd.Labels == nil {
 				crd.Labels = map[string]string{}
