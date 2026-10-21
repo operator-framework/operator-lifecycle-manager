@@ -279,7 +279,13 @@ func (i *StrategyDeploymentInstaller) createOrUpdateConversionWebhook(caPEM []by
 					delete(crd.Annotations, PendingStorageVersionAnnotation)
 					log.Infof("atomically promoted storage version %q on CRD %s with conversion webhook", pending, conversionCRD)
 				} else {
-					log.Warnf("pending storage version %q not found in CRD %s spec; skipping promotion (annotation retained for investigation)", pending, conversionCRD)
+					// Log once so the inconsistency is visible, then clear the annotation.
+					// Retaining it would cause this warning to fire on every future
+					// createOrUpdateConversionWebhook call with no way to recover except
+					// manual intervention. crd.Spec.Versions is left untouched so webhook
+					// wiring still succeeds with the existing storage markers.
+					log.Warnf("pending storage version %q not found in CRD %s spec; skipping promotion and clearing stale annotation", pending, conversionCRD)
+					delete(crd.Annotations, PendingStorageVersionAnnotation)
 				}
 			}
 

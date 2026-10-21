@@ -187,7 +187,8 @@ func TestConversionWebhook_StaleAnnotationVersionNotInSpec(t *testing.T) {
 			assert.False(t, v.Storage)
 		}
 	}
-	assert.Contains(t, updated.Annotations, PendingStorageVersionAnnotation, "stale annotation should be retained for investigation")
+	assert.NotContains(t, updated.Annotations, PendingStorageVersionAnnotation,
+		"stale annotation should be cleared after warning so future reconciles do not loop indefinitely")
 	require.NotNil(t, updated.Spec.Conversion)
 	assert.Equal(t, apiextensionsv1.WebhookConverter, updated.Spec.Conversion.Strategy)
 }
