@@ -12,16 +12,45 @@ import (
 	configv1 "github.com/openshift/client-go/config/listers/config/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
+	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
 )
 
 // ImageInformer provides access to a shared informer and lister for
-// Images.
+// Images. Prefer using the type-safe variant (see [TypedImageInformer]).
 type ImageInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() configv1.ImageLister
 }
+
+// TypedImageInformer provides access to a shared informer and lister for
+// Images, including the type-safe TypedInformer variant.
+// It is a superset of ImageInformer.
+type TypedImageInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() ImageIndexInformer
+	Lister() configv1.ImageLister
+}
+
+// ImageIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type ImageIndexInformer cache.TypedSharedIndexInformer[*apiconfigv1.Image]
+
+// ImageHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for Image.
+type ImageHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*apiconfigv1.Image]
+
+// ImageDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for Image.
+type ImageDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*apiconfigv1.Image]
+
+// ImageFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for Image.
+type ImageFilteringHandler = cache.TypedFilteringResourceEventHandler[*apiconfigv1.Image]
+
+// ImageIndexers is a specialization of [cache.TypedIndexers] for Image.
+type ImageIndexers = cache.TypedIndexers[*apiconfigv1.Image]
+
+// DeletedImage is a specialization of [cache.DeletedObject] for Image.
+type DeletedImage = cache.DeletedObject[*apiconfigv1.Image]
 
 type imageInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -31,55 +60,132 @@ type imageInformer struct {
 // NewImageInformer constructs a new informer for Image type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedImageInformer]).
 func NewImageInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredImageInformer(client, resyncPeriod, indexers, nil)
+	return NewImageInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedImageInformer constructs a new informer for Image type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedImageInformer(client versioned.Interface, resyncPeriod time.Duration, indexers ImageIndexers) ImageIndexInformer {
+	return NewTypedImageInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredImageInformer constructs a new informer for Image type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredImageInformer]).
 func NewFilteredImageInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return cache.NewSharedIndexInformer(
-		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+	return NewTypedImageInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredImageInformer constructs a new informer for Image type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredImageInformer(client versioned.Interface, resyncPeriod time.Duration, indexers ImageIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) ImageIndexInformer {
+	return NewTypedImageInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
+}
+
+// NewImageInformerWithOptions constructs a new informer for Image type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedImageInformerWithOptions]).
+func NewImageInformerWithOptions(client versioned.Interface, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedImageInformerWithOptions(client, options)
+}
+
+// NewTypedImageInformerWithOptions constructs a new informer for Image type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedImageInformerWithOptions(client versioned.Interface, options internalinterfaces.InformerOptions) ImageIndexInformer {
+	gvr := schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "images"}
+	identifier := options.InformerName.WithResource(gvr)
+	tweakListOptions := options.TweakListOptions
+	return cache.NewTypedSharedIndexInformer[*apiconfigv1.Image](cache.NewSharedIndexInformerWithOptions(
+		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
+			ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.ConfigV1().Images().List(context.Background(), options)
+				return client.ConfigV1().Images().List(context.Background(), opts)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.ConfigV1().Images().Watch(context.Background(), options)
+				return client.ConfigV1().Images().Watch(context.Background(), opts)
 			},
-			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			ListWithContextFunc: func(ctx context.Context, opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.ConfigV1().Images().List(ctx, options)
+				return client.ConfigV1().Images().List(ctx, opts)
 			},
-			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			WatchFuncWithContext: func(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.ConfigV1().Images().Watch(ctx, options)
+				return client.ConfigV1().Images().Watch(ctx, opts)
 			},
-		},
+		}, client),
 		&apiconfigv1.Image{},
-		resyncPeriod,
-		indexers,
-	)
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: options.ResyncPeriod,
+			Indexers:     options.Indexers,
+			Identifier:   identifier,
+		},
+	))
 }
 
 func (f *imageInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredImageInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+	return NewTypedImageInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *imageInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apiconfigv1.Image{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *imageInformer) TypedInformer() ImageIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apiconfigv1.Image](f.factory.InformerFor(&apiconfigv1.Image{}, f.defaultInformer))
 }
 
 func (f *imageInformer) Lister() configv1.ImageLister {
 	return configv1.NewImageLister(f.Informer().GetIndexer())
+}
+
+// ToTypedImageInformer converts an untyped informer into a TypedImageInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *Image. If that is not the case, calling type-safe methods of the returned
+// TypedImageInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedImageInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedImageInformer(informer ImageInformer) TypedImageInformer {
+	if informer, ok := informer.(TypedImageInformer); ok {
+		return informer
+	}
+	return &imageTypedInformerAdapter{informer}
+}
+
+type imageTypedInformerAdapter struct {
+	ImageInformer
+}
+
+func (a *imageTypedInformerAdapter) TypedInformer() ImageIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apiconfigv1.Image](a.Informer())
+}
+
+// ToImageIndexInformer converts an untyped informer into a ImageIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *Image. If that is not the case, calling type-safe methods of the returned
+// ImageIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a ImageIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToImageIndexInformer(informer cache.SharedIndexInformer) ImageIndexInformer {
+	if informer, ok := informer.(ImageIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*apiconfigv1.Image](informer)
 }

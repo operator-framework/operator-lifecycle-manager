@@ -23,13 +23,13 @@ import (
 // Interface provides access to all the informers in this group version.
 type Interface interface {
 	// OLMConfigs returns a OLMConfigInformer.
-	OLMConfigs() OLMConfigInformer
+	OLMConfigs() TypedOLMConfigInformer
 	// Operators returns a OperatorInformer.
-	Operators() OperatorInformer
+	Operators() TypedOperatorInformer
 	// OperatorConditions returns a OperatorConditionInformer.
-	OperatorConditions() OperatorConditionInformer
+	OperatorConditions() TypedOperatorConditionInformer
 	// OperatorGroups returns a OperatorGroupInformer.
-	OperatorGroups() OperatorGroupInformer
+	OperatorGroups() TypedOperatorGroupInformer
 }
 
 type version struct {
@@ -43,22 +43,22 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// OLMConfigs returns a OLMConfigInformer.
-func (v *version) OLMConfigs() OLMConfigInformer {
+// OLMConfigs returns a TypedOLMConfigInformer.
+func (v *version) OLMConfigs() TypedOLMConfigInformer {
 	return &oLMConfigInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
-// Operators returns a OperatorInformer.
-func (v *version) Operators() OperatorInformer {
+// Operators returns a TypedOperatorInformer.
+func (v *version) Operators() TypedOperatorInformer {
 	return &operatorInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
-// OperatorConditions returns a OperatorConditionInformer.
-func (v *version) OperatorConditions() OperatorConditionInformer {
+// OperatorConditions returns a TypedOperatorConditionInformer.
+func (v *version) OperatorConditions() TypedOperatorConditionInformer {
 	return &operatorConditionInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
-// OperatorGroups returns a OperatorGroupInformer.
-func (v *version) OperatorGroups() OperatorGroupInformer {
+// OperatorGroups returns a TypedOperatorGroupInformer.
+func (v *version) OperatorGroups() TypedOperatorGroupInformer {
 	return &operatorGroupInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

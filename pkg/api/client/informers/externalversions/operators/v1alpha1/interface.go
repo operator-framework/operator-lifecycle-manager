@@ -23,13 +23,13 @@ import (
 // Interface provides access to all the informers in this group version.
 type Interface interface {
 	// CatalogSources returns a CatalogSourceInformer.
-	CatalogSources() CatalogSourceInformer
+	CatalogSources() TypedCatalogSourceInformer
 	// ClusterServiceVersions returns a ClusterServiceVersionInformer.
-	ClusterServiceVersions() ClusterServiceVersionInformer
+	ClusterServiceVersions() TypedClusterServiceVersionInformer
 	// InstallPlans returns a InstallPlanInformer.
-	InstallPlans() InstallPlanInformer
+	InstallPlans() TypedInstallPlanInformer
 	// Subscriptions returns a SubscriptionInformer.
-	Subscriptions() SubscriptionInformer
+	Subscriptions() TypedSubscriptionInformer
 }
 
 type version struct {
@@ -43,22 +43,22 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// CatalogSources returns a CatalogSourceInformer.
-func (v *version) CatalogSources() CatalogSourceInformer {
+// CatalogSources returns a TypedCatalogSourceInformer.
+func (v *version) CatalogSources() TypedCatalogSourceInformer {
 	return &catalogSourceInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
-// ClusterServiceVersions returns a ClusterServiceVersionInformer.
-func (v *version) ClusterServiceVersions() ClusterServiceVersionInformer {
+// ClusterServiceVersions returns a TypedClusterServiceVersionInformer.
+func (v *version) ClusterServiceVersions() TypedClusterServiceVersionInformer {
 	return &clusterServiceVersionInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
-// InstallPlans returns a InstallPlanInformer.
-func (v *version) InstallPlans() InstallPlanInformer {
+// InstallPlans returns a TypedInstallPlanInformer.
+func (v *version) InstallPlans() TypedInstallPlanInformer {
 	return &installPlanInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
-// Subscriptions returns a SubscriptionInformer.
-func (v *version) Subscriptions() SubscriptionInformer {
+// Subscriptions returns a TypedSubscriptionInformer.
+func (v *version) Subscriptions() TypedSubscriptionInformer {
 	return &subscriptionInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

@@ -12,16 +12,45 @@ import (
 	configv1 "github.com/openshift/client-go/config/listers/config/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
+	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
 )
 
 // OperatorHubInformer provides access to a shared informer and lister for
-// OperatorHubs.
+// OperatorHubs. Prefer using the type-safe variant (see [TypedOperatorHubInformer]).
 type OperatorHubInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() configv1.OperatorHubLister
 }
+
+// TypedOperatorHubInformer provides access to a shared informer and lister for
+// OperatorHubs, including the type-safe TypedInformer variant.
+// It is a superset of OperatorHubInformer.
+type TypedOperatorHubInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() OperatorHubIndexInformer
+	Lister() configv1.OperatorHubLister
+}
+
+// OperatorHubIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type OperatorHubIndexInformer cache.TypedSharedIndexInformer[*apiconfigv1.OperatorHub]
+
+// OperatorHubHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for OperatorHub.
+type OperatorHubHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*apiconfigv1.OperatorHub]
+
+// OperatorHubDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for OperatorHub.
+type OperatorHubDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*apiconfigv1.OperatorHub]
+
+// OperatorHubFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for OperatorHub.
+type OperatorHubFilteringHandler = cache.TypedFilteringResourceEventHandler[*apiconfigv1.OperatorHub]
+
+// OperatorHubIndexers is a specialization of [cache.TypedIndexers] for OperatorHub.
+type OperatorHubIndexers = cache.TypedIndexers[*apiconfigv1.OperatorHub]
+
+// DeletedOperatorHub is a specialization of [cache.DeletedObject] for OperatorHub.
+type DeletedOperatorHub = cache.DeletedObject[*apiconfigv1.OperatorHub]
 
 type operatorHubInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -31,55 +60,132 @@ type operatorHubInformer struct {
 // NewOperatorHubInformer constructs a new informer for OperatorHub type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedOperatorHubInformer]).
 func NewOperatorHubInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredOperatorHubInformer(client, resyncPeriod, indexers, nil)
+	return NewOperatorHubInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedOperatorHubInformer constructs a new informer for OperatorHub type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedOperatorHubInformer(client versioned.Interface, resyncPeriod time.Duration, indexers OperatorHubIndexers) OperatorHubIndexInformer {
+	return NewTypedOperatorHubInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredOperatorHubInformer constructs a new informer for OperatorHub type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredOperatorHubInformer]).
 func NewFilteredOperatorHubInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return cache.NewSharedIndexInformer(
-		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+	return NewTypedOperatorHubInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredOperatorHubInformer constructs a new informer for OperatorHub type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredOperatorHubInformer(client versioned.Interface, resyncPeriod time.Duration, indexers OperatorHubIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) OperatorHubIndexInformer {
+	return NewTypedOperatorHubInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
+}
+
+// NewOperatorHubInformerWithOptions constructs a new informer for OperatorHub type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedOperatorHubInformerWithOptions]).
+func NewOperatorHubInformerWithOptions(client versioned.Interface, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedOperatorHubInformerWithOptions(client, options)
+}
+
+// NewTypedOperatorHubInformerWithOptions constructs a new informer for OperatorHub type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedOperatorHubInformerWithOptions(client versioned.Interface, options internalinterfaces.InformerOptions) OperatorHubIndexInformer {
+	gvr := schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "operatorhubs"}
+	identifier := options.InformerName.WithResource(gvr)
+	tweakListOptions := options.TweakListOptions
+	return cache.NewTypedSharedIndexInformer[*apiconfigv1.OperatorHub](cache.NewSharedIndexInformerWithOptions(
+		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
+			ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.ConfigV1().OperatorHubs().List(context.Background(), options)
+				return client.ConfigV1().OperatorHubs().List(context.Background(), opts)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.ConfigV1().OperatorHubs().Watch(context.Background(), options)
+				return client.ConfigV1().OperatorHubs().Watch(context.Background(), opts)
 			},
-			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			ListWithContextFunc: func(ctx context.Context, opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.ConfigV1().OperatorHubs().List(ctx, options)
+				return client.ConfigV1().OperatorHubs().List(ctx, opts)
 			},
-			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			WatchFuncWithContext: func(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.ConfigV1().OperatorHubs().Watch(ctx, options)
+				return client.ConfigV1().OperatorHubs().Watch(ctx, opts)
 			},
-		},
+		}, client),
 		&apiconfigv1.OperatorHub{},
-		resyncPeriod,
-		indexers,
-	)
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: options.ResyncPeriod,
+			Indexers:     options.Indexers,
+			Identifier:   identifier,
+		},
+	))
 }
 
 func (f *operatorHubInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredOperatorHubInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+	return NewTypedOperatorHubInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *operatorHubInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apiconfigv1.OperatorHub{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *operatorHubInformer) TypedInformer() OperatorHubIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apiconfigv1.OperatorHub](f.factory.InformerFor(&apiconfigv1.OperatorHub{}, f.defaultInformer))
 }
 
 func (f *operatorHubInformer) Lister() configv1.OperatorHubLister {
 	return configv1.NewOperatorHubLister(f.Informer().GetIndexer())
+}
+
+// ToTypedOperatorHubInformer converts an untyped informer into a TypedOperatorHubInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *OperatorHub. If that is not the case, calling type-safe methods of the returned
+// TypedOperatorHubInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedOperatorHubInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedOperatorHubInformer(informer OperatorHubInformer) TypedOperatorHubInformer {
+	if informer, ok := informer.(TypedOperatorHubInformer); ok {
+		return informer
+	}
+	return &operatorHubTypedInformerAdapter{informer}
+}
+
+type operatorHubTypedInformerAdapter struct {
+	OperatorHubInformer
+}
+
+func (a *operatorHubTypedInformerAdapter) TypedInformer() OperatorHubIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apiconfigv1.OperatorHub](a.Informer())
+}
+
+// ToOperatorHubIndexInformer converts an untyped informer into a OperatorHubIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *OperatorHub. If that is not the case, calling type-safe methods of the returned
+// OperatorHubIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a OperatorHubIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToOperatorHubIndexInformer(informer cache.SharedIndexInformer) OperatorHubIndexInformer {
+	if informer, ok := informer.(OperatorHubIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*apiconfigv1.OperatorHub](informer)
 }

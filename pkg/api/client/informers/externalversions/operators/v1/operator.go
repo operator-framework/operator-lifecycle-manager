@@ -32,11 +32,39 @@ import (
 )
 
 // OperatorInformer provides access to a shared informer and lister for
-// Operators.
+// Operators. Prefer using the type-safe variant (see [TypedOperatorInformer]).
 type OperatorInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() operatorsv1.OperatorLister
 }
+
+// TypedOperatorInformer provides access to a shared informer and lister for
+// Operators, including the type-safe TypedInformer variant.
+// It is a superset of OperatorInformer.
+type TypedOperatorInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() OperatorIndexInformer
+	Lister() operatorsv1.OperatorLister
+}
+
+// OperatorIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type OperatorIndexInformer cache.TypedSharedIndexInformer[*pkgoperatorsv1.Operator]
+
+// OperatorHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for Operator.
+type OperatorHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*pkgoperatorsv1.Operator]
+
+// OperatorDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for Operator.
+type OperatorDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*pkgoperatorsv1.Operator]
+
+// OperatorFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for Operator.
+type OperatorFilteringHandler = cache.TypedFilteringResourceEventHandler[*pkgoperatorsv1.Operator]
+
+// OperatorIndexers is a specialization of [cache.TypedIndexers] for Operator.
+type OperatorIndexers = cache.TypedIndexers[*pkgoperatorsv1.Operator]
+
+// DeletedOperator is a specialization of [cache.DeletedObject] for Operator.
+type DeletedOperator = cache.DeletedObject[*pkgoperatorsv1.Operator]
 
 type operatorInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -46,25 +74,49 @@ type operatorInformer struct {
 // NewOperatorInformer constructs a new informer for Operator type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedOperatorInformer]).
 func NewOperatorInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return NewOperatorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedOperatorInformer constructs a new informer for Operator type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedOperatorInformer(client versioned.Interface, resyncPeriod time.Duration, indexers OperatorIndexers) OperatorIndexInformer {
+	return NewTypedOperatorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredOperatorInformer constructs a new informer for Operator type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredOperatorInformer]).
 func NewFilteredOperatorInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return NewOperatorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+	return NewTypedOperatorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredOperatorInformer constructs a new informer for Operator type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredOperatorInformer(client versioned.Interface, resyncPeriod time.Duration, indexers OperatorIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) OperatorIndexInformer {
+	return NewTypedOperatorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
 }
 
 // NewOperatorInformerWithOptions constructs a new informer for Operator type with additional options.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedOperatorInformerWithOptions]).
 func NewOperatorInformerWithOptions(client versioned.Interface, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedOperatorInformerWithOptions(client, options)
+}
+
+// NewTypedOperatorInformerWithOptions constructs a new informer for Operator type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedOperatorInformerWithOptions(client versioned.Interface, options internalinterfaces.InformerOptions) OperatorIndexInformer {
 	gvr := schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1", Resource: "operators"}
 	identifier := options.InformerName.WithResource(gvr)
 	tweakListOptions := options.TweakListOptions
-	return cache.NewSharedIndexInformerWithOptions(
+	return cache.NewTypedSharedIndexInformer[*pkgoperatorsv1.Operator](cache.NewSharedIndexInformerWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
@@ -97,17 +149,57 @@ func NewOperatorInformerWithOptions(client versioned.Interface, options internal
 			Indexers:     options.Indexers,
 			Identifier:   identifier,
 		},
-	)
+	))
 }
 
 func (f *operatorInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewOperatorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
+	return NewTypedOperatorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *operatorInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&pkgoperatorsv1.Operator{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *operatorInformer) TypedInformer() OperatorIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*pkgoperatorsv1.Operator](f.factory.InformerFor(&pkgoperatorsv1.Operator{}, f.defaultInformer))
 }
 
 func (f *operatorInformer) Lister() operatorsv1.OperatorLister {
 	return operatorsv1.NewOperatorLister(f.Informer().GetIndexer())
+}
+
+// ToTypedOperatorInformer converts an untyped informer into a TypedOperatorInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *Operator. If that is not the case, calling type-safe methods of the returned
+// TypedOperatorInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedOperatorInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedOperatorInformer(informer OperatorInformer) TypedOperatorInformer {
+	if informer, ok := informer.(TypedOperatorInformer); ok {
+		return informer
+	}
+	return &operatorTypedInformerAdapter{informer}
+}
+
+type operatorTypedInformerAdapter struct {
+	OperatorInformer
+}
+
+func (a *operatorTypedInformerAdapter) TypedInformer() OperatorIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*pkgoperatorsv1.Operator](a.Informer())
+}
+
+// ToOperatorIndexInformer converts an untyped informer into a OperatorIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *Operator. If that is not the case, calling type-safe methods of the returned
+// OperatorIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a OperatorIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToOperatorIndexInformer(informer cache.SharedIndexInformer) OperatorIndexInformer {
+	if informer, ok := informer.(OperatorIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*pkgoperatorsv1.Operator](informer)
 }

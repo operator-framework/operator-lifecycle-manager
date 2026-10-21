@@ -32,11 +32,39 @@ import (
 )
 
 // OperatorConditionInformer provides access to a shared informer and lister for
-// OperatorConditions.
+// OperatorConditions. Prefer using the type-safe variant (see [TypedOperatorConditionInformer]).
 type OperatorConditionInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() operatorsv2.OperatorConditionLister
 }
+
+// TypedOperatorConditionInformer provides access to a shared informer and lister for
+// OperatorConditions, including the type-safe TypedInformer variant.
+// It is a superset of OperatorConditionInformer.
+type TypedOperatorConditionInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() OperatorConditionIndexInformer
+	Lister() operatorsv2.OperatorConditionLister
+}
+
+// OperatorConditionIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type OperatorConditionIndexInformer cache.TypedSharedIndexInformer[*pkgoperatorsv2.OperatorCondition]
+
+// OperatorConditionHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for OperatorCondition.
+type OperatorConditionHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*pkgoperatorsv2.OperatorCondition]
+
+// OperatorConditionDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for OperatorCondition.
+type OperatorConditionDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*pkgoperatorsv2.OperatorCondition]
+
+// OperatorConditionFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for OperatorCondition.
+type OperatorConditionFilteringHandler = cache.TypedFilteringResourceEventHandler[*pkgoperatorsv2.OperatorCondition]
+
+// OperatorConditionIndexers is a specialization of [cache.TypedIndexers] for OperatorCondition.
+type OperatorConditionIndexers = cache.TypedIndexers[*pkgoperatorsv2.OperatorCondition]
+
+// DeletedOperatorCondition is a specialization of [cache.DeletedObject] for OperatorCondition.
+type DeletedOperatorCondition = cache.DeletedObject[*pkgoperatorsv2.OperatorCondition]
 
 type operatorConditionInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -47,25 +75,49 @@ type operatorConditionInformer struct {
 // NewOperatorConditionInformer constructs a new informer for OperatorCondition type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedOperatorConditionInformer]).
 func NewOperatorConditionInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return NewOperatorConditionInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedOperatorConditionInformer constructs a new informer for OperatorCondition type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedOperatorConditionInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers OperatorConditionIndexers) OperatorConditionIndexInformer {
+	return NewTypedOperatorConditionInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredOperatorConditionInformer constructs a new informer for OperatorCondition type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredOperatorConditionInformer]).
 func NewFilteredOperatorConditionInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return NewOperatorConditionInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+	return NewTypedOperatorConditionInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredOperatorConditionInformer constructs a new informer for OperatorCondition type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredOperatorConditionInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers OperatorConditionIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) OperatorConditionIndexInformer {
+	return NewTypedOperatorConditionInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
 }
 
 // NewOperatorConditionInformerWithOptions constructs a new informer for OperatorCondition type with additional options.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedOperatorConditionInformerWithOptions]).
 func NewOperatorConditionInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedOperatorConditionInformerWithOptions(client, namespace, options)
+}
+
+// NewTypedOperatorConditionInformerWithOptions constructs a new informer for OperatorCondition type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedOperatorConditionInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) OperatorConditionIndexInformer {
 	gvr := schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v2", Resource: "operatorconditions"}
 	identifier := options.InformerName.WithResource(gvr)
 	tweakListOptions := options.TweakListOptions
-	return cache.NewSharedIndexInformerWithOptions(
+	return cache.NewTypedSharedIndexInformer[*pkgoperatorsv2.OperatorCondition](cache.NewSharedIndexInformerWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(opts v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
@@ -98,17 +150,57 @@ func NewOperatorConditionInformerWithOptions(client versioned.Interface, namespa
 			Indexers:     options.Indexers,
 			Identifier:   identifier,
 		},
-	)
+	))
 }
 
 func (f *operatorConditionInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewOperatorConditionInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
+	return NewTypedOperatorConditionInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *operatorConditionInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&pkgoperatorsv2.OperatorCondition{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *operatorConditionInformer) TypedInformer() OperatorConditionIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*pkgoperatorsv2.OperatorCondition](f.factory.InformerFor(&pkgoperatorsv2.OperatorCondition{}, f.defaultInformer))
 }
 
 func (f *operatorConditionInformer) Lister() operatorsv2.OperatorConditionLister {
 	return operatorsv2.NewOperatorConditionLister(f.Informer().GetIndexer())
+}
+
+// ToTypedOperatorConditionInformer converts an untyped informer into a TypedOperatorConditionInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *OperatorCondition. If that is not the case, calling type-safe methods of the returned
+// TypedOperatorConditionInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedOperatorConditionInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedOperatorConditionInformer(informer OperatorConditionInformer) TypedOperatorConditionInformer {
+	if informer, ok := informer.(TypedOperatorConditionInformer); ok {
+		return informer
+	}
+	return &operatorConditionTypedInformerAdapter{informer}
+}
+
+type operatorConditionTypedInformerAdapter struct {
+	OperatorConditionInformer
+}
+
+func (a *operatorConditionTypedInformerAdapter) TypedInformer() OperatorConditionIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*pkgoperatorsv2.OperatorCondition](a.Informer())
+}
+
+// ToOperatorConditionIndexInformer converts an untyped informer into a OperatorConditionIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *OperatorCondition. If that is not the case, calling type-safe methods of the returned
+// OperatorConditionIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a OperatorConditionIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToOperatorConditionIndexInformer(informer cache.SharedIndexInformer) OperatorConditionIndexInformer {
+	if informer, ok := informer.(OperatorConditionIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*pkgoperatorsv2.OperatorCondition](informer)
 }
