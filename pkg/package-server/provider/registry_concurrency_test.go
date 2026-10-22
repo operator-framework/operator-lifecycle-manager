@@ -130,6 +130,81 @@ func TestRefreshCacheConcurrency(t *testing.T) {
 	}
 }
 
+func TestRefreshCacheStreamErrorDrainsWorkers(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	p, err := NewFakeRegistryProvider(ctx, nil, nil, "global")
+	require.NoError(t, err)
+	t.Cleanup(p.refreshQueue.ShutDown)
+	p.packageRefreshSlots = semaphore.NewWeighted(1)
+	existing := &operators.PackageManifest{
+		ObjectMeta: metav1.ObjectMeta{Name: "existing", Namespace: "global"},
+		Status:     operators.PackageManifestStatus{CatalogSource: "test", CatalogSourceNamespace: "global"},
+	}
+	require.NoError(t, p.cache.Add(existing))
+
+	client := &fakes.FakeRegistryClient{}
+	bundles := &fakes.FakeRegistry_ListBundlesClient{}
+	bundles.RecvReturns(nil, io.EOF)
+	client.ListBundlesReturns(bundles, nil)
+	stream := &fakes.FakeRegistry_ListPackagesClient{}
+	streamErr := fmt.Errorf("package stream interrupted")
+	streamFailed := make(chan struct{})
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	stream.RecvCalls(func() (*api.PackageName, error) {
+		if stream.RecvCallCount() == 1 {
+			return &api.PackageName{Name: "new"}, nil
+		}
+		select {
+		case <-entered:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		close(streamFailed)
+		return nil, streamErr
+	})
+	client.ListPackagesReturns(stream, nil)
+	client.GetPackageCalls(func(ctx context.Context, req *api.GetPackageRequest, _ ...grpc.CallOption) (*api.Package, error) {
+		close(entered)
+		select {
+		case <-release:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		return &api.Package{Name: req.Name, DefaultChannelName: "stable", Channels: []*api.Channel{{Name: "stable"}}}, nil
+	})
+	client.GetBundleForChannelReturns(&api.Bundle{CsvJson: `{"metadata":{"name":"test.v1"}}`}, nil)
+	done := make(chan error, 1)
+	go func() {
+		done <- p.refreshCache(ctx, &registryClient{RegistryClient: client, catsrc: catalogSource("test", "global")})
+	}()
+	select {
+	case <-streamFailed:
+	case <-ctx.Done():
+		t.Fatal("package stream did not fail")
+	}
+	select {
+	case <-done:
+		t.Fatal("refresh returned before its worker finished")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case err := <-done:
+		require.Same(t, streamErr, err)
+	case <-ctx.Done():
+		t.Fatal("refresh failed to drain its worker")
+	}
+	require.Len(t, p.cache.List(), 2, "stream errors must preserve existing packages and allow started workers to finish")
+	cached, exists, err := p.cache.Get(existing)
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.Equal(t, existing, cached)
+	require.True(t, p.packageRefreshSlots.TryAcquire(1), "worker must release its slot before refresh returns")
+	p.packageRefreshSlots.Release(1)
+}
+
 type failingCache struct{ cache.Indexer }
 
 func (c failingCache) Add(obj interface{}) error {

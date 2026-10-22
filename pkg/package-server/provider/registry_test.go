@@ -42,6 +42,14 @@ const (
 	dbName  = "test.db"
 )
 
+func TestSyncCatalogSourceInvalidObject(t *testing.T) {
+	provider := &RegistryProvider{}
+	for _, obj := range []interface{}{nil, &operators.PackageManifest{}} {
+		err := provider.syncCatalogSource(obj)
+		require.ErrorContains(t, err, "catalogsource type assertion failed")
+	}
+}
+
 func TestRefreshCacheStreamSetupError(t *testing.T) {
 	for _, method := range []string{"ListBundles", "ListPackages"} {
 		t.Run(method, func(t *testing.T) {

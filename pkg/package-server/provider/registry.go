@@ -181,7 +181,6 @@ func NewRegistryProvider(ctx context.Context, crClient versioned.Interface, oper
 		queueinformer.WithQueue(p.refreshQueue),
 		queueinformer.WithIndexer(catsrcInformer.Informer().GetIndexer()),
 		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(p.syncCatalogSource).ToSyncer()),
-		queueinformer.WithDeletionHandler(p.catalogSourceDeleted),
 	)
 	if err != nil {
 		return nil, err
@@ -212,21 +211,21 @@ func NewRegistryProvider(ctx context.Context, crClient versioned.Interface, oper
 	return p, nil
 }
 
-func (p *RegistryProvider) enqueueRefresh(key registry.CatalogKey, resync bool) {
+func (p *RegistryProvider) enqueueRefresh(key registry.CatalogKey, isResync bool) {
 	if p.ctx.Err() != nil {
 		return
 	}
 	// Resyncs retain the informer cadence. Initial/reconnect/watch work gets a
 	// smaller stagger so initial package discovery never waits an entire period.
 	window := 30 * time.Second
-	if resync {
+	if isResync {
 		window = time.Duration(float64(p.refreshInterval) * p.refreshJitter)
 	}
 	if p.refreshJitter == 0 {
 		window = 0
 	}
 	delay := time.Duration(float64(window) * p.randomFloat())
-	logrus.WithFields(logrus.Fields{"source": key, "delay": delay, "resync": resync}).Info("scheduled catalog refresh")
+	logrus.WithFields(logrus.Fields{"source": key, "delay": delay, "resync": isResync}).Info("scheduled catalog refresh")
 	p.refreshQueue.AddAfter(types.NamespacedName{Namespace: key.Namespace, Name: key.Name}, delay)
 }
 
@@ -242,7 +241,7 @@ func (p *RegistryProvider) Run(ctx context.Context) {
 func (p *RegistryProvider) syncCatalogSource(obj interface{}) (syncError error) {
 	source, ok := obj.(*operatorsv1alpha1.CatalogSource)
 	if !ok {
-		logrus.Errorf("catalogsource type assertion failed: wrong type: %#v", obj)
+		return fmt.Errorf("catalogsource type assertion failed: wrong type: %#v", obj)
 	}
 
 	logger := logrus.WithFields(logrus.Fields{
@@ -341,7 +340,7 @@ func getOperatorDeprecation(in *api.Deprecation) *operators.Deprecation {
 	}
 }
 
-func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryClient) (result error) {
+func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryClient) error {
 	key, err := client.key()
 	if err != nil {
 		return err
@@ -355,127 +354,133 @@ func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryCli
 	var completed, failed atomic.Int64
 	var streamError error
 	logger.Info("catalog refresh started")
-	defer func() {
-		logger.WithFields(logrus.Fields{"duration": time.Since(started), "completedPackages": completed.Load(), "failedPackages": failed.Load(), "error": result, "streamError": streamError}).Info("catalog refresh finished")
-	}()
-
-	bundleStream, err := client.ListBundles(ctx, &api.ListBundlesRequest{})
-	if err != nil {
-		logger.WithField("err", err.Error()).Warnf("error getting bundle stream")
-		streamError = err
-		return err
-	}
-
-	bundles := map[string]map[string][]operators.ChannelEntry{}
-
-	for {
-		bundle, err := bundleStream.Recv()
-		if err == io.EOF {
-			break
-		}
+	result := func() error {
+		bundleStream, err := client.ListBundles(ctx, &api.ListBundlesRequest{})
 		if err != nil {
-			logger.WithField("err", err.Error()).Warnf("error getting bundle data")
+			logger.WithField("err", err.Error()).Warnf("error getting bundle stream")
+			streamError = err
 			return err
 		}
-		if isDeprecated(bundle) {
-			continue
-		}
-		if _, ok := bundles[bundle.PackageName]; !ok {
-			bundles[bundle.PackageName] = map[string][]operators.ChannelEntry{}
-		}
 
-		bundles[bundle.PackageName][bundle.ChannelName] = append(bundles[bundle.PackageName][bundle.ChannelName], operators.ChannelEntry{
-			Name:        bundle.CsvName,
-			Version:     bundle.Version,
-			Deprecation: getOperatorDeprecation(bundle.Deprecation),
-		})
-	}
+		bundles := map[string]map[string][]operators.ChannelEntry{}
 
-	stream, err := client.ListPackages(ctx, &api.ListPackageRequest{})
-	if err != nil {
-		logger.WithField("err", err.Error()).Warnf("error getting package stream")
-		streamError = err
-		return err
-	}
+		for {
+			bundle, err := bundleStream.Recv()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				logger.WithField("err", err.Error()).Warnf("error getting bundle data")
+				return err
+			}
+			if isDeprecated(bundle) {
+				continue
+			}
+			if _, ok := bundles[bundle.PackageName]; !ok {
+				bundles[bundle.PackageName] = map[string][]operators.ChannelEntry{}
+			}
 
-	for pkgName := range bundles {
-		for chName := range bundles[pkgName] {
-			sort.Slice(bundles[pkgName][chName], func(i, j int) bool {
-				iV, err := semver.Parse(bundles[pkgName][chName][i].Version)
-				if err != nil {
-					iV = semver.Version{}
-				}
-				jV, err := semver.Parse(bundles[pkgName][chName][j].Version)
-				if err != nil {
-					jV = semver.Version{}
-				}
-				return iV.GT(jV)
+			bundles[bundle.PackageName][bundle.ChannelName] = append(bundles[bundle.PackageName][bundle.ChannelName], operators.ChannelEntry{
+				Name:        bundle.CsvName,
+				Version:     bundle.Version,
+				Deprecation: getOperatorDeprecation(bundle.Deprecation),
 			})
 		}
-	}
 
-	var (
-		added = map[string]struct{}{}
-		mu    sync.Mutex
-		wg    sync.WaitGroup
-	)
-	defer wg.Wait()
-	for {
-		pkgName, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
+		stream, err := client.ListPackages(ctx, &api.ListPackageRequest{})
 		if err != nil {
-			logger.WithField("err", err.Error()).Warnf("error getting package name data")
+			logger.WithField("err", err.Error()).Warnf("error getting package stream")
+			streamError = err
 			return err
 		}
 
-		// Share the bound across catalogs and overlapping refreshes. Acquire before
-		// spawning so waiting packages do not each consume a goroutine.
-		if err := p.packageRefreshSlots.Acquire(ctx, 1); err != nil {
-			return err
+		for pkgName := range bundles {
+			for chName := range bundles[pkgName] {
+				sort.Slice(bundles[pkgName][chName], func(i, j int) bool {
+					iV, err := semver.Parse(bundles[pkgName][chName][i].Version)
+					if err != nil {
+						iV = semver.Version{}
+					}
+					jV, err := semver.Parse(bundles[pkgName][chName][j].Version)
+					if err != nil {
+						jV = semver.Version{}
+					}
+					return iV.GT(jV)
+				})
+			}
 		}
-		wg.Add(1)
-		go func() {
-			defer utilruntime.HandleCrash()
-			defer wg.Done()
-			defer p.packageRefreshSlots.Release(1)
-			pkg, err := client.GetPackage(ctx, &api.GetPackageRequest{Name: pkgName.GetName()})
-			if err != nil {
-				logger.WithField("err", err.Error()).Warnf("eliding package: error getting package")
-				failed.Add(1)
-				return
+
+		var (
+			added = map[string]struct{}{}
+			mu    sync.Mutex
+		)
+		err = func() error {
+			var wg sync.WaitGroup
+			// Drain every started worker before returning, including on stream errors.
+			defer wg.Wait()
+			for {
+				pkgName, err := stream.Recv()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					logger.WithField("err", err.Error()).Warnf("error getting package name data")
+					return err
+				}
+
+				// Share the bound across catalogs and overlapping refreshes. Acquire before
+				// spawning so waiting packages do not each consume a goroutine.
+				if err := p.packageRefreshSlots.Acquire(ctx, 1); err != nil {
+					return err
+				}
+				wg.Add(1)
+				go func() {
+					defer utilruntime.HandleCrash()
+					defer wg.Done()
+					defer p.packageRefreshSlots.Release(1)
+					pkg, err := client.GetPackage(ctx, &api.GetPackageRequest{Name: pkgName.GetName()})
+					if err != nil {
+						logger.WithField("err", err.Error()).Warnf("eliding package: error getting package")
+						failed.Add(1)
+						return
+					}
+
+					newPkg, err := newPackageManifest(ctx, logger, pkg, client, bundles[pkg.GetName()])
+					if err != nil {
+						logger.WithField("err", err.Error()).Warnf("eliding package: error converting to packagemanifest")
+						failed.Add(1)
+						return
+					}
+
+					if err := p.cache.Add(newPkg); err != nil {
+						logger.WithField("err", err.Error()).Warnf("eliding package: failed to add to cache")
+						failed.Add(1)
+						return
+					}
+
+					mu.Lock()
+					defer mu.Unlock()
+					added[newPkg.GetName()] = struct{}{}
+					completed.Add(1)
+				}()
 			}
 
-			newPkg, err := newPackageManifest(ctx, logger, pkg, client, bundles[pkg.GetName()])
-			if err != nil {
-				logger.WithField("err", err.Error()).Warnf("eliding package: error converting to packagemanifest")
-				failed.Add(1)
-				return
-			}
-
-			if err := p.cache.Add(newPkg); err != nil {
-				logger.WithField("err", err.Error()).Warnf("eliding package: failed to add to cache")
-				failed.Add(1)
-				return
-			}
-
-			mu.Lock()
-			defer mu.Unlock()
-			added[newPkg.GetName()] = struct{}{}
-			completed.Add(1)
+			logger.Debug("caching new packages...")
+			return nil
 		}()
-	}
+		if err != nil {
+			return err
+		}
+		logger.Debug("new packages cached")
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 
-	logger.Debug("caching new packages...")
-	wg.Wait()
-	logger.Debug("new packages cached")
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	// Garbage collect orphaned packagemanifests from the cache
-	return p.gcPackages(key, added)
+		// Garbage collect orphaned packagemanifests from the cache
+		return p.gcPackages(key, added)
+	}()
+	logger.WithFields(logrus.Fields{"duration": time.Since(started), "completedPackages": completed.Load(), "failedPackages": failed.Load(), "error": result, "streamError": streamError}).Info("catalog refresh finished")
+	return result
 }
 
 func isDeprecated(b *api.Bundle) bool {
