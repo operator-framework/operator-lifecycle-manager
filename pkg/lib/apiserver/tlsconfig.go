@@ -51,6 +51,10 @@ func GetSecurityProfileConfig(profile *apiconfigv1.TLSSecurityProfile) (uint16, 
 	}
 	if fips140.Enabled() {
 		curvePreferences = filterFIPSCurvePreferences(curvePreferences)
+		if len(profileSpec.Groups) > 0 && len(curvePreferences) == 0 {
+			klog.Warning("No configured TLS groups are FIPS-approved; using the FIPS-safe P-curve fallback")
+			curvePreferences = fipsSafeCurvePreferences()
+		}
 	}
 
 	return minTLSVersion, cipherSuites, curvePreferences
@@ -65,6 +69,13 @@ func filterFIPSCurvePreferences(preferences []tls.CurveID) []tls.CurveID {
 		}
 	}
 	return approved
+}
+
+// fipsSafeCurvePreferences returns the NIST P-curves used when FIPS filtering
+// removes every configured TLS group. Returning a non-empty list preserves the
+// configured restriction instead of allowing Go to select its defaults.
+func fipsSafeCurvePreferences() []tls.CurveID {
+	return []tls.CurveID{tls.CurveP256, tls.CurveP384, tls.CurveP521}
 }
 
 // CipherNamesToIDs converts IANA cipher suite names to Go TLS cipher suite IDs
