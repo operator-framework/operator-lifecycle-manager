@@ -60,6 +60,9 @@ func GetSecurityProfileConfig(profile *apiconfigv1.TLSSecurityProfile) (uint16, 
 	return minTLSVersion, cipherSuites, curvePreferences
 }
 
+// filterFIPSCurvePreferences retains only the NIST P-curves. This deliberately
+// excludes X25519MLKEM768 even though Go's native FIPS module permits it: OLM
+// must also support the OpenSSL FIPS backend, which rejects its X25519 component.
 func filterFIPSCurvePreferences(preferences []tls.CurveID) []tls.CurveID {
 	approved := make([]tls.CurveID, 0, len(preferences))
 	for _, preference := range preferences {
@@ -104,6 +107,9 @@ func ApplySecureDefaults(config *tls.Config) error {
 	}
 	if len(config.CipherSuites) == 0 {
 		config.CipherSuites = crypto.DefaultCiphers()
+	}
+	if len(config.CurvePreferences) == 0 {
+		_, _, config.CurvePreferences = GetSecurityProfileConfig(nil)
 	}
 	config.PreferServerCipherSuites = true
 	return nil

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
 	"testing"
 
 	apiconfigv1 "github.com/openshift/api/config/v1"
@@ -74,6 +75,9 @@ func TestApplyClusterTLSProfileWithClients_IntermediateProfile(t *testing.T) {
 	if len(serving.CipherSuites) == 0 {
 		t.Error("expected CipherSuites to be set for Intermediate profile")
 	}
+	if len(serving.CurvePreferences) == 0 {
+		t.Error("expected CurvePreferences to be set for Intermediate profile")
+	}
 }
 
 // TestApplyClusterTLSProfileWithClients_ModernProfile verifies that the Modern
@@ -105,6 +109,7 @@ func TestApplyClusterTLSProfileWithClients_FlagsTakePrecedence(t *testing.T) {
 	// Simulate user-supplied flags.
 	serving.MinTLSVersion = "VersionTLS12"
 	serving.CipherSuites = []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"}
+	serving.CurvePreferences = []int32{int32(tls.CurveP256)}
 
 	err := applyClusterTLSProfileWithClients(context.Background(), cfgClient.Discovery(), cfgClient, serving)
 	if err != nil {
@@ -115,6 +120,9 @@ func TestApplyClusterTLSProfileWithClients_FlagsTakePrecedence(t *testing.T) {
 	}
 	if len(serving.CipherSuites) != 1 || serving.CipherSuites[0] != "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256" {
 		t.Errorf("user-supplied CipherSuites should not be overwritten, got %v", serving.CipherSuites)
+	}
+	if len(serving.CurvePreferences) != 1 || serving.CurvePreferences[0] != int32(tls.CurveP256) {
+		t.Errorf("user-supplied CurvePreferences should not be overwritten, got %v", serving.CurvePreferences)
 	}
 }
 

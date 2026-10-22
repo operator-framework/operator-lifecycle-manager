@@ -118,6 +118,7 @@ func TestApplySecureDefaults(t *testing.T) {
 			if tt.name == "EmptyConfig" {
 				assert.NotZero(t, tt.config.MinVersion, "MinVersion should be set")
 				assert.NotEmpty(t, tt.config.CipherSuites, "CipherSuites should be set")
+				assert.NotEmpty(t, tt.config.CurvePreferences, "CurvePreferences should be set")
 			}
 			assert.True(t, tt.config.PreferServerCipherSuites, "PreferServerCipherSuites should be true")
 		})
