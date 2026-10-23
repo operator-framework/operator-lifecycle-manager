@@ -374,7 +374,7 @@ func applyClusterTLSProfile(ctx context.Context, config *rest.Config, serving *g
 
 // applyClusterTLSProfileWithClients is the testable core of applyClusterTLSProfile.
 // It applies the cluster-wide APIServer TLS security profile to the SecureServingOptions,
-// but only for fields not already set by explicit flags (--tls-min-version / --tls-cipher-suites).
+// but only for fields not already set by explicit TLS flags.
 // It is a no-op on non-OpenShift clusters.
 func applyClusterTLSProfileWithClients(ctx context.Context, discovery apidiscovery.DiscoveryInterface, cfgClient configv1client.Interface, serving *genericoptions.SecureServingOptionsWithLoopback) error {
 	available, err := openshiftconfig.IsAPIAvailable(discovery)
@@ -390,7 +390,7 @@ func applyClusterTLSProfileWithClients(ctx context.Context, discovery apidiscove
 		return fmt.Errorf("failed to get APIServer config: %w", err)
 	}
 
-	minVersion, cipherSuites := olmapiserver.GetSecurityProfileConfig(apiServer.Spec.TLSSecurityProfile)
+	minVersion, cipherSuites, curvePreferences := olmapiserver.GetSecurityProfileConfig(apiServer.Spec.TLSSecurityProfile)
 	// Only override fields not already set by explicit flags.
 	if serving.MinTLSVersion == "" {
 		serving.MinTLSVersion = libcrypto.TLSVersionToNameOrDie(minVersion)
@@ -398,6 +398,12 @@ func applyClusterTLSProfileWithClients(ctx context.Context, discovery apidiscove
 	if len(serving.CipherSuites) == 0 {
 		serving.CipherSuites = libcrypto.CipherSuitesToNamesOrDie(cipherSuites)
 	}
-	log.Infof("Applying cluster TLS security profile: minVersion=%s cipherSuites=%v", serving.MinTLSVersion, serving.CipherSuites)
+	if len(serving.CurvePreferences) == 0 {
+		serving.CurvePreferences = make([]int32, len(curvePreferences))
+		for i, curvePreference := range curvePreferences {
+			serving.CurvePreferences[i] = int32(curvePreference)
+		}
+	}
+	log.Infof("Applying cluster TLS security profile: minVersion=%s cipherSuites=%v curvePreferences=%v", serving.MinTLSVersion, serving.CipherSuites, serving.CurvePreferences)
 	return nil
 }

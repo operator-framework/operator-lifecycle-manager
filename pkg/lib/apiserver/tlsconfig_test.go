@@ -12,7 +12,7 @@ import (
 
 func TestGetSecurityProfileConfig_NilProfile(t *testing.T) {
 	// When profile is nil, should use Intermediate defaults
-	minVersion, cipherSuites := apiserver.GetSecurityProfileConfig(nil)
+	minVersion, cipherSuites, _ := apiserver.GetSecurityProfileConfig(nil)
 
 	assert.Equal(t, uint16(tls.VersionTLS12), minVersion, "Intermediate profile should use TLS 1.2")
 	assert.NotEmpty(t, cipherSuites, "Should have cipher suites")
@@ -23,7 +23,7 @@ func TestGetSecurityProfileConfig_IntermediateProfile(t *testing.T) {
 		Type: apiconfigv1.TLSProfileIntermediateType,
 	}
 
-	minVersion, cipherSuites := apiserver.GetSecurityProfileConfig(profile)
+	minVersion, cipherSuites, _ := apiserver.GetSecurityProfileConfig(profile)
 
 	assert.Equal(t, uint16(tls.VersionTLS12), minVersion, "Intermediate profile should use TLS 1.2")
 	assert.NotEmpty(t, cipherSuites, "Should have cipher suites")
@@ -35,7 +35,7 @@ func TestGetSecurityProfileConfig_ModernProfile(t *testing.T) {
 		Type: apiconfigv1.TLSProfileModernType,
 	}
 
-	minVersion, cipherSuites := apiserver.GetSecurityProfileConfig(profile)
+	minVersion, cipherSuites, _ := apiserver.GetSecurityProfileConfig(profile)
 
 	assert.Equal(t, uint16(tls.VersionTLS13), minVersion, "Modern profile should use TLS 1.3")
 	assert.NotEmpty(t, cipherSuites, "Should have cipher suites")
@@ -46,7 +46,7 @@ func TestGetSecurityProfileConfig_OldProfile(t *testing.T) {
 		Type: apiconfigv1.TLSProfileOldType,
 	}
 
-	minVersion, cipherSuites := apiserver.GetSecurityProfileConfig(profile)
+	minVersion, cipherSuites, _ := apiserver.GetSecurityProfileConfig(profile)
 
 	assert.Equal(t, uint16(tls.VersionTLS10), minVersion, "Old profile should use TLS 1.0")
 	assert.NotEmpty(t, cipherSuites, "Should have cipher suites")
@@ -67,7 +67,7 @@ func TestGetSecurityProfileConfig_CustomProfile(t *testing.T) {
 		},
 	}
 
-	minVersion, cipherSuites := apiserver.GetSecurityProfileConfig(profile)
+	minVersion, cipherSuites, _ := apiserver.GetSecurityProfileConfig(profile)
 
 	assert.Equal(t, uint16(tls.VersionTLS13), minVersion, "Custom profile should respect MinTLSVersion")
 	assert.NotEmpty(t, cipherSuites, "Should have cipher suites")
@@ -80,7 +80,7 @@ func TestGetSecurityProfileConfig_CustomProfileWithoutSpec(t *testing.T) {
 		Custom: nil,
 	}
 
-	minVersion, cipherSuites := apiserver.GetSecurityProfileConfig(profile)
+	minVersion, cipherSuites, _ := apiserver.GetSecurityProfileConfig(profile)
 
 	assert.Equal(t, uint16(tls.VersionTLS12), minVersion, "Should fall back to Intermediate")
 	assert.NotEmpty(t, cipherSuites, "Should have cipher suites")
@@ -118,6 +118,7 @@ func TestApplySecureDefaults(t *testing.T) {
 			if tt.name == "EmptyConfig" {
 				assert.NotZero(t, tt.config.MinVersion, "MinVersion should be set")
 				assert.NotEmpty(t, tt.config.CipherSuites, "CipherSuites should be set")
+				assert.NotEmpty(t, tt.config.CurvePreferences, "CurvePreferences should be set")
 			}
 			assert.True(t, tt.config.PreferServerCipherSuites, "PreferServerCipherSuites should be true")
 		})

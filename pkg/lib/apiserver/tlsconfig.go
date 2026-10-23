@@ -1,16 +1,19 @@
 package apiserver
 
 import (
+	"crypto/fips140"
 	"crypto/tls"
 
 	apiconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/library-go/pkg/crypto"
+	"k8s.io/klog/v2"
 )
 
-// GetSecurityProfileConfig extracts the minimum TLS version and cipher suites
-// from a TLSSecurityProfile object. Converts OpenSSL cipher names to Go TLS cipher IDs.
+// GetSecurityProfileConfig extracts the minimum TLS version, cipher suites, and
+// curve preferences from a TLSSecurityProfile object. Converts OpenSSL cipher
+// names and TLS groups to Go TLS identifiers.
 // If profile is nil, returns config defined by the Intermediate TLS Profile.
-func GetSecurityProfileConfig(profile *apiconfigv1.TLSSecurityProfile) (uint16, []uint16) {
+func GetSecurityProfileConfig(profile *apiconfigv1.TLSSecurityProfile) (uint16, []uint16, []tls.CurveID) {
 	var profileType apiconfigv1.TLSProfileType
 	if profile == nil {
 		profileType = apiconfigv1.TLSProfileIntermediateType
@@ -42,8 +45,40 @@ func GetSecurityProfileConfig(profile *apiconfigv1.TLSSecurityProfile) (uint16, 
 	// Convert OpenSSL cipher names to IANA names, then to Go cipher suite IDs
 	ianaCipherNames := crypto.OpenSSLToIANACipherSuites(profileSpec.Ciphers)
 	cipherSuites := CipherNamesToIDs(ianaCipherNames)
+	curvePreferences, unrecognizedGroups := crypto.TLSGroupsToCurveIDs(profileSpec.Groups)
+	if len(unrecognizedGroups) > 0 {
+		klog.Warningf("Dropping TLS groups not supported by this Go version: %v", unrecognizedGroups)
+	}
+	if fips140.Enabled() {
+		curvePreferences = filterFIPSCurvePreferences(curvePreferences)
+		if len(profileSpec.Groups) > 0 && len(curvePreferences) == 0 {
+			klog.Warning("No configured TLS groups are FIPS-approved; using the FIPS-safe P-curve fallback")
+			curvePreferences = fipsSafeCurvePreferences()
+		}
+	}
 
-	return minTLSVersion, cipherSuites
+	return minTLSVersion, cipherSuites, curvePreferences
+}
+
+// filterFIPSCurvePreferences retains only the NIST P-curves. This deliberately
+// excludes X25519MLKEM768 even though Go's native FIPS module permits it: OLM
+// must also support the OpenSSL FIPS backend, which rejects its X25519 component.
+func filterFIPSCurvePreferences(preferences []tls.CurveID) []tls.CurveID {
+	approved := make([]tls.CurveID, 0, len(preferences))
+	for _, preference := range preferences {
+		switch preference {
+		case tls.CurveP256, tls.CurveP384, tls.CurveP521:
+			approved = append(approved, preference)
+		}
+	}
+	return approved
+}
+
+// fipsSafeCurvePreferences returns the NIST P-curves used when FIPS filtering
+// removes every configured TLS group. Returning a non-empty list preserves the
+// configured restriction instead of allowing Go to select its defaults.
+func fipsSafeCurvePreferences() []tls.CurveID {
+	return []tls.CurveID{tls.CurveP256, tls.CurveP384, tls.CurveP521}
 }
 
 // CipherNamesToIDs converts IANA cipher suite names to Go TLS cipher suite IDs
@@ -72,6 +107,9 @@ func ApplySecureDefaults(config *tls.Config) error {
 	}
 	if len(config.CipherSuites) == 0 {
 		config.CipherSuites = crypto.DefaultCiphers()
+	}
+	if len(config.CurvePreferences) == 0 {
+		_, _, config.CurvePreferences = GetSecurityProfileConfig(nil)
 	}
 	config.PreferServerCipherSuites = true
 	return nil
