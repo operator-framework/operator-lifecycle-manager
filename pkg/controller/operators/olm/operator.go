@@ -1036,8 +1036,9 @@ func (a *Operator) syncObject(obj interface{}) (syncError error) {
 	// Objects that can't have ownerrefs (cluster -> namespace, cross-namespace)
 	// are handled by finalizer
 
-	// Requeue all owner CSVs
-	if ownerutil.IsOwnedByKind(metaObj, v1alpha1.ClusterServiceVersionKind) {
+	// Requeue all owner CSVs. Cluster-scoped objects carry owner labels
+	// instead of owner references.
+	if _, _, labeled := ownerutil.GetOwnerByKindLabel(metaObj, v1alpha1.ClusterServiceVersionKind); labeled || ownerutil.IsOwnedByKind(metaObj, v1alpha1.ClusterServiceVersionKind) {
 		logger.Debug("requeueing owner csvs")
 		a.requeueOwnerCSVs(metaObj)
 	}
@@ -2140,6 +2141,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		if err := modeSet.Supports(out.GetNamespace(), namespaces); err != nil {
 			logger.WithField("reason", err.Error()).Info("installmodeset does not support operatorgroups namespace selection")
 			out.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonUnsupportedOperatorGroup, err.Error(), now, a.recorder)
+			syncError = a.cleanupFailedCSV(logger, out)
 			return
 		}
 	} else {
@@ -2171,16 +2173,16 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		if out.Status.Reason != v1alpha1.CSVReasonInterOperatorGroupOwnerConflict {
 			logger.WithField("apis", providedAPIs).Warn("cannot modify provided apis of static provided api operatorgroup")
 			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonCannotModifyStaticOperatorGroupProvidedAPIs, "static provided api operatorgroup cannot be modified by these apis", now, a.recorder)
-			a.cleanupCSVDeployments(logger, out)
 		}
+		syncError = a.cleanupFailedCSV(logger, out)
 		return
 	case result == APIConflict:
 		// Transition the CSV to FAILED with status reason "InterOperatorGroupOwnerConflict"
 		if out.Status.Reason != v1alpha1.CSVReasonInterOperatorGroupOwnerConflict {
 			logger.WithField("apis", providedAPIs).Warn("intersecting operatorgroups provide the same apis")
 			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInterOperatorGroupOwnerConflict, "intersecting operatorgroups provide the same apis", now, a.recorder)
-			a.cleanupCSVDeployments(logger, out)
 		}
+		syncError = a.cleanupFailedCSV(logger, out)
 		return
 	case result == AddAPIs:
 		// Add the CSV's provided APIs to its OperatorGroup's annotation
@@ -2238,6 +2240,12 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 				return
 			}
 		}
+		// The RBAC that cleanupFailedCSV removed while the CSV was Failed is
+		// created again by the InstallPlan. A plan without marks is left alone.
+		if syncError = a.reinstallPlanSteps(logger, out); syncError != nil {
+			return
+		}
+
 		met, statuses, err := a.requirementAndPermissionStatus(out)
 		if err != nil {
 			// TODO: account for Bad Rule as well
@@ -2472,6 +2480,12 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			logger.Info("static OperatorGroup and intersecting groups now support providedAPIs...")
 			// Check occurred before switch, safe to transition to pending
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "static OperatorGroup and intersecting groups now support providedAPIs", now, a.recorder)
+			return
+		}
+
+		// A Failed CSV can go to Succeeded from here without passing Pending,
+		// so a cleaned-up plan is reopened here as well.
+		if syncError = a.reinstallPlanSteps(logger, out); syncError != nil {
 			return
 		}
 
@@ -2940,29 +2954,77 @@ func (a *Operator) requeueOwnerCSVs(ownee metav1.Object) {
 	}
 }
 
-func (a *Operator) cleanupCSVDeployments(logger *logrus.Entry, csv *v1alpha1.ClusterServiceVersion) {
+// cleanupCSVDeployments deletes the Deployments of the CSV install strategy
+// that the CSV owns. A Deployment of the same name owned by another CSV is
+// kept. A missing Deployment is not an error.
+func (a *Operator) cleanupCSVDeployments(logger *logrus.Entry, csv *v1alpha1.ClusterServiceVersion) error {
 	// Extract the InstallStrategy for the deployment
 	strategy, err := a.resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
 	if err != nil {
 		logger.Warn("could not parse install strategy while cleaning up CSV deployment")
-		return
+		return nil
 	}
 
 	// Assume the strategy is for a deployment
 	strategyDetailsDeployment, ok := strategy.(*v1alpha1.StrategyDetailsDeployment)
 	if !ok {
 		logger.Warnf("could not cast install strategy as type %T", strategyDetailsDeployment)
-		return
+		return nil
+	}
+
+	// An owned APIService or a CRD conversion webhook keeps pointing at the
+	// Deployment. Without a backend every call to those APIs fails, which is
+	// worse than a running operator with a Failed CSV.
+	if a.servesAPIs(csv) {
+		logger.Debug("CSV serves APIServices or conversion webhooks, keeping its deployments")
+		return nil
 	}
 
 	// Delete deployments
+	var errs []error
 	for _, spec := range strategyDetailsDeployment.DeploymentSpecs {
 		logger := logger.WithField("deployment", spec.Name)
+		deployment, err := a.opClient.GetDeployment(csv.GetNamespace(), spec.Name)
+		if apierrors.IsNotFound(err) {
+			continue
+		}
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if !ownerutil.IsOwnedBy(deployment, csv) {
+			logger.Debug("deployment is not owned by this CSV, keeping it")
+			continue
+		}
 		logger.Debug("cleaning up CSV deployment")
-		if err := a.opClient.DeleteDeployment(csv.GetNamespace(), spec.Name, &metav1.DeleteOptions{}); err != nil {
+		uid := deployment.GetUID()
+		options := &metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &uid}}
+		if err := a.opClient.DeleteDeployment(csv.GetNamespace(), spec.Name, options); err != nil && !apierrors.IsNotFound(err) {
 			logger.WithField("err", err).Warn("error cleaning up CSV deployment")
+			errs = append(errs, err)
 		}
 	}
+	return utilerrors.NewAggregate(errs)
+}
+
+// servesAPIs reports whether the CSV owns an APIService or a CRD conversion
+// webhook, both of which route API requests to its Deployment. The live
+// APIServices count as well as the spec, the spec can be edited after the
+// install.
+func (a *Operator) servesAPIs(csv *v1alpha1.ClusterServiceVersion) bool {
+	if len(csv.Spec.APIServiceDefinitions.Owned) > 0 {
+		return true
+	}
+	for _, webhook := range csv.Spec.WebhookDefinitions {
+		if webhook.Type == v1alpha1.ConversionWebhook {
+			return true
+		}
+	}
+	apiServices, err := a.lister.APIRegistrationV1().APIServiceLister().List(ownerutil.CSVOwnerSelector(csv))
+	if err != nil {
+		return true
+	}
+	return len(apiServices) > 0
 }
 
 // ensureLabels merges a label set with a CSV's labels and attempts to update the CSV if the merged set differs from the CSV's original labels.
