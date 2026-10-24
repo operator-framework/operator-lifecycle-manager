@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -49,18 +50,51 @@ type builder struct {
 	eventRecorder    record.EventRecorder
 
 	annotator alongside.Annotator
+
+	// csvConversionCache is built once from plan.Status.Plan. The key is "csvName/crdName".
+	// The value is true when that CSV declares a ConversionWebhook for that CRD.
+	// This avoids re-parsing the CSV manifest on every CRD step that reaches the
+	// storage-version deference check.
+	csvConversionCache map[string]bool
 }
 
 func newBuilder(plan *v1alpha1.InstallPlan, csvLister listersv1alpha1.ClusterServiceVersionLister, opclient operatorclient.ClientInterface, dynamicClient dynamic.Interface, manifestResolver ManifestResolver, logger logrus.FieldLogger, er record.EventRecorder) *builder {
 	return &builder{
-		plan:             plan,
-		csvLister:        csvLister,
-		opclient:         opclient,
-		dynamicClient:    dynamicClient,
-		manifestResolver: manifestResolver,
-		logger:           logger,
-		eventRecorder:    er,
+		plan:               plan,
+		csvLister:          csvLister,
+		opclient:           opclient,
+		dynamicClient:      dynamicClient,
+		manifestResolver:   manifestResolver,
+		logger:             logger,
+		eventRecorder:      er,
+		csvConversionCache: buildCSVConversionWebhookCache(plan),
 	}
+}
+
+// buildCSVConversionWebhookCache scans plan.Status.Plan once and returns a map whose
+// keys are "csvName/crdName" for every (CSV, CRD) pair where the CSV declares a
+// ConversionWebhook for that CRD. All CSV manifests are parsed exactly once.
+func buildCSVConversionWebhookCache(plan *v1alpha1.InstallPlan) map[string]bool {
+	cache := make(map[string]bool)
+	for _, step := range plan.Status.Plan {
+		if step.Resource.Kind != "ClusterServiceVersion" {
+			continue
+		}
+		csv := &v1alpha1.ClusterServiceVersion{}
+		if err := json.Unmarshal([]byte(step.Resource.Manifest), csv); err != nil {
+			logrus.Warnf("buildCSVConversionWebhookCache: failed to parse CSV manifest for %q: %v", step.Resource.Name, err)
+			continue
+		}
+		for _, wh := range csv.Spec.WebhookDefinitions {
+			if wh.Type != v1alpha1.ConversionWebhook {
+				continue
+			}
+			for _, crdName := range wh.ConversionCRDs {
+				cache[step.Resource.Name+"/"+crdName] = true
+			}
+		}
+	}
+	return cache
 }
 
 type notSupportedStepperErr struct {
@@ -132,6 +166,12 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 				return v1alpha1.StepStatusUnknown, err
 			}
 
+			// Strip the reserved hand-off annotation before any further processing.
+			// UnmarshalV1 preserves all bundle annotations; a bundle that ships this
+			// annotation would otherwise reach createOrUpdateConversionWebhook and
+			// trigger an unintended storage-version promotion.
+			delete(crd.Annotations, install.PendingStorageVersionAnnotation)
+
 			setInstalledAlongsideAnnotation(b.annotator, crd, b.plan.GetNamespace(), step.Resolving, b.csvLister, crd)
 			if crd.Labels == nil {
 				crd.Labels = map[string]string{}
@@ -174,6 +214,47 @@ Validation Error: %s
 					}
 					if err != nil {
 						return fmt.Errorf("checking CRD for potential data loss updating %q: %w", step.Resource.Name, err)
+					}
+
+					// Defer storage-version promotion when the incoming CRD promotes storage
+					// but carries no conversion webhook. Atomically promoting storage with
+					// the webhook (see createOrUpdateConversionWebhook) eliminates the window
+					// where a new storage version is active without field conversion.
+					// Three guards must all be true before deferral fires:
+					//   1. The bundle carries no conversion webhook (conversionMissing).
+					//   2. The current storage version is still present in the new bundle spec.
+					//      If it was removed, reverting to it would produce a CRD with no
+					//      Storage=true version, which the API server rejects with 422.
+					//   3. The CSV that owns this CRD declares a ConversionWebhook for it.
+					//      Without this guard, operators that legitimately promote storage
+					//      without a webhook would be stuck at the old version forever.
+					if newVer, ok := storageVersionInSpec(crd); ok {
+						if currentVer, hasCurrent := storageVersionInSpec(currentCRD); hasCurrent && newVer != currentVer {
+							conversionMissing := crd.Spec.Conversion == nil ||
+								crd.Spec.Conversion.Strategy == "" ||
+								crd.Spec.Conversion.Strategy == apiextensionsv1.NoneConverter
+							// Also verify currentVer is still present in the new bundle spec.
+							// If it was removed, reverting storage to currentVer would produce
+							// a CRD with no Storage=true version (API server rejects with 422).
+							currentVerInNewSpec := false
+							for _, v := range crd.Spec.Versions {
+								if v.Name == currentVer {
+									currentVerInNewSpec = true
+									break
+								}
+							}
+							if conversionMissing && currentVerInNewSpec && b.csvConversionCache[step.Resolving+"/"+step.Resource.Name] {
+								for idx := range crd.Spec.Versions {
+									crd.Spec.Versions[idx].Storage = crd.Spec.Versions[idx].Name == currentVer
+								}
+								if crd.Annotations == nil {
+									crd.Annotations = map[string]string{}
+								}
+								crd.Annotations[install.PendingStorageVersionAnnotation] = newVer
+								b.logger.Infof("deferring storage-version promotion on %q: keeping %q as storage, pending %q until conversion webhook is active",
+									step.Resource.Name, currentVer, newVer)
+							}
+						}
 					}
 
 					// Update CRD to new version
@@ -287,6 +368,44 @@ func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.Apiextensi
 		}
 		return v1alpha1.StepStatusUnknown, nil
 	}
+}
+
+// storageVersionInSpec returns the name of the version marked Storage: true in the CRD spec.
+func storageVersionInSpec(crd *apiextensionsv1.CustomResourceDefinition) (string, bool) {
+	for _, v := range crd.Spec.Versions {
+		if v.Storage {
+			return v.Name, true
+		}
+	}
+	return "", false
+}
+
+// csvDeclaresConversionWebhookForCRD returns true when the CSV being installed in
+// plan.Status.Plan declares a ConversionWebhook that lists crdName.
+// plan.Status.Plan contains raw manifests for all steps before any step executes,
+// so this works for both fresh installs and upgrades.
+func csvDeclaresConversionWebhookForCRD(plan *v1alpha1.InstallPlan, csvName, crdName string) bool {
+	for _, step := range plan.Status.Plan {
+		if step.Resource.Kind != "ClusterServiceVersion" || step.Resource.Name != csvName {
+			continue
+		}
+		csv := &v1alpha1.ClusterServiceVersion{}
+		if err := json.Unmarshal([]byte(step.Resource.Manifest), csv); err != nil {
+			logrus.Warnf("csvDeclaresConversionWebhookForCRD: failed to unmarshal CSV manifest for %q: %v", step.Resource.Name, err)
+			return false
+		}
+		for _, wh := range csv.Spec.WebhookDefinitions {
+			if wh.Type != v1alpha1.ConversionWebhook {
+				continue
+			}
+			for _, c := range wh.ConversionCRDs {
+				if c == crdName {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func setInstalledAlongsideAnnotation(a alongside.Annotator, dst metav1.Object, namespace string, name string, lister listersv1alpha1.ClusterServiceVersionLister, srcs ...metav1.Object) {
