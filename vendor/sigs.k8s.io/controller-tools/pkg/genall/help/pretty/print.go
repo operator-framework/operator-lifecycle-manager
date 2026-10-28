@@ -1,3 +1,19 @@
+/*
+Copyright The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package pretty
 
 import (
@@ -19,8 +35,8 @@ type Span interface {
 	// VisualLength reports the "width" as perceived by the user on the terminal
 	// (i.e. widest line, ignoring ANSI escape characters).
 	VisualLength() int
-	// WriteTo writes the full span contents to the given writer.
-	WriteTo(io.Writer) error
+	// Write writes the full span contents to the given writer.
+	Write(io.Writer) error
 }
 
 // Table is a Span that writes its data in table form, with sizing controlled
@@ -61,7 +77,7 @@ func (t *Table) SkipRow(contents Span) {
 	t.cellsByRow = append(t.cellsByRow, []Span{contents})
 }
 
-func (t *Table) WriteTo(out io.Writer) error {
+func (t *Table) Write(out io.Writer) error {
 	if t.colSizes == nil {
 		t.colSizes = t.Sizing.ColumnWidths()
 	}
@@ -72,7 +88,7 @@ func (t *Table) WriteTo(out io.Writer) error {
 			colSize := t.colSizes[colInd]
 			diff := colSize - cell.VisualLength()
 
-			if err := cell.WriteTo(out); err != nil {
+			if err := cell.Write(out); err != nil {
 				return err
 			}
 
@@ -108,7 +124,7 @@ func (t *Table) VisualLength() int {
 type Text string
 
 func (t Text) VisualLength() int { return len(t) }
-func (t Text) WriteTo(w io.Writer) error {
+func (t Text) Write(w io.Writer) error {
 	_, err := w.Write([]byte(t))
 	return err
 }
@@ -120,9 +136,9 @@ type indented struct {
 }
 
 func (i *indented) VisualLength() int { return i.Content.VisualLength() }
-func (i *indented) WriteTo(w io.Writer) error {
+func (i *indented) Write(w io.Writer) error {
 	var out bytes.Buffer
-	if err := i.Content.WriteTo(&out); err != nil {
+	if err := i.Content.Write(&out); err != nil {
 		return err
 	}
 
@@ -169,7 +185,7 @@ func (f *fromWriter) VisualLength() int {
 	}
 	return len(f.cache)
 }
-func (f *fromWriter) WriteTo(w io.Writer) error {
+func (f *fromWriter) Write(w io.Writer) error {
 	if f.cache != nil {
 		if f.cacheError != nil {
 			return f.cacheError
@@ -203,7 +219,7 @@ type decorated struct {
 }
 
 func (d *decorated) VisualLength() int { return d.Contents.VisualLength() }
-func (d *decorated) WriteTo(w io.Writer) error {
+func (d *decorated) Write(w io.Writer) error {
 	oldOut := color.Output
 	color.Output = w
 	defer func() { color.Output = oldOut }()
@@ -211,7 +227,7 @@ func (d *decorated) WriteTo(w io.Writer) error {
 	d.Attributes.Set()
 	defer color.Unset()
 
-	return d.Contents.WriteTo(w)
+	return d.Contents.Write(w)
 }
 
 // SpanWriter is a span that contains multiple sub-spans.
@@ -226,9 +242,9 @@ func (m *SpanWriter) VisualLength() int {
 	}
 	return res
 }
-func (m *SpanWriter) WriteTo(w io.Writer) error {
+func (m *SpanWriter) Write(w io.Writer) error {
 	for _, span := range m.contents {
-		if err := span.WriteTo(w); err != nil {
+		if err := span.Write(w); err != nil {
 			return err
 		}
 	}
@@ -252,12 +268,12 @@ func (l *lines) VisualLength() int {
 	}
 	return l.content.VisualLength()
 }
-func (l *lines) WriteTo(w io.Writer) error {
+func (l *lines) Write(w io.Writer) error {
 	if err := writePadding(w, linesPadding, l.amountBefore); err != nil {
 		return err
 	}
 	if l.content != nil {
-		if err := l.content.WriteTo(w); err != nil {
+		if err := l.content.Write(w); err != nil {
 			return err
 		}
 	}
