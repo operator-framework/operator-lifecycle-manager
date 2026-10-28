@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	opregistry "github.com/operator-framework/operator-registry/v2/pkg/registry"
 )
 
 func TestGVKStringToProvidedAPISet(t *testing.T) {

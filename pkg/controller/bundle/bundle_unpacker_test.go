@@ -26,8 +26,8 @@ import (
 	crinformers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	v1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/configmap"
+	"github.com/operator-framework/operator-registry/v2/pkg/api"
+	"github.com/operator-framework/operator-registry/v2/pkg/configmap"
 )
 
 const (

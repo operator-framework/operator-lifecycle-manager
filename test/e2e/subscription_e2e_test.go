@@ -39,7 +39,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
-	registryapi "github.com/operator-framework/operator-registry/pkg/api"
+	registryapi "github.com/operator-framework/operator-registry/v2/pkg/api"
 )
 
 func Step(level int, text string, callbacks ...func()) {

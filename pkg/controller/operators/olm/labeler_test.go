@@ -3,7 +3,7 @@ package olm
 import (
 	"testing"
 
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	opregistry "github.com/operator-framework/operator-registry/v2/pkg/registry"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

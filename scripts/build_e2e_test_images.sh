@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# The SQLite index images built here require an opm v1 binary with `opm index add`.
+
 QUAY_REPO="${QUAY_REPO:-olmtest}"
 SINGLE_BUNDLE_TAG="${BUNDLE_TAG:-objects-pdb-v2}"
 SINGLE_BUNDLE_INDEX_TAG="${INDEX_TAG:-pdb-v2}"

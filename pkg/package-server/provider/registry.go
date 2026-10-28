@@ -12,8 +12,8 @@ import (
 
 	"github.com/blang/semver/v4"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-registry/pkg/api"
-	orregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/operator-registry/v2/pkg/api"
+	orregistry "github.com/operator-framework/operator-registry/v2/pkg/registry"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
