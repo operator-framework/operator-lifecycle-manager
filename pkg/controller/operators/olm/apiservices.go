@@ -535,7 +535,7 @@ func (a *Operator) cleanUpRemovedWebhooks(csv *v1alpha1.ClusterServiceVersion) e
 		}
 		if _, ok := csvWebhookGenerateNames[webhookGenerateNameLabel]; !ok {
 			err = a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Delete(context.TODO(), webhook.Name, metav1.DeleteOptions{})
-			if err != nil && apierrors.IsNotFound(err) {
+			if err != nil && !apierrors.IsNotFound(err) {
 				return err
 			}
 		}
@@ -553,7 +553,7 @@ func (a *Operator) cleanUpRemovedWebhooks(csv *v1alpha1.ClusterServiceVersion) e
 		}
 		if _, ok := csvWebhookGenerateNames[webhookGenerateNameLabel]; !ok {
 			err = a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Delete(context.TODO(), webhook.Name, metav1.DeleteOptions{})
-			if err != nil && apierrors.IsNotFound(err) {
+			if err != nil && !apierrors.IsNotFound(err) {
 				return err
 			}
 		}
