@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 
@@ -77,18 +78,25 @@ func versionsMatch(a []configv1.OperandVersion, b []configv1.OperandVersion) boo
 type skews []skew
 
 func (s skews) String() string {
-	msg := make([]string, len(s))
-	i, j := 0, len(s)-1
-	for _, sk := range s {
-		m := sk.String()
-		// Partial order: error skews first
-		if sk.err != nil {
-			msg[i] = m
-			i++
-			continue
+	// Sort so the message does not depend on the (unstable) order in which the
+	// CSVs were listed: error skews first, then by namespace/name. A different
+	// order would be a different Message, and so a condition transition.
+	sorted := make(skews, len(s))
+	copy(sorted, s)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		a, b := sorted[i], sorted[j]
+		if (a.err != nil) != (b.err != nil) {
+			return a.err != nil
 		}
-		msg[j] = m
-		j--
+		if a.namespace != b.namespace {
+			return a.namespace < b.namespace
+		}
+		return a.name < b.name
+	})
+
+	msg := make([]string, len(sorted))
+	for i, sk := range sorted {
+		msg[i] = sk.String()
 	}
 
 	// TODO Revisit this message after 4.23 release once release schedule is determined for future possible minor versions.
