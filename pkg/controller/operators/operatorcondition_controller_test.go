@@ -250,6 +250,10 @@ var _ = Describe("OperatorCondition", func() {
 				})
 				It("does not inject the OperatorCondition name into the deployment's Environment Variables", func() {
 					deployment := &appsv1.Deployment{}
+					Eventually(func() error {
+						return k8sClient.Get(ctx, types.NamespacedName{Name: operatorCondition.Spec.Deployments[0], Namespace: namespace.GetName()}, deployment)
+					}, timeout, interval).Should(BeNil())
+
 					Consistently(func() error {
 						err := k8sClient.Get(ctx, types.NamespacedName{Name: operatorCondition.Spec.Deployments[0], Namespace: namespace.GetName()}, deployment)
 						if err != nil {
