@@ -401,7 +401,7 @@ func (a *Operator) getWebhookCABundle(csv *v1alpha1.ClusterServiceVersion, desc 
 			return nil, fmt.Errorf("could not retrieve generated MutatingWebhookConfiguration: %v", err)
 		}
 
-		if len(existingWebhooks.Items) > 0 {
+		if len(existingWebhooks.Items) > 0 && len(existingWebhooks.Items[0].Webhooks) > 0 {
 			return existingWebhooks.Items[0].Webhooks[0].ClientConfig.CABundle, nil
 		}
 	case v1alpha1.ValidatingAdmissionWebhook:
@@ -410,7 +410,7 @@ func (a *Operator) getWebhookCABundle(csv *v1alpha1.ClusterServiceVersion, desc 
 			return nil, fmt.Errorf("could not retrieve generated ValidatingWebhookConfiguration: %v", err)
 		}
 
-		if len(existingWebhooks.Items) > 0 {
+		if len(existingWebhooks.Items) > 0 && len(existingWebhooks.Items[0].Webhooks) > 0 {
 			return existingWebhooks.Items[0].Webhooks[0].ClientConfig.CABundle, nil
 		}
 	case v1alpha1.ConversionWebhook:
