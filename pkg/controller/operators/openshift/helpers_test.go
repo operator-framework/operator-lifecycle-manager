@@ -845,9 +845,9 @@ func TestSkewsStringIsDeterministic(t *testing.T) {
 	// depend on that order, or every reorder counts as a condition transition.
 	a := &skew{namespace: "openshift-logging", name: "cluster-logging.v6.6.1", maxOpenShiftVersion: "4.23"}
 	b := &skew{namespace: "openshift-cluster-csi-drivers", name: "secrets-store-csi-driver-operator.v4.22.0", maxOpenShiftVersion: "5.0"}
-	invalid := &skew{namespace: "openshift-logging", name: "broken.v1.0.0", err: fmt.Errorf("invalid")}
+	invalid := &skew{namespace: "openshift-logging", name: "broken.v1.0.0", maxOpenShiftVersion: "invalid"}
 
-	expected := "ClusterServiceVersions blocking minor version upgrades to 4.23 or major version upgrades to 5.0:\n" +
+	expected := "ClusterServiceVersions blocking minor version upgrades to 5.1 or higher:\n" +
 		invalid.String() + "\n" + // error skews first
 		b.String() + "\n" + // then by namespace/name
 		a.String()

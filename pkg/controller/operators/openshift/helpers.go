@@ -78,6 +78,17 @@ func versionsMatch(a []configv1.OperandVersion, b []configv1.OperandVersion) boo
 type skews []*skew
 
 func (s skews) String() string {
+	// Sorting depends on a populated .err, to sort invalid skews
+	// first.  incompatibleOperators sets .err through one call path,
+	// but check again here, to ensure reliability, regardless of call-chain.
+	var minVersion *semver.Version
+	for i := range s {
+		s[i].process()
+		if s[i].err == nil && (minVersion == nil || s[i].normalizedMaxOpenShiftVersion.LT(*minVersion)) {
+			minVersion = s[i].normalizedMaxOpenShiftVersion
+		}
+	}
+
 	// Sort so the message does not depend on the (unstable) order in which the
 	// CSVs were listed: error skews first, then by namespace/name. A different
 	// order would be a different Message, and so a condition transition.
@@ -99,12 +110,14 @@ func (s skews) String() string {
 		msg[i] = sk.String()
 	}
 
-	// it is safe to ignore the error here, with the assumption
-	// that we build each skew object only after verifying that the
-	// version string is parseable safely.
-	maxOCPVersion, _ := semver.ParseTolerant(s[0].maxOpenShiftVersion)
-	nextY := nextY(maxOCPVersion).String()
-	return fmt.Sprintf("ClusterServiceVersions blocking minor version upgrades to %s or higher:\n%s", nextY, strings.Join(msg, "\n"))
+	var next string
+	if minVersion == nil {
+		next = "next major or minor version"
+	} else {
+		n := nextY(*minVersion)
+		next = fmt.Sprintf("%d.%d", n.Major, n.Minor)
+	}
+	return fmt.Sprintf("ClusterServiceVersions blocking minor version upgrades to %s or higher:\n%s", next, strings.Join(msg, "\n"))
 }
 
 type skew struct {
@@ -148,10 +161,11 @@ func (s *skew) process() {
 }
 
 func (s *skew) String() string {
+	s.process()
 	if s.err != nil {
 		return fmt.Sprintf("- %s/%s has invalid %s properties: %s", s.namespace, s.name, MaxOpenShiftVersionProperty, s.err)
 	}
-	return fmt.Sprintf("- maximum supported OCP version for %s/%s is %s", s.namespace, s.name, s.maxOpenShiftVersion)
+	return fmt.Sprintf("- maximum supported OCP version for %s/%s is %d.%d", s.namespace, s.name, s.normalizedMaxOpenShiftVersion.Major, s.normalizedMaxOpenShiftVersion.Minor)
 }
 
 type transientError struct {
