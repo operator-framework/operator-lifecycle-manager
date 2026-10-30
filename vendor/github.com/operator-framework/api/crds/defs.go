@@ -2,6 +2,9 @@ package crds
 
 // Generate embedded files from CRDs to avoid file path changes when this package is imported.
 //go:generate go run github.com/go-bindata/go-bindata/v3/go-bindata -pkg crds -o zz_defs.go -ignore=.*\.go -nometadata .
+// go-bindata emits a leading-space package comment. Two gofmt passes normalize it.
+//go:generate gofmt -w zz_defs.go
+//go:generate gofmt -w zz_defs.go
 
 import (
 	"bytes"

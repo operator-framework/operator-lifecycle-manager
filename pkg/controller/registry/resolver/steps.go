@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
-	"github.com/operator-framework/operator-registry/pkg/api"
+	"github.com/operator-framework/operator-registry/v2/pkg/api"
 	extScheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

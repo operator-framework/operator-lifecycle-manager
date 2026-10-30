@@ -13,9 +13,9 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
-	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/client"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/operator-registry/v2/pkg/api"
+	"github.com/operator-framework/operator-registry/v2/pkg/client"
+	opregistry "github.com/operator-framework/operator-registry/v2/pkg/registry"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/labels"
 )

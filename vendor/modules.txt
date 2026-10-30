@@ -11,8 +11,8 @@ github.com/BurntSushi/toml/internal
 # github.com/Masterminds/semver/v3 v3.4.0
 ## explicit; go 1.21
 github.com/Masterminds/semver/v3
-# github.com/Microsoft/go-winio v0.6.2
-## explicit; go 1.21
+# github.com/Microsoft/go-winio v0.6.3-0.20260930231756-f19d9717deb0
+## explicit; go 1.26.0
 github.com/Microsoft/go-winio
 github.com/Microsoft/go-winio/backuptar
 github.com/Microsoft/go-winio/internal/fs
@@ -132,10 +132,10 @@ github.com/containerd/errdefs
 github.com/containerd/errdefs/pkg/errgrpc
 github.com/containerd/errdefs/pkg/internal/cause
 github.com/containerd/errdefs/pkg/internal/types
-# github.com/containerd/log v0.1.0
-## explicit; go 1.20
+# github.com/containerd/log v0.2.0
+## explicit; go 1.23
 github.com/containerd/log
-# github.com/containerd/platforms v1.0.0-rc.4
+# github.com/containerd/platforms v1.0.0-rc.5
 ## explicit; go 1.24
 github.com/containerd/platforms
 # github.com/containerd/ttrpc v1.2.7
@@ -163,7 +163,7 @@ github.com/davecgh/go-spew/spew
 # github.com/distribution/reference v0.6.0
 ## explicit; go 1.20
 github.com/distribution/reference
-# github.com/docker/cli v29.7.1+incompatible
+# github.com/docker/cli v29.9.1+incompatible
 ## explicit
 github.com/docker/cli/cli/config
 github.com/docker/cli/cli/config/configfile
@@ -174,11 +174,11 @@ github.com/docker/cli/cli/config/types
 ## explicit
 github.com/docker/distribution/registry/api/errcode
 github.com/docker/distribution/registry/api/v2
-# github.com/docker/docker-credential-helpers v0.9.8
+# github.com/docker/docker-credential-helpers v0.9.10
 ## explicit; go 1.21
 github.com/docker/docker-credential-helpers/client
 github.com/docker/docker-credential-helpers/credentials
-# github.com/docker/go-connections v0.8.1
+# github.com/docker/go-connections v0.8.2
 ## explicit; go 1.23
 github.com/docker/go-connections/tlsconfig
 # github.com/docker/go-units v0.5.0
@@ -305,20 +305,16 @@ github.com/gobuffalo/flect
 # github.com/gogo/protobuf v1.3.2
 ## explicit; go 1.15
 github.com/gogo/protobuf/proto
-# github.com/golang-migrate/migrate/v4 v4.19.1
-## explicit; go 1.24.0
-github.com/golang-migrate/migrate/v4/source
-github.com/golang-migrate/migrate/v4/source/file
-github.com/golang-migrate/migrate/v4/source/iofs
 # github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
 ## explicit; go 1.20
 github.com/golang/groupcache/lru
 # github.com/golang/protobuf v1.5.4
 ## explicit; go 1.17
 github.com/golang/protobuf/proto
-# github.com/google/cel-go v0.29.2
+# github.com/google/cel-go v0.31.0
 ## explicit; go 1.23.0
 github.com/google/cel-go/cel
+github.com/google/cel-go/cel/async
 github.com/google/cel-go/checker
 github.com/google/cel-go/checker/decls
 github.com/google/cel-go/common
@@ -367,8 +363,8 @@ github.com/gorilla/mux
 # github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.1.0
 ## explicit; go 1.21
 github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus
-# github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
-## explicit; go 1.23.0
+# github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.4
+## explicit; go 1.24.0
 github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors
 # github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0
 ## explicit; go 1.25.0
@@ -403,13 +399,14 @@ github.com/joelanford/ignore
 # github.com/json-iterator/go v1.1.12
 ## explicit; go 1.12
 github.com/json-iterator/go
-# github.com/klauspost/compress v1.20.1
+# github.com/klauspost/compress v1.20.3
 ## explicit; go 1.25
 github.com/klauspost/compress
 github.com/klauspost/compress/fse
 github.com/klauspost/compress/huff0
 github.com/klauspost/compress/internal/cpuinfo
 github.com/klauspost/compress/internal/le
+github.com/klauspost/compress/internal/regmask
 github.com/klauspost/compress/internal/snapref
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
@@ -422,9 +419,6 @@ github.com/mattn/go-colorable
 # github.com/mattn/go-isatty v0.0.20
 ## explicit; go 1.15
 github.com/mattn/go-isatty
-# github.com/mattn/go-sqlite3 v1.14.49
-## explicit; go 1.21
-github.com/mattn/go-sqlite3
 # github.com/maxbrunsfeld/counterfeiter/v6 v6.14.0
 ## explicit; go 1.26.0
 github.com/maxbrunsfeld/counterfeiter/v6
@@ -437,7 +431,7 @@ github.com/mitchellh/hashstructure/v2
 # github.com/moby/locker v1.0.1
 ## explicit; go 1.13
 github.com/moby/locker
-# github.com/moby/moby/client v0.5.1
+# github.com/moby/moby/client v0.6.2
 ## explicit; go 1.24
 github.com/moby/moby/client/pkg/versions
 # github.com/moby/sys/capability v0.4.0
@@ -452,7 +446,7 @@ github.com/moby/sys/sequential
 # github.com/moby/sys/user v0.4.1
 ## explicit; go 1.18
 github.com/moby/sys/user
-# github.com/moby/sys/userns v0.1.0
+# github.com/moby/sys/userns v0.2.1
 ## explicit; go 1.21
 github.com/moby/sys/userns
 # github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
@@ -546,7 +540,7 @@ github.com/openshift/client-go/config/listers/config/v1alpha2
 # github.com/openshift/library-go v0.0.0-20261019145849-b3e46fec8a08
 ## explicit; go 1.26.0
 github.com/openshift/library-go/pkg/crypto
-# github.com/operator-framework/api v0.45.0
+# github.com/operator-framework/api v0.46.0
 ## explicit; go 1.26.3
 github.com/operator-framework/api/crds
 github.com/operator-framework/api/pkg/constraints
@@ -565,29 +559,27 @@ github.com/operator-framework/api/pkg/validation
 github.com/operator-framework/api/pkg/validation/errors
 github.com/operator-framework/api/pkg/validation/interfaces
 github.com/operator-framework/api/pkg/validation/internal
-# github.com/operator-framework/operator-registry v1.74.0
-## explicit; go 1.26.3
-github.com/operator-framework/operator-registry/alpha/declcfg
-github.com/operator-framework/operator-registry/alpha/model
-github.com/operator-framework/operator-registry/alpha/property
-github.com/operator-framework/operator-registry/pkg/api
-github.com/operator-framework/operator-registry/pkg/cache
-github.com/operator-framework/operator-registry/pkg/client
-github.com/operator-framework/operator-registry/pkg/configmap
-github.com/operator-framework/operator-registry/pkg/containertools
-github.com/operator-framework/operator-registry/pkg/image
-github.com/operator-framework/operator-registry/pkg/image/containerdregistry
-github.com/operator-framework/operator-registry/pkg/image/execregistry
-github.com/operator-framework/operator-registry/pkg/lib/bundle
-github.com/operator-framework/operator-registry/pkg/lib/encoding
-github.com/operator-framework/operator-registry/pkg/lib/log
-github.com/operator-framework/operator-registry/pkg/lib/semver
-github.com/operator-framework/operator-registry/pkg/lib/validation
-github.com/operator-framework/operator-registry/pkg/prettyunmarshaler
-github.com/operator-framework/operator-registry/pkg/registry
-github.com/operator-framework/operator-registry/pkg/server
-github.com/operator-framework/operator-registry/pkg/sqlite
-github.com/operator-framework/operator-registry/pkg/sqlite/migrations
+# github.com/operator-framework/operator-registry/v2 v2.0.0-alpha-3
+## explicit; go 1.26.5
+github.com/operator-framework/operator-registry/v2/alpha/declcfg
+github.com/operator-framework/operator-registry/v2/alpha/model
+github.com/operator-framework/operator-registry/v2/alpha/property
+github.com/operator-framework/operator-registry/v2/pkg/api
+github.com/operator-framework/operator-registry/v2/pkg/cache
+github.com/operator-framework/operator-registry/v2/pkg/client
+github.com/operator-framework/operator-registry/v2/pkg/configmap
+github.com/operator-framework/operator-registry/v2/pkg/containertools
+github.com/operator-framework/operator-registry/v2/pkg/image
+github.com/operator-framework/operator-registry/v2/pkg/image/containerdregistry
+github.com/operator-framework/operator-registry/v2/pkg/image/execregistry
+github.com/operator-framework/operator-registry/v2/pkg/lib/bundle
+github.com/operator-framework/operator-registry/v2/pkg/lib/encoding
+github.com/operator-framework/operator-registry/v2/pkg/lib/log
+github.com/operator-framework/operator-registry/v2/pkg/lib/semver
+github.com/operator-framework/operator-registry/v2/pkg/lib/validation
+github.com/operator-framework/operator-registry/v2/pkg/prettyunmarshaler
+github.com/operator-framework/operator-registry/v2/pkg/registry
+github.com/operator-framework/operator-registry/v2/pkg/server
 # github.com/otiai10/copy v1.14.1
 ## explicit; go 1.18
 github.com/otiai10/copy
@@ -628,6 +620,7 @@ github.com/prometheus/procfs/internal/parsers
 # github.com/sirupsen/logrus v1.10.2
 ## explicit; go 1.23
 github.com/sirupsen/logrus
+github.com/sirupsen/logrus/hooks/slog
 github.com/sirupsen/logrus/hooks/test
 # github.com/spf13/cobra v1.10.2
 ## explicit; go 1.15
@@ -642,7 +635,7 @@ github.com/stretchr/testify/assert/yaml
 github.com/stretchr/testify/internal/difflib
 github.com/stretchr/testify/internal/spew
 github.com/stretchr/testify/require
-# github.com/tidwall/btree v1.8.1
+# github.com/tidwall/btree v1.8.2
 ## explicit; go 1.20
 github.com/tidwall/btree
 # github.com/x448/float16 v0.8.4
@@ -694,12 +687,12 @@ go.opentelemetry.io/auto/sdk/internal/telemetry
 ## explicit; go 1.25.0
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal
-# go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0
+# go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/request
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconv
-# go.opentelemetry.io/otel v1.45.0
+# go.opentelemetry.io/otel v1.46.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/otel
 go.opentelemetry.io/otel/attribute
@@ -718,8 +711,8 @@ go.opentelemetry.io/otel/semconv/v1.37.0/rpcconv
 go.opentelemetry.io/otel/semconv/v1.40.0
 go.opentelemetry.io/otel/semconv/v1.40.0/rpcconv
 go.opentelemetry.io/otel/semconv/v1.41.0
-go.opentelemetry.io/otel/semconv/v1.41.0/httpconv
 go.opentelemetry.io/otel/semconv/v1.43.0
+go.opentelemetry.io/otel/semconv/v1.43.0/httpconv
 go.opentelemetry.io/otel/semconv/v1.43.0/otelconv
 # go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.45.0
 ## explicit; go 1.25.0
@@ -735,12 +728,12 @@ go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/observ
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/otlpconfig
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/retry
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/x
-# go.opentelemetry.io/otel/metric v1.45.0
+# go.opentelemetry.io/otel/metric v1.46.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/otel/metric
 go.opentelemetry.io/otel/metric/embedded
 go.opentelemetry.io/otel/metric/noop
-# go.opentelemetry.io/otel/sdk v1.45.0
+# go.opentelemetry.io/otel/sdk v1.46.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/otel/sdk
 go.opentelemetry.io/otel/sdk/instrumentation
@@ -750,7 +743,7 @@ go.opentelemetry.io/otel/sdk/resource
 go.opentelemetry.io/otel/sdk/trace
 go.opentelemetry.io/otel/sdk/trace/internal/env
 go.opentelemetry.io/otel/sdk/trace/internal/observ
-# go.opentelemetry.io/otel/trace v1.45.0
+# go.opentelemetry.io/otel/trace v1.46.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/otel/trace
 go.opentelemetry.io/otel/trace/embedded
@@ -762,14 +755,14 @@ go.opentelemetry.io/proto/otlp/collector/trace/v1
 go.opentelemetry.io/proto/otlp/common/v1
 go.opentelemetry.io/proto/otlp/resource/v1
 go.opentelemetry.io/proto/otlp/trace/v1
-# go.podman.io/common v0.69.0
-## explicit; go 1.25.7
+# go.podman.io/common v0.70.0
+## explicit; go 1.26.0
 go.podman.io/common/pkg/auth
 go.podman.io/common/pkg/capabilities
 go.podman.io/common/pkg/completion
 go.podman.io/common/pkg/password
-# go.podman.io/image/v5 v5.41.2
-## explicit; go 1.25.7
+# go.podman.io/image/v5 v5.42.0
+## explicit; go 1.26.0
 go.podman.io/image/v5/docker
 go.podman.io/image/v5/docker/policyconfiguration
 go.podman.io/image/v5/docker/reference
@@ -804,9 +797,12 @@ go.podman.io/image/v5/pkg/tlsclientconfig
 go.podman.io/image/v5/transports
 go.podman.io/image/v5/types
 go.podman.io/image/v5/version
-# go.podman.io/storage v1.64.1
-## explicit; go 1.25.0
+# go.podman.io/storage v1.65.0
+## explicit; go 1.26.0
 go.podman.io/storage/internal/rawfilelock
+go.podman.io/storage/internal/rootlookupcache
+go.podman.io/storage/internal/stat
+go.podman.io/storage/internal/xattrs
 go.podman.io/storage/pkg/configfile
 go.podman.io/storage/pkg/fileutils
 go.podman.io/storage/pkg/homedir
@@ -858,7 +854,7 @@ golang.org/x/crypto/salsa20/salsa
 ## explicit; go 1.25.0
 golang.org/x/exp/maps
 golang.org/x/exp/slices
-# golang.org/x/mod v0.41.0
+# golang.org/x/mod v0.42.0
 ## explicit; go 1.26.0
 golang.org/x/mod/internal/lazyregexp
 golang.org/x/mod/modfile
@@ -965,16 +961,16 @@ golang.org/x/tools/internal/versions
 # gomodules.xyz/jsonpatch/v2 v2.5.0
 ## explicit; go 1.20
 gomodules.xyz/jsonpatch/v2
-# google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7
+# google.golang.org/genproto v0.0.0-20260406210006-6f92a3bedf2d
 ## explicit; go 1.25.0
 google.golang.org/genproto/protobuf/field_mask
-# google.golang.org/genproto/googleapis/api v0.0.0-20260803160001-6ac0973c030d
+# google.golang.org/genproto/googleapis/api v0.0.0-20260825221802-da73d73af1c5
 ## explicit; go 1.25.0
 google.golang.org/genproto/googleapis/api
 google.golang.org/genproto/googleapis/api/annotations
 google.golang.org/genproto/googleapis/api/expr/v1alpha1
 google.golang.org/genproto/googleapis/api/httpbody
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20260803160001-6ac0973c030d
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20260825221802-da73d73af1c5
 ## explicit; go 1.25.0
 google.golang.org/genproto/googleapis/rpc/errdetails
 google.golang.org/genproto/googleapis/rpc/status

@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/operator-framework/operator-registry/pkg/lib/bundle"
+	"github.com/operator-framework/operator-registry/v2/pkg/lib/bundle"
 	"github.com/otiai10/copy"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"

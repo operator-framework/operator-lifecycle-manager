@@ -34,7 +34,8 @@ SOURCE_INDEX="quay.io/operator-framework/webhook-operator-index:0.0.3"
 SOURCE_BUNDLE="quay.io/operator-framework/ci-bundle-webhook:0.0.3"
 OLD_PROXY="gcr.io/kubebuilder/kube-rbac-proxy:v0.5.0"
 NEW_PROXY="quay.io/brancz/kube-rbac-proxy:v0.5.0"
-OPM_IMAGE="quay.io/operator-framework/opm:v$(go list -m github.com/operator-framework/operator-registry | awk '{print $2}' | sed 's/^v//')"
+# This script rebuilds a SQLite index and requires the v1 opm index command.
+OPM_IMAGE="quay.io/operator-framework/opm:v1.74.0"
 DST="${TARGET_REGISTRY}/webhook-operator-index:0.0.3"
 
 WORKDIR=$(mktemp -d)

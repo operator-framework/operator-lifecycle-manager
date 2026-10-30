@@ -14,7 +14,7 @@ import (
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
-	"github.com/operator-framework/operator-registry/pkg/api"
+	"github.com/operator-framework/operator-registry/v2/pkg/api"
 )
 
 var _ = Describe("ClusterOperator controller", func() {
