@@ -75,7 +75,7 @@ func versionsMatch(a []configv1.OperandVersion, b []configv1.OperandVersion) boo
 	return len(counts) < 1
 }
 
-type skews []skew
+type skews []*skew
 
 func (s skews) String() string {
 	// Sort so the message does not depend on the (unstable) order in which the
@@ -111,10 +111,43 @@ type skew struct {
 	namespace           string
 	name                string
 	maxOpenShiftVersion string
-	err                 error
+
+	// the following properties are populated by skew.process()
+	err                           error
+	normalizedMaxOpenShiftVersion *semver.Version
 }
 
-func (s skew) String() string {
+func (s *skew) process() {
+	if s == nil || s.normalizedMaxOpenShiftVersion != nil {
+		return
+	}
+
+	if s.maxOpenShiftVersion == "" {
+		// Handle "" separately, so parse doesn't treat it as a zero
+		s.err = fmt.Errorf(`%s value cannot be "" (an empty string)`, MaxOpenShiftVersionProperty)
+		s.normalizedMaxOpenShiftVersion = &semver.Version{}
+		return
+	}
+
+	version, err := semver.ParseTolerant(s.maxOpenShiftVersion)
+	s.normalizedMaxOpenShiftVersion = &version
+	if err != nil {
+		s.err = fmt.Errorf(`failed to parse %s=%q as semver: %w`, MaxOpenShiftVersionProperty, s.maxOpenShiftVersion, err)
+		return
+	}
+
+	truncatedVersion := semver.Version{Major: version.Major, Minor: version.Minor}
+	if !s.normalizedMaxOpenShiftVersion.EQ(truncatedVersion) {
+		s.err = fmt.Errorf("%s property must specify only <major>.<minor> version, got invalid value %q", MaxOpenShiftVersionProperty, s.normalizedMaxOpenShiftVersion)
+		return
+	}
+
+	// Normalize the operator's maxOpenShiftVersion: 4.23 and 5.0 are equivalent.
+	version = normalizeOCPVersion(*s.normalizedMaxOpenShiftVersion)
+	s.normalizedMaxOpenShiftVersion = &version
+}
+
+func (s *skew) String() string {
 	if s.err != nil {
 		return fmt.Sprintf("- %s/%s has invalid %s properties: %s", s.namespace, s.name, MaxOpenShiftVersionProperty, s.err)
 	}
@@ -158,28 +191,17 @@ func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error
 			continue
 		}
 
-		s := skew{
-			name:      csv.GetName(),
-			namespace: csv.GetNamespace(),
-		}
-		max, err := maxOpenShiftVersion(&csv)
-		if err != nil {
-			s.err = err
+		s := maxOpenShiftVersion(&csv)
+		if s == nil {
+			continue
+		} else if s.err != nil {
 			incompatible = append(incompatible, s)
 			continue
 		}
 
-		if max == nil {
+		if s.normalizedMaxOpenShiftVersion.GTE(nextMinor) {
 			continue
 		}
-
-		// Normalize the operator's maxOpenShiftVersion: 4.23 and 5.0 are equivalent.
-		normalizedMax := normalizeOCPVersion(*max)
-		if normalizedMax.GTE(nextMinor) {
-			continue
-		}
-
-		s.maxOpenShiftVersion = fmt.Sprintf("%d.%d", max.Major, max.Minor)
 
 		incompatible = append(incompatible, s)
 	}
@@ -258,16 +280,22 @@ const (
 	MaxOpenShiftVersionProperty = "olm.maxOpenShiftVersion"
 )
 
-func maxOpenShiftVersion(csv *operatorsv1alpha1.ClusterServiceVersion) (*semver.Version, error) {
+func maxOpenShiftVersion(csv *operatorsv1alpha1.ClusterServiceVersion) *skew {
+	s := &skew{
+		name:      csv.GetName(),
+		namespace: csv.GetNamespace(),
+	}
+
 	// Extract the property from the CSV's annotations if possible
 	annotation, ok := csv.GetAnnotations()[projection.PropertiesAnnotationKey]
 	if !ok {
-		return nil, nil
+		return nil
 	}
 
 	properties, err := projection.PropertyListFromPropertiesAnnotation(annotation)
 	if err != nil {
-		return nil, err
+		s.err = err
+		return s
 	}
 
 	var max *string
@@ -277,33 +305,23 @@ func maxOpenShiftVersion(csv *operatorsv1alpha1.ClusterServiceVersion) (*semver.
 		}
 
 		if max != nil {
-			return nil, fmt.Errorf(`defining more than one "%s" property is not allowed`, MaxOpenShiftVersionProperty)
+			s.err = fmt.Errorf(`defining more than one %q property is not allowed`, MaxOpenShiftVersionProperty)
+			return s
 		}
 
 		max = &property.Value
 	}
 
 	if max == nil {
-		return nil, nil
+		return nil
 	}
 
 	// Account for any additional quoting
 	value := strings.Trim(*max, "\"")
-	if value == "" {
-		// Handle "" separately, so parse doesn't treat it as a zero
-		return nil, fmt.Errorf(`value cannot be "" (an empty string)`)
-	}
 
-	version, err := semver.ParseTolerant(value)
-	if err != nil {
-		return nil, fmt.Errorf(`failed to parse "%s" as semver: %w`, value, err)
-	}
-
-	truncatedVersion := semver.Version{Major: version.Major, Minor: version.Minor}
-	if !version.EQ(truncatedVersion) {
-		return nil, fmt.Errorf("property %s must specify only <major>.<minor> version, got invalid value %s", MaxOpenShiftVersionProperty, version)
-	}
-	return &truncatedVersion, nil
+	s.maxOpenShiftVersion = value
+	s.process()
+	return s
 }
 
 func notCopiedSelector() (labels.Selector, error) {
