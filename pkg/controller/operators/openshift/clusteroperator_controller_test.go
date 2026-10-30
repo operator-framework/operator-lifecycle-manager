@@ -195,7 +195,6 @@ var _ = Describe("ClusterOperator controller", func() {
 			}).Should(Succeed())
 		}()
 
-		parsedVersion := semver.MustParse(clusterVersion)
 		Eventually(func() ([]configv1.ClusterOperatorStatusCondition, error) {
 			err := k8sClient.Get(ctx, clusterOperatorName, co)
 			return co.Status.Conditions, err
@@ -207,7 +206,7 @@ var _ = Describe("ClusterOperator controller", func() {
 				{
 					namespace:           ns.GetName(),
 					name:                incompatible.GetName(),
-					maxOpenShiftVersion: fmt.Sprintf("%d.%d", parsedVersion.Major, parsedVersion.Minor),
+					maxOpenShiftVersion: clusterVersion,
 				},
 			}.String(),
 			LastTransitionTime: fixedNow(),
@@ -266,7 +265,6 @@ var _ = Describe("ClusterOperator controller", func() {
 			return k8sClient.Update(ctx, incompatible)
 		}).Should(Succeed())
 
-		_, parseErr := semver.ParseTolerant("garbage")
 		Eventually(func() ([]configv1.ClusterOperatorStatusCondition, error) {
 			err := k8sClient.Get(ctx, clusterOperatorName, co)
 			return co.Status.Conditions, err
@@ -276,9 +274,9 @@ var _ = Describe("ClusterOperator controller", func() {
 			Reason: IncompatibleOperatorsInstalled,
 			Message: skews{
 				{
-					namespace: ns.GetName(),
-					name:      incompatible.GetName(),
-					err:       fmt.Errorf(`failed to parse "garbage" as semver: %w`, parseErr),
+					namespace:           ns.GetName(),
+					name:                incompatible.GetName(),
+					maxOpenShiftVersion: "garbage",
 				},
 			}.String(),
 			LastTransitionTime: fixedNow(),
