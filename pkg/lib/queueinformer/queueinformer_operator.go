@@ -142,9 +142,21 @@ func (o *operator) RegisterInformer(informer cache.SharedIndexInformer) error {
 }
 
 func (o *operator) registerInformer(informer cache.SharedIndexInformer) {
-	// never double-register an informer
+	// Never double-register an informer.
+	//
+	// Comparing interface identity alone is not sufficient: client-go's
+	// typed informer factories return a new typedSharedIndexInformer wrapper
+	// for every Informer() call around the same cached underlying informer,
+	// and two such wrappers of one informer compare unequal. Registering
+	// both would make RunInformers run the underlying informer twice, which
+	// races sharedIndexInformer's start bookkeeping and eventually panics
+	// with "close of closed channel". Deduplicate on the underlying
+	// informer instead: every sharedIndexInformer owns its indexer from
+	// construction, so informers backed by the same underlying informer
+	// report the same indexer.
+	indexer := informer.GetIndexer()
 	for i := range o.informers {
-		if o.informers[i] == informer {
+		if o.informers[i] == informer || o.informers[i].GetIndexer() == indexer {
 			return
 		}
 	}
