@@ -19,6 +19,14 @@ import (
 	"github.com/operator-framework/operator-registry/pkg/api"
 )
 
+func mustParse(s string) *semver.Version {
+	version, err := semver.ParseTolerant(s)
+	if err != nil {
+		panic(fmt.Sprintf("bad version given for test case: %s", err))
+	}
+	return &version
+}
+
 func TestConditionsEqual(t *testing.T) {
 	type args struct {
 		a, b *configv1.ClusterOperatorStatusCondition
@@ -284,29 +292,36 @@ func TestIncompatibleOperators(t *testing.T) {
 				err: false,
 				incompatible: skews{
 					{
-						name:                "almond",
-						namespace:           "default",
-						maxOpenShiftVersion: "1.0",
+						name:                          "almond",
+						namespace:                     "default",
+						maxOpenShiftVersion:           "1.0.0",
+						normalizedMaxOpenShiftVersion: &semver.Version{Major: 1, Minor: 0},
 					},
 					{
-						name:                "beech",
-						namespace:           "default",
-						maxOpenShiftVersion: "1.0",
+						name:                          "beech",
+						namespace:                     "default",
+						maxOpenShiftVersion:           "1.0.0+build",
+						normalizedMaxOpenShiftVersion: &semver.Version{Major: 1, Minor: 0},
 					},
 					{
-						name:      "chestnut",
-						namespace: "default",
-						err:       fmt.Errorf("property olm.maxOpenShiftVersion must specify only <major>.<minor> version, got invalid value 1.1.0-pre"),
+						name:                          "chestnut",
+						namespace:                     "default",
+						maxOpenShiftVersion:           "1.1.0-pre",
+						err:                           fmt.Errorf(`olm.maxOpenShiftVersion property must specify only <major>.<minor> version, got invalid value "1.1.0-pre"`),
+						normalizedMaxOpenShiftVersion: mustParse("1.1.0-pre"),
 					},
 					{
-						name:      "drupe",
-						namespace: "default",
-						err:       fmt.Errorf("property olm.maxOpenShiftVersion must specify only <major>.<minor> version, got invalid value 1.1.0-pre+build"),
+						name:                          "drupe",
+						namespace:                     "default",
+						maxOpenShiftVersion:           "1.1.0-pre+build",
+						err:                           fmt.Errorf(`olm.maxOpenShiftVersion property must specify only <major>.<minor> version, got invalid value "1.1.0-pre+build"`),
+						normalizedMaxOpenShiftVersion: mustParse("1.1.0-pre+build"),
 					},
 					{
-						name:                "european-hazelnut",
-						namespace:           "default",
-						maxOpenShiftVersion: "0.1",
+						name:                          "european-hazelnut",
+						namespace:                     "default",
+						maxOpenShiftVersion:           "0.1.0",
+						normalizedMaxOpenShiftVersion: &semver.Version{Major: 0, Minor: 1},
 					},
 				},
 			},
@@ -335,14 +350,16 @@ func TestIncompatibleOperators(t *testing.T) {
 				err: false,
 				incompatible: skews{
 					{
-						name:                "beech",
-						namespace:           "default",
-						maxOpenShiftVersion: "1.0",
+						name:                          "beech",
+						namespace:                     "default",
+						maxOpenShiftVersion:           "1.0.0",
+						normalizedMaxOpenShiftVersion: mustParse("1.0.0"),
 					},
 					{
-						name:                "chestnut",
-						namespace:           "default",
-						maxOpenShiftVersion: "1.0",
+						name:                          "chestnut",
+						namespace:                     "default",
+						maxOpenShiftVersion:           "1.0",
+						normalizedMaxOpenShiftVersion: mustParse("1.0.0"),
 					},
 				},
 			},
@@ -371,17 +388,20 @@ func TestIncompatibleOperators(t *testing.T) {
 				err: false,
 				incompatible: skews{
 					{
-						name:                "beech",
-						namespace:           "default",
-						maxOpenShiftVersion: "1.0",
+						name:                          "beech",
+						namespace:                     "default",
+						maxOpenShiftVersion:           "1.0.0",
+						normalizedMaxOpenShiftVersion: mustParse("1.0.0"),
 					},
 					{
-						name:      "chestnut",
-						namespace: "default",
-						err: fmt.Errorf(`failed to parse "bad_version" as semver: %w`, func() error {
+						name:                "chestnut",
+						namespace:           "default",
+						maxOpenShiftVersion: "bad_version",
+						err: fmt.Errorf(`failed to parse olm.maxOpenShiftVersion="bad_version" as semver: %w`, func() error {
 							_, err := semver.ParseTolerant("bad_version")
 							return err
 						}()),
+						normalizedMaxOpenShiftVersion: &semver.Version{},
 					},
 				},
 			},
@@ -435,9 +455,10 @@ func TestIncompatibleOperators(t *testing.T) {
 				err: false,
 				incompatible: skews{
 					{
-						name:                "almond",
-						namespace:           "default",
-						maxOpenShiftVersion: "1.1",
+						name:                          "almond",
+						namespace:                     "default",
+						maxOpenShiftVersion:           "1.1.0",
+						normalizedMaxOpenShiftVersion: &semver.Version{Major: 1, Minor: 1},
 					},
 				},
 			},
@@ -490,14 +511,16 @@ func TestIncompatibleOperators(t *testing.T) {
 			expect: expect{
 				incompatible: skews{
 					{
-						name:                "almond",
-						namespace:           "default",
-						maxOpenShiftVersion: "4.23",
+						name:                          "almond",
+						namespace:                     "default",
+						maxOpenShiftVersion:           "4.23",
+						normalizedMaxOpenShiftVersion: &semver.Version{Major: 5, Minor: 0},
 					},
 					{
-						name:                "beech",
-						namespace:           "default",
-						maxOpenShiftVersion: "5.0",
+						name:                          "beech",
+						namespace:                     "default",
+						maxOpenShiftVersion:           "5.0",
+						normalizedMaxOpenShiftVersion: &semver.Version{Major: 5, Minor: 0},
 					},
 				},
 			},
@@ -525,14 +548,16 @@ func TestIncompatibleOperators(t *testing.T) {
 			expect: expect{
 				incompatible: skews{
 					{
-						name:                "almond",
-						namespace:           "default",
-						maxOpenShiftVersion: "4.23",
+						name:                          "almond",
+						namespace:                     "default",
+						maxOpenShiftVersion:           "4.23",
+						normalizedMaxOpenShiftVersion: &semver.Version{Major: 5, Minor: 0},
 					},
 					{
-						name:                "beech",
-						namespace:           "default",
-						maxOpenShiftVersion: "5.0",
+						name:                          "beech",
+						namespace:                     "default",
+						maxOpenShiftVersion:           "5.0",
+						normalizedMaxOpenShiftVersion: &semver.Version{Major: 5, Minor: 0},
 					},
 				},
 			},
@@ -560,19 +585,22 @@ func TestIncompatibleOperators(t *testing.T) {
 			expect: expect{
 				incompatible: skews{
 					{
-						name:                "almond",
-						namespace:           "default",
-						maxOpenShiftVersion: "4.23",
+						name:                          "almond",
+						namespace:                     "default",
+						maxOpenShiftVersion:           "4.23",
+						normalizedMaxOpenShiftVersion: &semver.Version{Major: 5, Minor: 0},
 					},
 					{
-						name:                "beech",
-						namespace:           "default",
-						maxOpenShiftVersion: "5.0",
+						name:                          "beech",
+						namespace:                     "default",
+						maxOpenShiftVersion:           "5.0",
+						normalizedMaxOpenShiftVersion: &semver.Version{Major: 5, Minor: 0},
 					},
 					{
-						name:                "chestnut",
-						namespace:           "default",
-						maxOpenShiftVersion: "5.1",
+						name:                          "chestnut",
+						namespace:                     "default",
+						maxOpenShiftVersion:           "5.1",
+						normalizedMaxOpenShiftVersion: &semver.Version{Major: 5, Minor: 1},
 					},
 				},
 			},
@@ -619,14 +647,6 @@ func TestIncompatibleOperators(t *testing.T) {
 }
 
 func TestMaxOpenShiftVersion(t *testing.T) {
-	mustParse := func(s string) *semver.Version {
-		version, err := semver.ParseTolerant(s)
-		if err != nil {
-			panic(fmt.Sprintf("bad version given for test case: %s", err))
-		}
-		return &version
-	}
-
 	type expect struct {
 		err bool
 		max *semver.Version
@@ -648,7 +668,7 @@ func TestMaxOpenShiftVersion(t *testing.T) {
 			in:          []string{`""`},
 			expect: expect{
 				err: true,
-				max: nil,
+				max: &semver.Version{},
 			},
 		},
 		{
@@ -656,7 +676,7 @@ func TestMaxOpenShiftVersion(t *testing.T) {
 			in:          []string{`"bad_version"`},
 			expect: expect{
 				err: true,
-				max: nil,
+				max: &semver.Version{},
 			},
 		},
 		{
@@ -705,14 +725,18 @@ func TestMaxOpenShiftVersion(t *testing.T) {
 				projection.PropertiesAnnotationKey: value,
 			})
 
-			max, err := maxOpenShiftVersion(csv)
+			skew := maxOpenShiftVersion(csv)
 			if tt.expect.err {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
+				require.Error(t, skew.err)
+			} else if skew != nil {
+				require.NoError(t, skew.err)
 			}
 
-			require.Equal(t, tt.expect.max, max)
+			if tt.in == nil {
+				require.Nil(t, skew)
+			} else {
+				require.Equal(t, tt.expect.max, skew.normalizedMaxOpenShiftVersion)
+			}
 		})
 	}
 }
@@ -814,4 +838,21 @@ func TestNormalizeOCPVersion(t *testing.T) {
 			require.Equal(t, tc.expected, normalizeOCPVersion(tc.in))
 		})
 	}
+}
+
+func TestSkewsStringIsDeterministic(t *testing.T) {
+	// The informer cache lists CSVs in map order. The condition message must not
+	// depend on that order, or every reorder counts as a condition transition.
+	a := &skew{namespace: "openshift-logging", name: "cluster-logging.v6.6.1", maxOpenShiftVersion: "4.23"}
+	b := &skew{namespace: "openshift-cluster-csi-drivers", name: "secrets-store-csi-driver-operator.v4.22.0", maxOpenShiftVersion: "5.0"}
+	invalid := &skew{namespace: "openshift-logging", name: "broken.v1.0.0", maxOpenShiftVersion: "invalid"}
+
+	expected := "ClusterServiceVersions blocking minor version upgrades to 5.1 or higher:\n" +
+		invalid.String() + "\n" + // error skews first
+		b.String() + "\n" + // then by namespace/name
+		a.String()
+
+	require.Equal(t, expected, skews{a, b, invalid}.String())
+	require.Equal(t, expected, skews{invalid, b, a}.String())
+	require.Equal(t, expected, skews{b, invalid, a}.String())
 }
