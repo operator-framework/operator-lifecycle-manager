@@ -1,0 +1,69 @@
+# Compiled Object files, Static and Dynamic libs (Shared Objects)
+*.o
+*.a
+*.so
+
+# Folders
+_obj
+_test
+bin
+build
+build-done
+.DS_Store
+
+# Architecture specific extensions/prefixes
+*.[568vq]
+[568vq].out
+
+*.cgo1.go
+*.cgo2.c
+_cgo_defun.c
+_cgo_gotypes.go
+_cgo_export.*
+
+_testmain.go
+cover.out
+coverage.out
+coverage.html
+*.exe
+*.test
+*.prof
+yaml
+vendor/
+tmp/
+cover/
+yq
+
+# snapcraft
+parts/
+prime/
+.snapcraft/
+yq*.snap
+
+test.yml
+test*.yml
+test*.xml
+test*.toml
+test*.yaml
+test_dir1/
+test_dir2/
+0.yml
+1.yml
+2.yml
+
+
+# man page
+man.md
+yq.1
+
+# debian pkg
+_build
+debian/files
+
+# intellij
+/.idea
+
+# vscode
+.vscode
+
+yq3
