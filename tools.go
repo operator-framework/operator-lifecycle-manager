@@ -2,7 +2,7 @@
 // +build tools
 
 // This file imports packages that support the code generation required for the operators and their tests
-// These tools do not belong in bingo they need to be part of the main module because, either:
+// These dependencies need to be part of the main module because, either:
 // - It includes resources that are not directly imported (or importable) in go (e.g. yamls files)
 // - They share dependencies (e.g. k8s libraries) with the main module and should be kept in sync
 package tools
