@@ -1,7 +1,6 @@
-[![Build Status](https://github.com/spf13/pflag/actions/workflows/ci.yaml/badge.svg)](https://github.com/spf13/pflag/actions/workflows/ci.yaml)
-![GitHub License](https://img.shields.io/github/license/spf13/pflag)
+[![Build Status](https://travis-ci.org/spf13/pflag.svg?branch=master)](https://travis-ci.org/spf13/pflag)
 [![Go Report Card](https://goreportcard.com/badge/github.com/spf13/pflag)](https://goreportcard.com/report/github.com/spf13/pflag)
-[![PkgGoDev](https://pkg.go.dev/badge/github.com/spf13/pflag)](https://pkg.go.dev/github.com/spf13/pflag)
+[![GoDoc](https://godoc.org/github.com/spf13/pflag?status.svg)](https://godoc.org/github.com/spf13/pflag)
 
 ## Description
 
@@ -12,7 +11,7 @@ pflag is compatible with the [GNU extensions to the POSIX recommendations
 for command-line options][1]. For a more precise description, see the
 "Command-line flag syntax" section below.
 
-[1]: https://sourceware.org/glibc/manual/latest/html_node/Argument-Syntax.html
+[1]: http://www.gnu.org/software/libc/manual/html_node/Argument-Syntax.html
 
 pflag is available under the same style of BSD license as the Go language,
 which can be found in the LICENSE file.
@@ -23,7 +22,7 @@ pflag is available using the standard `go get` command.
 
 Install by running:
 
-    go get github.com/spf13/pflag@latest
+    go get github.com/spf13/pflag
 
 Run tests by running:
 
@@ -180,25 +179,6 @@ Flag parsing stops after the terminator "--". Unlike the flag package,
 flags can be interspersed with arguments anywhere on the command line
 before this terminator.
 
-To stop parsing at the first non-flag argument, call
-`flag.SetInterspersed(false)` before `flag.Parse()`, or use
-`flags.SetInterspersed(false)` on a `FlagSet`. This is useful for wrappers
-that pass a command and its remaining arguments through unchanged:
-
-```go
-flags := flag.NewFlagSet("wrapper", flag.ContinueOnError)
-verbose := flags.Bool("verbose", false, "verbose output")
-flags.SetInterspersed(false)
-if err := flags.Parse([]string{"--verbose", "echo", "--verbose", "hello"}); err != nil {
-	panic(err)
-}
-fmt.Println(*verbose)     // true
-fmt.Println(flags.Args()) // [echo --verbose hello]
-```
-
-The second `--verbose` belongs to `echo`, so it is left in `flags.Args()`
-along with every argument after the command, even if it names a known flag.
-
 Integer flags accept 1234, 0664, 0x1234 and may be negative.
 Boolean flags (in their long form) accept 1, 0, t, f, true, false,
 TRUE, FALSE, True, False.
@@ -269,35 +249,13 @@ flags.MarkHidden("secretFlag")
 ## Disable sorting of flags
 `pflag` allows you to disable sorting of flags for help and usage message.
 
-`SortFlags` is a field on `FlagSet`, not a package-level variable. To disable
-sorting on the default `CommandLine` flag set, use `pflag.CommandLine.SortFlags`.
-
 **Example**:
 ```go
-package main
-
-import (
-	"fmt"
-
-	"github.com/spf13/pflag"
-)
-
-func main() {
-	flags := pflag.NewFlagSet("example", pflag.ContinueOnError)
-	flags.BoolP("verbose", "v", false, "verbose output")
-	flags.String("coolflag", "yeaah", "it's really cool flag")
-	flags.Int("usefulflag", 777, "sometimes it's very useful")
-	flags.SortFlags = false
-	flags.PrintDefaults()
-	fmt.Println()
-}
-```
-
-For the default `CommandLine` flag set:
-
-```go
-pflag.CommandLine.SortFlags = false
-pflag.PrintDefaults()
+flags.BoolP("verbose", "v", false, "verbose output")
+flags.String("coolflag", "yeaah", "it's really cool flag")
+flags.Int("usefulflag", 777, "sometimes it's very useful")
+flags.SortFlags = false
+flags.PrintDefaults()
 ```
 **Output**:
 ```
@@ -313,15 +271,12 @@ to support flags defined by third-party dependencies (e.g. `golang/glog`).
 
 **Example**: You want to add the Go flags to the `CommandLine` flagset
 ```go
-package main
-
 import (
 	goflag "flag"
-
 	flag "github.com/spf13/pflag"
 )
 
-var ip = flag.Int("flagname", 1234, "help message for flagname")
+var ip *int = flag.Int("flagname", 1234, "help message for flagname")
 
 func main() {
 	flag.CommandLine.AddGoFlagSet(goflag.CommandLine)
@@ -341,22 +296,17 @@ will result in the `-v` flag being ignored. This happens because of the way pfla
 To work around this, you can use the `ParseSkippedFlags` function, which ensures that go test's flags are parsed separately using the standard flag package.
 
 **Example**: You want to parse go test flags that are otherwise ignore by `pflag.Parse()`
-
 ```go
-package main
-
 import (
 	goflag "flag"
-    "os"
-
 	flag "github.com/spf13/pflag"
 )
 
-var ip = flag.Int("flagname", 1234, "help message for flagname")
+var ip *int = flag.Int("flagname", 1234, "help message for flagname")
 
 func main() {
 	flag.CommandLine.AddGoFlagSet(goflag.CommandLine)
-	flag.ParseSkippedFlags(os.Args[1:], goflag.CommandLine)
+    flag.ParseSkippedFlags(os.Args[1:], goflag.CommandLine)
 	flag.Parse()
 }
 ```
@@ -364,7 +314,10 @@ func main() {
 ## More info
 
 You can see the full reference documentation of the pflag package
-at [pkg.go.dev][2], or through go's standard documentation system by
-cloning the repository and running `go doc -http` in it.
+[at godoc.org][3], or through go's standard documentation system by
+running `godoc -http=:6060` and browsing to
+[http://localhost:6060/pkg/github.com/spf13/pflag][2] after
+installation.
 
-[2]: https://pkg.go.dev/github.com/spf13/pflag
+[2]: http://localhost:6060/pkg/github.com/spf13/pflag
+[3]: http://godoc.org/github.com/spf13/pflag

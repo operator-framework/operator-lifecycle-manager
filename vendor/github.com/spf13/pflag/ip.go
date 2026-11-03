@@ -32,9 +32,6 @@ func (i *ipValue) Type() string {
 }
 
 func ipConv(sval string) (interface{}, error) {
-	if sval == "" || sval == "<nil>" {
-		return net.IP(nil), nil
-	}
 	ip := net.ParseIP(sval)
 	if ip != nil {
 		return ip, nil
