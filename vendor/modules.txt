@@ -596,6 +596,9 @@ github.com/otiai10/copy
 ## explicit; go 1.18
 github.com/otiai10/mint
 github.com/otiai10/mint/mquery
+# github.com/pandatix/go-abnf v0.5.3
+## explicit; go 1.26.0
+github.com/pandatix/go-abnf
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
@@ -617,7 +620,7 @@ github.com/prometheus/client_golang/prometheus/testutil/promlint/validations
 # github.com/prometheus/client_model v0.6.3
 ## explicit; go 1.23
 github.com/prometheus/client_model/go
-# github.com/prometheus/common v0.72.1
+# github.com/prometheus/common v0.73.1
 ## explicit; go 1.26.0
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/model
