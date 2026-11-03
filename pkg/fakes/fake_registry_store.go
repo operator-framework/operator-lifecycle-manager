@@ -5,8 +5,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/operator-registry/v2/pkg/api"
+	"github.com/operator-framework/operator-registry/v2/pkg/registry"
 )
 
 type FakeQuery struct {

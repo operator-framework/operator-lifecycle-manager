@@ -697,18 +697,26 @@ type DeleteRangeOptions struct {
 // Returns the deleted items as an ordered list that can be iterated over using
 // the list.Scan() method.
 func (tr *BTreeG[T]) DeleteRange(min, max T, opts *DeleteRangeOptions) (deleted List[T]) {
-	return tr.DeleteRangeReuse(min, max, opts, List[T]{})
+	return tr.DeleteRangeReuse(min, max, opts, &deleted)
 }
 
 // DeleteRangeReuse is the same as DeleteRange, but it takes a List as an argument to
 // avoid allocating/growing a new List on each call to DeleteRange. It is unsafe to use
 // the same List across concurrent calls to DeleteRange.
-func (tr *BTreeG[T]) DeleteRangeReuse(min, max T, opts *DeleteRangeOptions, deleted List[T]) List[T] {
+//
+// The deleted paramter needs to be a pointer as the go runtime can allocate a new backing memory on
+// append to a slice, and that change needs to be reflected in the caller.
+func (tr *BTreeG[T]) DeleteRangeReuse(min, max T, opts *DeleteRangeOptions, deleted *List[T]) List[T] {
 	if tr.lock(true) {
 		defer tr.unlock(true)
 	}
 	extract := opts == nil || !opts.NoReturn
 	maxincl := opts != nil && opts.MaxInclusive
+
+	if deleted == nil {
+		deleted = &List[T]{}
+	}
+
 	// Clear just in case it hasn't been cleared yet.
 	deleted.Clear()
 
@@ -730,7 +738,7 @@ func (tr *BTreeG[T]) DeleteRangeReuse(min, max T, opts *DeleteRangeOptions, dele
 	var stack []stackItem
 restart:
 	if tr.root == nil {
-		return deleted
+		return *deleted
 	}
 	n := tr.isoLoad(&tr.root, true)
 	stack = append(stack, stackItem{n, 0})
@@ -766,7 +774,7 @@ restart:
 			if found {
 				if maxstop(n.items[i]) {
 					// stop
-					return deleted
+					return *deleted
 				}
 				pivot = n.items[i]
 				if extract {
@@ -787,7 +795,7 @@ restart:
 			var stop bool
 			j := 0
 			for ; j < maxbulk; j++ {
-				stop := maxstop(n.items[i+j])
+				stop = maxstop(n.items[i+j])
 				if stop {
 					break
 				}
@@ -805,13 +813,13 @@ restart:
 			}
 			tr.count -= j
 			if stop {
-				return deleted
+				return *deleted
 			}
 		}
 		for ; i < len(n.items); i++ {
 			if maxstop(n.items[i]) {
 				// stop
-				return deleted
+				return *deleted
 			}
 			if len(n.items) > tr.min {
 				if extract {
@@ -841,7 +849,7 @@ restart:
 			stack = stack[:len(stack)-1]
 			if len(stack) == 0 {
 				// end of tree
-				return deleted
+				return *deleted
 			}
 			n = stack[len(stack)-1].node
 			if i < len(n.items) {
@@ -1682,8 +1690,31 @@ func (iter *IterG[T]) Release() {
 		iter.tr.unlock(iter.mut)
 		iter.locked = false
 	}
-	iter.stack = nil
-	iter.tr = nil
+
+	// Preserve the backing memory for the stack, so that the iterator can be re-used without
+	// allocating.
+	stack := iter.stack[:0]
+	*iter = IterG[T]{}
+	iter.stack = stack
+}
+
+// Init is used to initialize an existing iterator with a new tree. Release must've
+// been called on the iterator before re-using it using Init.
+func (iter *IterG[T]) Init(tr *BTreeG[T], mut bool) {
+	// Re-use the stack, but 0 out the rest of the memory.
+	stack := iter.stack[:0]
+	*iter = IterG[T]{}
+	iter.stack = stack
+
+	iter.tr = tr
+	iter.mut = mut
+
+	iter.locked = tr.lock(iter.mut)
+	if iter.stack == nil {
+		iter.stack = iter.stack0[:0]
+	} else {
+		iter.stack = iter.stack[:0]
+	}
 }
 
 // Next moves iterator to the next item in iterator.

@@ -7,9 +7,9 @@ import (
 
 	"google.golang.org/grpc"
 
-	registryapi "github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/client"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	registryapi "github.com/operator-framework/operator-registry/v2/pkg/api"
+	"github.com/operator-framework/operator-registry/v2/pkg/client"
+	opregistry "github.com/operator-framework/operator-registry/v2/pkg/registry"
 )
 
 // ChannelEntryStream interface

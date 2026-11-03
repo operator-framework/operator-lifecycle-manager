@@ -6,7 +6,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
-	operatorregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	operatorregistry "github.com/operator-framework/operator-registry/v2/pkg/registry"
 )
 
 type BundleVariable struct {

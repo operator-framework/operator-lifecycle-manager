@@ -58,12 +58,13 @@ CERT_MANAGER_TIMEOUT ?= 120s
 KUBE_MINOR ?= $(shell go list -m k8s.io/client-go | cut -d" " -f2 | sed 's/^v0\.\([[:digit:]]\{1,\}\)\.[[:digit:]]\{1,\}$$/1.\1/')
 
 # operator registry version to build against
-OPERATOR_REGISTRY_VERSION ?= $(shell go list -m github.com/operator-framework/operator-registry | cut -d" " -f2 | sed 's/^v//')
+OPERATOR_REGISTRY_VERSION ?= $(shell go list -m github.com/operator-framework/operator-registry/v2 | cut -d" " -f2 | sed 's/^v//')
 
-# Pin operator registry images to the same version as the operator registry
+# Use the v2 opm image for bundle operations. The configmap server image is
+# still provided by the v1 release series.
 export OPERATOR_REGISTRY_TAG ?= v$(OPERATOR_REGISTRY_VERSION)
 export OPERATOR_REGISTRY_IMAGE ?= quay.io/operator-framework/opm:$(OPERATOR_REGISTRY_TAG)
-export CONFIGMAP_SERVER_IMAGE ?= quay.io/operator-framework/configmap-operator-registry:$(OPERATOR_REGISTRY_TAG)
+export CONFIGMAP_SERVER_IMAGE ?= quay.io/operator-framework/configmap-operator-registry:v1.74.0
 
 # Artifact settings #
 

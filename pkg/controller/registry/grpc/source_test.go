@@ -1,4 +1,4 @@
-//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../../fakes/fake_registry_store.go ../../../../vendor/github.com/operator-framework/operator-registry/pkg/registry/interface.go Query
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../../fakes/fake_registry_store.go ../../../../vendor/github.com/operator-framework/operator-registry/v2/pkg/registry/interface.go Query
 package grpc
 
 import (
@@ -19,9 +19,9 @@ import (
 	"google.golang.org/grpc/connectivity"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
-	"github.com/operator-framework/operator-registry/pkg/api"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
-	opserver "github.com/operator-framework/operator-registry/pkg/server"
+	"github.com/operator-framework/operator-registry/v2/pkg/api"
+	opregistry "github.com/operator-framework/operator-registry/v2/pkg/registry"
+	opserver "github.com/operator-framework/operator-registry/v2/pkg/server"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
