@@ -1,0 +1,518 @@
+4.47.2:
+  - Conversion from TOML to JSON no longer omits empty tables #2459 (thanks @louislouislouislouis)
+  - Bumped dependencies
+
+4.47.1:
+  - Fixed merge anchor behaviour (`<<`); #2404, #2110, #2386, #2178 Huge thanks to @stevenwdv!
+    Note that you will need to set --yaml-fix-merge-anchor-to-spec to see the fixes
+  - Fixed panic for syntax error when creating a map #2423
+  - Bumped dependencies
+
+4.46.1:
+  - Added INI support
+  - Fixed 'add' operator when piped in with no data #2378, #2383, #2384
+  - Fixed delete after slice problem (bad node path) #2387 Thanks @antoinedeschenes
+  - Fixed yq small build Thanks @imzue
+  - Switched to YAML org supported go-yaml!
+  - Bumped dependencies
+
+
+4.45.4:
+  - Fixing wrong map() behaviour on empty map #2359
+  - Bumped dependencies
+
+4.45.3:
+  - Fixing regression introduced with in 4.45.2 with #2325 fix :sweat: sorry folks!
+  - Bumped dependencies
+
+4.45.2:
+  - Added windows arm builds (Thanks @albertocavalcante, @ShukantPal)
+  - Added s390x platform support (Thanks @ashokpariya0)
+  - Additionally push docker images to ghcr.io (Thanks @reegnz)
+  - Fixing add when there is no node match #2325
+  - sort_by works on maps
+  - Bumped dependencies
+
+4.45.1:
+  - Create parent directories when --split-exp is used, Thanks @rudo-thomas
+  - Bumped dependencies 
+
+4.44.6:
+  - Fixed deleting items in array bug #2027, #2172; Thanks @jandubois 
+  - Docker image for armv7 / raspberry pi3, Thanks @brianegge
+  - Fixed no-colors regression #2218
+  - Fixed various panic scenarios #2211
+  - Bumped dependencies 
+
+4.44.5:
+  - Fixing release pipeline
+
+4.44.4:
+- Format comments with a gray foreground (Thanks @gabe565)
+- Fixed handling of nulls with sort_by expressions #2164
+- Force no color output when NO_COLOR env presents (Thanks @narqo)
+- Fixed array subtraction update bug #2159
+- Fixed index out of range error
+- Can traverse straight from parent operator (parent.blah)
+- Bumped dependencies 
+
+4.44.3:
+  - Fixed upper-case file extension detection, Thanks @ryenus (#2121)
+  - Log printing follow no-colors flag #2082
+  - Skip and warn when interpolating strings and theres a unclosed bracket #2083
+  - Fixed CSV content starting with # issue #2076
+  - Bumped dependencies 
+
+4.44.2:
+  - Handle numbers with underscores #2039
+  - Unique now works on maps and arrays #2068
+  - Added support for short hand splat with env[] expression #2071,
+    as well as many other operators (split,select,eval,pick..)
+  - Bumped dependencies
+  
+4.44.1:
+  - Added min/max operators (#1992) Thanks @mbenson
+  - Added pivot oeprator (#1993) Thanks @mbenson
+  - Fix: shell-completion (#2006) Thanks @codekow
+  - Handle escaped backslashes (#1997) Thanks @mbenson
+  - Fix npe when given filename ending with "." (#1994)
+  - Fix: linux (w/ selinux) build (#2004) Thanks @codekow
+  - Bumped dependencies 
+
+4.43.1:
+  - Added omit operator #1989 thanks @mbenson!
+  - Added tostring #72
+  - Added string interpolation #1149
+  - Can specify parent(n) levels #1970
+  - Can now multiply strings by numbers #1988  thanks @mbenson!
+  - Fixed CSV line break issue #1974
+  - Adding a EvaluateAll function to StringEvaluator #1966
+  - yqlib, default to colors off when using yaml library #1964
+  - Removed JSON output warning
+  - Bumped dependencies
+
+
+4.42.1:
+  - Can execute yq expression files directly with shebang #1851
+  - Added --csv-separator flag #1950
+  - Added --properties-separator option - thanks  @learnitall #1864
+  - Added --properties-array-brackets flag for properties encoder #1933
+  - Shell completion improvements - thanks @scop #1911
+  - Bumped dependencies
+
+
+4.41.1:
+  - Can now comment in yq expressions! #1919
+  - Fixed Toml decoding when table array defined before parent #1922
+  - Added new CSV option to turn off auto-parsing #1947
+  - Fixing with_entries context #1925
+  - Can now retrieve the alias names of merge anchors #1942
+
+
+4.40.7:
+  - Bumped dependencies
+
+4.40.6:
+  - Fix: empty TOML table #1924 - Thanks @elibroftw 
+  - Fixed "all" error message #1845
+  - Fixed to_entries[]
+  - Bumped dependencies
+
+4.40.5:
+  - Fixing seg fault on bad XML #1888
+  - Fixed handling of --- #1890, #1896
+  - Bumped dependencies
+
+4.40.4:
+  - Fixed bug with creating maps with values based off keys #1886, #1889
+  - Bumped dependencies
+
+4.40.3: 
+  - Fixed JSON output issue with empty arrays #1880
+
+4.40.2:
+  - Do not panic when StdIn is closed (#1867) Thanks @aleskandro!
+  - Fixed issue when update against self #1869
+  - Fixed multi doc anchor bug #1861
+  - Fixes doc line separator issue when reading expression file #1860
+  - Bumped dependencies
+
+4.40.1:
+  - Added tonumber support (#1664, #71)
+  - Added kind operator
+  - Lua output fixes (#1811) - Thanks @Zash!
+  - Add support for Lua input (#1810) - Thanks @Zash!
+  - Rewrote parsing engine - yq now has its own AST!
+  - Bumped dependencies
+
+4.35.2:
+  - Fix various typos #1798
+  - Fixed number parsing as float bug in JSON #1756
+  - Fixed string, null concatenation consistency #1712
+  - Fixed expression parsing issue #1711
+  - Bumped dependencies
+
+4.35.1:
+  - Added Lua output support (Thanks @Zash)!
+  - Added BSD checksum format (Thanks @viq)!
+  - Bumped dependencies
+
+4.34.2:
+  - Bumped dependencies
+
+
+4.34.1:
+  - Added shell output format thanks @giorgiga
+  - Fixed nil pointer dereference (#1649) thanks @ArthurFritz
+  - Bumped dependency versions
+
+4.33.3:
+  - Fixed bug when splatting empty array #1613
+  - Added scalar output for TOML (#1617)
+  - Fixed passing of readonly context in pipe (partial fix for #1631)
+  - Bumped dependency versions
+
+4.33.2:
+  - Add ``--nul-output|-0`` flag to separate element with NUL character (#1550) Thanks @vaab!
+  - Add removable-media interface plug declaration to the snap packaging(#1618) Thanks @brlin-tw!
+  - Scalar output now handled in csv, tsv and property files
+  - Bumped dependency versions
+
+4.33.1:
+  - Added read-only TOML support! #1364. Thanks @pelletier for making your API available in your toml lib :)
+  - Added warning when auto detect by file type is outputs JSON (#1608)
+
+4.32.2:
+  - Fixed behaviour for unknown file types (defaults to yaml) #1609
+
+4.32.1:
+  - Added divide and modulo operators (#1593) - thanks @teejaded!
+  - Add support for decoding base64 strings without padding (#1555) - thanks @teejaded!
+  - Add filter operation (#1588) - thanks @rbren!
+  - Detect input format based on file name extension (#1582) - thanks @ryenus!
+  - Auto output format when input format is automatically detected
+  - Fixed npe in log #1596
+  - Improved binary file size! 
+  - Bumped dependency versions
+
+4.31.2:
+  - Fixed variable handling #1458, #1566
+  - Fixed merged anchor reference problem #1482
+  - Fixed xml encoding of ProcInst #1563, improved XML comment handling
+  - Allow build without json and xml support (#1556) Thanks @afbjorklund
+  - Bumped dependencies
+
+4.31.1:
+  - Added shuffle command #1503
+  - Added ability to sort by multiple fields #1541
+  - Added @sh encoder #1526
+  - Added @uri/@urid encoder/decoder #1529
+  - Fixed date comparison with string date #1537
+  - Added from_unix/to_unix Operators
+  - Bumped dependency versions
+
+4.30.8:
+ - Log info message when unable to chown file in linux (e.g. snap confinement) #1521
+
+
+4.30.7:
+ - Fixed bug in splice operator #1511
+ - Fixed value operator bug  #1515
+ - Fixed handling of merging null #1501
+ - Ownership of file now maintained in linux (thanks @vaguecoder) #1473
+ - Bumped dependency versions
+
+4.30.6:
+  - Fixed xml comment in array of scalars #1465
+  - Include blank newlines in leading header preprocessing #1462
+  - Added aarch64 build (#1261)
+  - Bumped dependency versions (#1453)
+
+4.30.5:
+  - XML Decoder: Comment parsing tweak 
+  - XML Decoder: Fixed processing comments in empty XML #1446
+  - XML Decoder: Checking for invalid content outside of a root node #1448
+  - XML Decoder: Fixed issue where content surrounding tags are lost #1447
+  - XML Decoder: Fixed xml decode bug when there is content after a comment
+  - Fixed loading yaml with header issue #1445
+  - guessTagFromCustomType warning log is now a debug.
+  - Special thanks to @Kopfbremse for reporting XML issues!
+
+4.30.4:
+  - Fixed bug in automated versioning (snap/brew)
+
+4.30.3:
+  - Updated release process (automated versioning)
+  - Fixed handling of yaml directives (#1424)
+  - Fixed parsing of newline character in string expression #1430
+  - Fixed length compares to null instead of 0 issue #1427
+
+4.30.2:
+  - Actually updated the default xml prefix :facepalm:
+
+4.30.1:
+  - XML users note: the default attribute prefix has change to `+@` to avoid naming conflicts!
+  - Can use expressions in slice #1419
+  - Fixed unhandled exception when decoding CSV thanks @washanhanzi
+  - Added array_to_map operator for #1415
+  - Fixed sorting by date #1412
+  - Added check to ensure only maps can be encoded to XML #1408
+  - Check merge alias is a map #1425
+  - Explicitly setting unwrap flag works for json output #437, #1409
+  - Bumped go version
+
+
+
+4.29.2:
+  - Fixed null pointer exception when parsing CSV with empty field #1404
+
+4.29.1:
+  - Fixed Square brackets removing update #1342
+  - Added slice array operator (.[10:15]) #44
+  - XML decoder/encoder now parses directives and proc instructions (#1344). Please use the new skip flags [documented here](https://mikefarah.gitbook.io/yq/usage/xml) to ignore them.
+  - XML users note that the default attribute prefix will change to `+@` in the 4.30 release to avoid naming conflicts!
+  - Improved comment handling of decoders (breaking change for yqlib users sorry)
+  - Fixed load operator bug when loading yaml file with multiple documents
+  - Bumped Go compiler version
+  - Bumped dependencies
+
+4.28.2:
+  - Fixed Github Actions issues (thanks @mattphelps-8451)
+  - Fixed bug - can now delete documents #1377
+  - Fixed handling of UTF8 encoded CSVs #1373
+  - Detect and fail on missing closing brackets #1366
+  - yq Github actions now build docker image as part of release
+  - Bumped dependencies
+
+4.28.1:
+  - Added `setpath` and `delpaths` operators, like jq (#1374)
+  - Added `is_key` operator, to check if a match was a key when recursing
+  - Added validation when attempting to add sequences to maps (#1341)
+
+4.27.5:
+  - Fixed relative merge bug #1333
+
+4.27.4:
+  - Fixed bug in alternative (//) operator, RHS being evaluated when it didn't need to be
+  - Fixed footer comment issue #1231
+  - Github action now runs as root (as recommended by Github Actions doc)
+  - Updated dependencies
+
+4.27.3:
+  - Added new 'c' merge and assign flag that clobbers custom tags
+  - Bumped go dependency to fix CVE (#1316)
+  - Updated dependencies
+
+4.27.2:
+  - Fixed JSON decoder to maintain object key order.
+
+4.27.1:
+  - Added 'json' decoder for support for multiple JSON documents in a single file (e.g. NDJSON)
+  - Added 'csv' decoding, array of objects encoding, and round-triping
+  - New StringEvaluator when using yq as a lib (thanks @leviliangtw)
+  - Fixed XML decoding issue (#1284)
+
+4.26.1:
+  - Switched to new expression parser (#1264)
+  - Don't clobber anchor when adding nodes (#1269)
+  - New error operator for custom validation (#1259)
+  - Added support for --wrapScalar=false in properties encoder (#1241) Thanks @dcarbone
+  - Fix error on multiple assign (#1257) Thanks @care0717
+  - Bumped dependency versions
+
+4.25.4:
+  - Fixed panic when using multiply assign on multiple documents #1256 Thanks @care0717
+
+4.25.3:
+  - xml decoder now maintains namespaces by default. Use new flags to disable if required. Thanks @rndmit
+  - Length and other similar operators no longer return comments (#1231)
+  - When split expression includes an extension, dont add .yml automatically (#1165)
+  - Map -r to --unwrapScalar to be more a drop in replacement for jq (#1245) Thanks @SuperSandro2000
+  - Fixing usage of quoted numeric keys #1247
+  - Bumped dependency versions
+
+
+4.25.2:
+  - Fixed comments disappearing from end of file (#1217)
+  - Fixed empty base64 decoding error (#1209)
+  - JSON output now in colors (#1208)
+  - Added codeql and fixed minor issues
+  - Bumped go-yaml library
+  - Bumped go dependency
+
+4.25.1:
+- Can specify a split expression file #1194
+- Fixed append map bug when key matches value in existing map #1200
+- Nicer error message when trying to use merge anchor tags other than maps #1184
+- Fixed Don't automatically read stdin when the null input flag is used
+- Added type as an alias for tag #1195
+- Fixes bug when using write in-place with no expression and multiple files #1193
+
+4.24.5:
+  - Fixed scenarios that dropped the first line if it's a comment (#1181)
+  - Fixed updating existing empty map resulting in single line styling (#1176)
+  - Fixed `with` operation bug (#1174)
+  - Bumped go compiler
+
+4.24.4:
+  - Fixed docker release build
+
+
+4.24.3:
+  - Added from_props
+  - Re-releasing, 4.24.2 release failed to publish correctly.
+
+
+4.24.2:
+  - Fixing release pipeline for go1.18
+
+4.24.1:
+  - Added comparison operators! (#94)
+  - Bumped Golang to 1.18 (#1153)
+  - XML parser no longer runs in strict mode (added new flag to run in strict mode) (#1155)
+
+4.23.1:
+  - Can now supply the envsubst operator with parameters (nounset, noempty, failfast). See [envsubst](https://mikefarah.gitbook.io/yq/operators/env-variable-operators) for details (#1137)
+  - Bumped dependencies
+  - Fixed '+=' problem with multiple matches #1145
+  - Fixed bug with "and", "or" evaluating the RHS when not needed
+  - Fixed potential panic (thanks @mkatychev)
+  - Tweaked CLI help (thanks @justin-f-perez)
+
+4.22.1:
+  - Added [pick] (https://mikefarah.gitbook.io/yq/operators/pick) operator
+  - Can load expression from a file '--from-file' (#1120)
+  - Fixed property auto expansion (#1127)
+
+4.21.1:
+  - Added [reverse](https://mikefarah.gitbook.io/yq/operators/reverse) operator
+  - Added [string case](https://mikefarah.gitbook.io/yq/operators/string-operators) operators
+  - Added [base64 support](https://mikefarah.gitbook.io/yq/operators/encode-decode)
+  - Added [line](https://mikefarah.gitbook.io/yq/operators/line)  and [column](https://mikefarah.gitbook.io/yq/operators/column) operators
+  - Bumped dependency versions
+
+4.20.2:
+  - Fixed self assignment issue (#1107)
+  - Fixed bad capture groups with multiple matches (#1114)
+  - No longer auto-read from STDIN if there are files given (#1115)
+  - Added missing load_props operator
+
+4.20.1:
+  - New [Date Operators](https://mikefarah.gitbook.io/yq/operators/datetime) (now, tz, add and subtract durations from dates) 
+  - Can now decode property files!
+  - New flag to manually set expression if required
+  - ZSH completion bug fix (#1108) thanks @whi-tw
+  - Fixed SEGV error (#1096)
+  - Fixed Github actions issues (it pipes in /dev/null) for XML
+  - Fixed bug - handle expressions that match a directory (e.g. ".")
+
+4.19.1:
+  - New [eval](https://mikefarah.gitbook.io/yq/operators/eval) _operator_ that allows dynamic expression evaluation (e.g. from an env variable) (#1087)
+  - Adding new elements to array now automatically applies styling of existing elements (#722)
+
+4.18.1:
+  - `eval` is now the _default_ command, you can leave it out #113
+  - `-` no longer needs to be specified as STDIN, unless you are also working with multiple files. #113
+  - Adding to empty maps / arrays now uses idiomatic yaml styling by default
+  - Fixed seg fault on bad input #1086
+  - New `envsubst` operator! (thanks @sciyoshi)
+  - Added support for `*=`, relative multiply/merge
+  - Custom tag types now autocast to there actual types #933
+
+4.17.2:
+  - Fixed manpath issue (thanks @mr-pmillz)
+  
+4.17.1:
+  - Added XML support (#491)
+  - New merge flag (n) to only merge new fields (#1038)
+  - Fixed exit status bug for permission denied error (#1062)
+  - Fixed using multiple variables with union (,) operator (#1048)
+  - Bumped some versions of dependencies
+
+4.16.2:
+  - Bumped go-lang compiler to fix CVE-2021-44717 (#1037)
+  - Dependency version bumps via dependabot
+  - Added extract-checksum.sh to make it easier to validate checksums (#1011)
+  - Report filename on parsing error (#1030)
+
+4.16.1:
+  - Added csv, tsv output formats
+  - Added map, map_values operators
+  - Added sort, sort_by operators (#947, #1024)
+  - Fixed bug in collect
+  - Fixed permissions issue in Dockerfile (#1014)
+  - Fixed assignment operator to no longer overwrite anchor (#1029)
+
+4.15.1:
+  - Added 'load/strload' operators for dynamically loading content from files
+  - Added 'key' operator
+  - Added 'parent' operator
+  - Smarter MAN page installation script (thanks @coolaj86)
+  - Dockerfile improvements (thanks @actualben)
+  - Error handling improvements (thanks @mmorel-35)
+
+4.14.2:
+  - Fixed header preprocessing issue (#1000)
+  - Bumped version dependencies
+
+4.14.1:
+  - Added group_by operator
+  - Added encode/decode operators (toyaml, fromjson etc) (#974)
+  - Added flatten operator
+  - Added --split-exp, for splitting results into multiple files (#966)
+  - Fixed json null array bug (#985)
+
+4.13.5:
+  - Performance improvement for deepMatch (thanks @pmatseykanets)
+  - Added manpage, included in tar.gz downloads as well as a separate tar.gz (#961)
+  - Fixed expression parsing bug #970
+  - Rebuild fixes CVE (#964)
+  - Bumped docker alpine version
+
+
+4.13.4:
+  - Fixed select bug (#958)
+  - Improved performance of `explode` (this will also speed up json conversion)
+  - Improved performance of `merge` (significantly if your merging a small file into a big one)
+
+4.13.3:
+
+- Updated go compiler to 1.17 to fix CVE (#944)
+
+4.13.2:
+
+- Fixing Docker build timeout issues when attempting to release
+
+4.13.1:
+
+- Update to `with` operator, allow for no leading space on the `;`.
+
+4.13.0:
+
+BREAKING CHANGE - the `as` variable operator (e.g. `.a as $x`) now makes a _copy_ of the node(s) at the 
+path rather than a reference. This is in order to make it work more like the `jq` equivalent. 
+
+This means any updates made to that variable do not update the original.
+
+There's a new operator `ref` that will make a reference (and allow multiple updates to the original path by referencing the variable).
+Sorry for any inconvenience caused!.
+
+
+- New `with` operator for making multiple changes to a given path
+- New `contains` operator, works like the `jq` equivalent
+- Subtract operator now supports subtracting elements from arrays!
+- Fixed Swapping values using variables #934
+- Github Action now properly supports multiline output #936, thanks @pjxiao
+- Fixed missing closing bracket validation #932
+
+4.12.2:
+- Fix processing of hex numbers #929
+- Fixed alternative and union operator issues #930
+
+4.12.1:
+ - Merge comment fix #919
+
+4.12.0:
+- Can now convert yaml to properties properties format (`-o=props`), See [docs](https://mikefarah.gitbook.io/yq/v/v4.x/usage/properties) for more info.
+- Fixed document header/footer comment handling when merging (https://github.com/mikefarah/yq/issues/919)
+- pretty print yaml 1.1 compatibility  (https://github.com/mikefarah/yq/issues/914)
