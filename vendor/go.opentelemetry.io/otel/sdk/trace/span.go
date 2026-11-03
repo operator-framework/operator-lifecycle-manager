@@ -278,11 +278,8 @@ func (s *recordingSpan) SetAttributes(attributes ...attribute.KeyValue) {
 			s.addDroppedAttr(1)
 			continue
 		}
-		a = normAttr(
-			a,
-			s.tracer.provider.spanLimits.AttributeValueDepthLimit,
-			s.tracer.provider.spanLimits.AttributeValueLengthLimit,
-		)
+		a = dedupAttr(a)
+		a = attrnorm.Truncate(s.tracer.provider.spanLimits.AttributeValueLengthLimit, a)
 		s.attributes = append(s.attributes, a)
 		s.attributesDirty = true
 	}
@@ -356,11 +353,8 @@ func (s *recordingSpan) addOverCapAttrs(limit int, attrs []attribute.KeyValue) {
 
 		if idx, ok := exists[a.Key]; ok {
 			// Perform all updates before dropping, even when at capacity.
-			a = normAttr(
-				a,
-				s.tracer.provider.spanLimits.AttributeValueDepthLimit,
-				s.tracer.provider.spanLimits.AttributeValueLengthLimit,
-			)
+			a = dedupAttr(a)
+			a = attrnorm.Truncate(s.tracer.provider.spanLimits.AttributeValueLengthLimit, a)
 			s.attributes[idx] = a
 			continue
 		}
@@ -370,27 +364,22 @@ func (s *recordingSpan) addOverCapAttrs(limit int, attrs []attribute.KeyValue) {
 			// updates are checked and performed.
 			s.addDroppedAttr(1)
 		} else {
-			a = normAttr(
-				a,
-				s.tracer.provider.spanLimits.AttributeValueDepthLimit,
-				s.tracer.provider.spanLimits.AttributeValueLengthLimit,
-			)
+			a = dedupAttr(a)
+			a = attrnorm.Truncate(s.tracer.provider.spanLimits.AttributeValueLengthLimit, a)
 			s.attributes = append(s.attributes, a)
 			exists[a.Key] = len(s.attributes) - 1
 		}
 	}
 }
 
-func normAttr(attr attribute.KeyValue, depthLimit, lengthLimit int) attribute.KeyValue {
+func dedupAttr(attr attribute.KeyValue) attribute.KeyValue {
 	switch attr.Value.Type() {
 	case attribute.SLICE, attribute.MAP:
-		if depthLimit < 0 {
-			attr, _ = attrnorm.KeyValueDedup(attr)
-		} else {
-			attr, _, _ = attrnorm.KeyValueDedupLimitDepth(attr, depthLimit)
-		}
+		attr, _ = attrnorm.KeyValue(attr)
+		return attr
+	default:
+		return attr
 	}
-	return attrnorm.Truncate(lengthLimit, attr)
 }
 
 // End ends the span. This method does nothing if the span is already ended or
@@ -494,7 +483,9 @@ func (s *recordingSpan) RecordError(err error, opts ...trace.EventOption) {
 		return
 	}
 
-	if !s.IsRecording() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.isRecording() {
 		return
 	}
 
@@ -510,7 +501,7 @@ func (s *recordingSpan) RecordError(err error, opts ...trace.EventOption) {
 		))
 	}
 
-	s.AddEvent(semconv.ExceptionEventName, opts...)
+	s.addEvent(semconv.ExceptionEventName, opts...)
 }
 
 func typeStr(i any) string {
@@ -549,10 +540,7 @@ func (s *recordingSpan) AddEvent(name string, o ...trace.EventOption) {
 // This method assumes s.mu.Lock is held by the caller.
 func (s *recordingSpan) addEvent(name string, o ...trace.EventOption) {
 	c := trace.NewEventConfig(o...)
-	attrs, _, _ := attrnorm.KeyValuesDedupLimitDepth(
-		c.Attributes(),
-		s.tracer.provider.spanLimits.AttributeValueDepthLimit,
-	)
+	attrs, _ := attrnorm.KeyValues(c.Attributes())
 	e := Event{Name: name, Attributes: attrs, Time: c.Timestamp()}
 
 	// Discard attributes over limit.
@@ -592,7 +580,7 @@ func (s *recordingSpan) Name() string {
 	return s.name
 }
 
-// Parent returns the SpanContext of this span's parent span.
+// Name returns the SpanContext of this span's parent span.
 func (s *recordingSpan) Parent() trace.SpanContext {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -732,10 +720,7 @@ func (s *recordingSpan) AddLink(link trace.Link) {
 		return
 	}
 
-	attrs, _, _ := attrnorm.KeyValuesDedupLimitDepth(
-		link.Attributes,
-		s.tracer.provider.spanLimits.AttributeValueDepthLimit,
-	)
+	attrs, _ := attrnorm.KeyValues(link.Attributes)
 	l := Link{SpanContext: link.SpanContext, Attributes: attrs}
 
 	// Discard attributes over limit.

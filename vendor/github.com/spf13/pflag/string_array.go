@@ -30,14 +30,18 @@ func (s *stringArrayValue) Append(val string) error {
 
 func (s *stringArrayValue) Replace(val []string) error {
 	out := make([]string, len(val))
-	copy(out, val)
+	for i, d := range val {
+		out[i] = d
+	}
 	*s.value = out
 	return nil
 }
 
 func (s *stringArrayValue) GetSlice() []string {
 	out := make([]string, len(*s.value))
-	copy(out, *s.value)
+	for i, d := range *s.value {
+		out[i] = d
+	}
 	return out
 }
 

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strings"
 
-	"go.opentelemetry.io/otel/propagation/internal/hextable"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -127,23 +126,27 @@ func (TraceContext) extract(carrier TextMapCarrier) trace.SpanContext {
 	return sc
 }
 
+// upperHex detect hex is upper case Unicode characters.
+func upperHex(v string) bool {
+	for _, c := range v {
+		if c >= 'A' && c <= 'F' {
+			return true
+		}
+	}
+	return false
+}
+
 func extractPart(dst []byte, h *string, n int) bool {
 	part, left, _ := strings.Cut(*h, delimiter)
 	*h = left
-	if len(part) != n {
+	// hex.Decode decodes unsupported upper-case characters, so exclude explicitly.
+	if len(part) != n || upperHex(part) {
 		return false
 	}
-	// hextable.Rev maps every invalid character to 0xff, including the
-	// upper-case A-F the specification disallows. OR-ing every looked-up value
-	// together lets a single check detect any invalid character, because no
-	// valid value has the upper 4 bits set.
-	invalidMark := byte(0)
-	for i := 0; i < n; i += 2 {
-		hi, lo := hextable.Rev[part[i]], hextable.Rev[part[i+1]]
-		dst[i/2] = (hi << 4) | lo
-		invalidMark |= hi | lo
+	if p, err := hex.Decode(dst, []byte(part)); err != nil || p != n/2 {
+		return false
 	}
-	return invalidMark&0xf0 == 0
+	return true
 }
 
 // Fields returns the keys who's values are set with Inject.
