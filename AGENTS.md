@@ -343,7 +343,7 @@ make run-local           # Full local dev environment
 ```
 
 ### Tool Management
-Tools are managed via **bingo** (`.bingo/Variables.mk`) for reproducible builds. All tools are version-pinned.
+Tools are pinned in `go.mod` and run via `go tool`. Tool dependencies are included in `vendor/`.
 
 ## Contributing
 
