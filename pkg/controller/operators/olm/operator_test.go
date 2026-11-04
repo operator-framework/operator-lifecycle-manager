@@ -3800,6 +3800,117 @@ func TestWebhookCABundleRetrieval(t *testing.T) {
 				err:      nil,
 			},
 		},
+		{
+			name: "MissingMutatingCAResource",
+			initial: initial{
+				csvs: []*v1alpha1.ClusterServiceVersion{
+					csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1",
+							nil,
+							[]v1alpha1.StrategyDeploymentPermissions{},
+						),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstalling,
+					),
+				},
+				desc: v1alpha1.WebhookDescription{
+					GenerateName: "webhook",
+					Type:         v1alpha1.MutatingAdmissionWebhook,
+				},
+			},
+			expected: expected{
+				caBundle: nil,
+				err:      missingCAError,
+			},
+		},
+		{
+			name: "FailFromValidatingAdmissionWebhookWithNoWebhooks",
+			initial: initial{
+				csvs: []*v1alpha1.ClusterServiceVersion{
+					csvWithValidatingAdmissionWebhook(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1",
+							nil,
+							[]v1alpha1.StrategyDeploymentPermissions{},
+						),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstalling,
+					), "csv1-dep1", []string{"c1.g1"}),
+				},
+				objs: []runtime.Object{
+					&admissionregistrationv1.ValidatingWebhookConfiguration{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "webhook",
+							Namespace: namespace,
+							Labels: map[string]string{
+								"olm.owner":                             "csv1",
+								"olm.owner.namespace":                   namespace,
+								"olm.owner.kind":                        v1alpha1.ClusterServiceVersionKind,
+								"olm.webhook-description-generate-name": "webhook",
+							},
+						},
+						Webhooks: []admissionregistrationv1.ValidatingWebhook{},
+					},
+				},
+				desc: v1alpha1.WebhookDescription{
+					GenerateName: "webhook",
+					Type:         v1alpha1.ValidatingAdmissionWebhook,
+				},
+			},
+			expected: expected{
+				caBundle: nil,
+				err:      missingCAError,
+			},
+		},
+		{
+			name: "FailFromMutatingAdmissionWebhookWithNoWebhooks",
+			initial: initial{
+				csvs: []*v1alpha1.ClusterServiceVersion{
+					csvWithMutatingAdmissionWebhook(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1",
+							nil,
+							[]v1alpha1.StrategyDeploymentPermissions{},
+						),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstalling,
+					), "csv1-dep1", []string{"c1.g1"}),
+				},
+				objs: []runtime.Object{
+					&admissionregistrationv1.MutatingWebhookConfiguration{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "webhook",
+							Namespace: namespace,
+							Labels: map[string]string{
+								"olm.owner":                             "csv1",
+								"olm.owner.namespace":                   namespace,
+								"olm.owner.kind":                        v1alpha1.ClusterServiceVersionKind,
+								"olm.webhook-description-generate-name": "webhook",
+							},
+						},
+						Webhooks: []admissionregistrationv1.MutatingWebhook{},
+					},
+				},
+				desc: v1alpha1.WebhookDescription{
+					GenerateName: "webhook",
+					Type:         v1alpha1.MutatingAdmissionWebhook,
+				},
+			},
+			expected: expected{
+				caBundle: nil,
+				err:      missingCAError,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
