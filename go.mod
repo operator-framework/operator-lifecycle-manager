@@ -30,7 +30,7 @@ require (
 	github.com/prometheus/common v0.73.1
 	github.com/sirupsen/logrus v1.10.2
 	github.com/spf13/cobra v1.10.2
-	github.com/spf13/pflag v1.0.10
+	github.com/spf13/pflag v1.1.0
 	github.com/stretchr/testify v1.12.1
 	go.podman.io/image/v5 v5.42.0
 	go.uber.org/mock v0.6.0
