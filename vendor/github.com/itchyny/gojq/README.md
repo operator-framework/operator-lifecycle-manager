@@ -1,6 +1,5 @@
 # gojq
-[![CI Status](https://github.com/itchyny/gojq/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/itchyny/gojq/actions?query=branch:main)
-[![Go Report Card](https://goreportcard.com/badge/github.com/itchyny/gojq)](https://goreportcard.com/report/github.com/itchyny/gojq)
+[![CI Status](https://github.com/itchyny/gojq/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/itchyny/gojq/actions/workflows/ci.yaml?query=branch%3Amain)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/itchyny/gojq/blob/main/LICENSE)
 [![release](https://img.shields.io/github/release/itchyny/gojq/all.svg)](https://github.com/itchyny/gojq/releases)
 [![pkg.go.dev](https://pkg.go.dev/badge/github.com/itchyny/gojq)](https://pkg.go.dev/github.com/itchyny/gojq)
@@ -61,10 +60,18 @@ brew install gojq
 mise use -g gojq@latest
 ```
 
+### Scoop
+```sh
+scoop install gojq
+```
+
 ### Zero Install
 ```sh
 0install add gojq https://apps.0install.net/utils/gojq.xml
 ```
+
+### Prebuilt binaries
+Download the archive for your platform from the [releases page](https://github.com/itchyny/gojq/releases).
 
 ### Build from source
 ```sh
@@ -86,9 +93,10 @@ docker run -i --rm ghcr.io/itchyny/gojq
 - gojq supports reading from YAML input (`--yaml-input`) while jq does not. gojq also supports YAML output (`--yaml-output`).
 
 ### Color configuration
-The gojq command automatically disables coloring output when the output is not a tty.
-To force coloring output, specify `--color-output` (`-C`) option.
-When [`NO_COLOR` environment variable](https://no-color.org/) is present or `--monochrome-output` (`-M`) option is specified, gojq disables coloring output.
+The gojq command automatically disables coloring output when the output is not a tty,
+when [`NO_COLOR` environment variable](https://no-color.org/) has a non-empty value, or when `TERM` is `dumb`.
+To force coloring output regardless of these defaults, specify `--color-output` (`-C`) option.
+The `--monochrome-output` (`-M`) option disables coloring output and takes precedence over `--color-output` (`-C`).
 
 Use `GOJQ_COLORS` environment variable to configure individual colors.
 The variable is a colon-separated list of ANSI escape sequences of `null`, `false`, `true`, numbers, strings, object keys, arrays, and objects.
@@ -155,7 +163,7 @@ func main() {
 - [`gojq.WithInputIter`](https://pkg.go.dev/github.com/itchyny/gojq#WithInputIter) allows to use `input` and `inputs` functions. By default, these functions are disabled.
 
 ## Bug Tracker
-Report bug at [Issues・itchyny/gojq - GitHub](https://github.com/itchyny/gojq/issues).
+Report bugs at [Issues - itchyny/gojq - GitHub](https://github.com/itchyny/gojq/issues).
 
 ## Author
 itchyny (<https://github.com/itchyny>)

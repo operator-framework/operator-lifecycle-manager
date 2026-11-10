@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -52,8 +53,7 @@ func (c *compiler) appendCodeInfo(x any) {
 func (c *compiler) deleteCodeInfo(name string) {
 	for i := 0; i < len(c.codeinfos); i++ {
 		if strings.HasSuffix(c.codeinfos[i].name, name) {
-			copy(c.codeinfos[i:], c.codeinfos[i+1:])
-			c.codeinfos = c.codeinfos[:len(c.codeinfos)-1]
+			c.codeinfos = slices.Delete(c.codeinfos, i, i+1)
 			i--
 		}
 	}

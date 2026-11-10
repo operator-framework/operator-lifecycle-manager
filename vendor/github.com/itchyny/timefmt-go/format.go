@@ -153,7 +153,7 @@ func AppendFormat(buf []byte, t time.Time, format string) []byte {
 			case 'I':
 				buf = appendInt(buf, or(hour%12, 12), max(width, 2), padding)
 			case 'P':
-				swap = !(upper || swap)
+				swap = !upper && !swap
 				fallthrough
 			case 'p':
 				if hour < 12 {
@@ -300,7 +300,7 @@ func appendInt(buf []byte, num, width int, padding byte) []byte {
 	case num < 0:
 		return appendInt64(buf, int64(num), width, padding)
 	case num < 100 && width == 2 && padding == '0':
-		return append(buf, smalls[num*2:num*2+2]...)
+		return append(buf, smalls[num*2], smalls[num*2+1])
 	case num < 10:
 		digits = 1
 	case num < 100:
@@ -317,20 +317,16 @@ func appendInt(buf []byte, num, width int, padding byte) []byte {
 		}
 	}
 	switch digits {
-	case 4:
-		buf = append(buf, byte(num/1000)|'0')
-		num %= 1000
-		fallthrough
-	case 3:
-		buf = append(buf, byte(num/100)|'0')
-		num %= 100
-		fallthrough
-	case 2:
-		buf = append(buf, byte(num/10)|'0')
-		num %= 10
-		fallthrough
-	default:
+	case 1:
 		return append(buf, byte(num)|'0')
+	case 2:
+		return append(buf, smalls[num*2], smalls[num*2+1])
+	case 3:
+		j := num % 100 * 2
+		return append(buf, byte(num/100)|'0', smalls[j], smalls[j+1])
+	default:
+		i, j := num/100*2, num%100*2
+		return append(buf, smalls[i], smalls[i+1], smalls[j], smalls[j+1])
 	}
 }
 
@@ -368,16 +364,22 @@ func appendString(buf []byte, str string, width int, padding byte, upper, swap b
 	}
 	switch {
 	case swap:
-		if str[1] < 'a' {
+		if str[min(1, len(str)-1)] < 'a' {
 			for _, b := range []byte(str) {
-				buf = append(buf, b|0x20)
+				if 'A' <= b && b <= 'Z' {
+					b += 0x20
+				}
+				buf = append(buf, b)
 			}
 			break
 		}
 		fallthrough
 	case upper:
 		for _, b := range []byte(str) {
-			buf = append(buf, b&0x5F)
+			if 'a' <= b && b <= 'z' {
+				b -= 0x20
+			}
+			buf = append(buf, b)
 		}
 	default:
 		buf = append(buf, str...)

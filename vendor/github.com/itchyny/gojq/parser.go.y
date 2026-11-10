@@ -1,19 +1,7 @@
 %{
 package gojq
 
-func reverseFuncDef(xs []*FuncDef) []*FuncDef {
-	for i, j := 0, len(xs)-1; i < j; i, j = i+1, j-1 {
-		xs[i], xs[j] = xs[j], xs[i]
-	}
-	return xs
-}
-
-func prependFuncDef(xs []*FuncDef, x *FuncDef) []*FuncDef {
-	xs = append(xs, nil)
-	copy(xs[1:], xs)
-	xs[0] = x
-	return xs
-}
+import "slices"
 %}
 
 %union {
@@ -28,7 +16,7 @@ func prependFuncDef(xs []*FuncDef, x *FuncDef) []*FuncDef {
 %type<value> objectkeyvals objectkeyval objectval
 %type<value> constterm constobject constobjectkeyvals constobjectkeyval constarray constarrayelems
 %type<token> tokIdentVariable tokIdentModuleIdent tokVariableModuleVariable tokKeyword objectkey
-%token<operator> tokAltOp tokUpdateOp tokDestAltOp tokCompareOp
+%token<operator> tokAltOp tokUpdateOp tokCompareOp
 %token<token> tokOrOp tokAndOp tokModule tokImport tokInclude tokDef tokAs tokLabel tokBreak
 %token<token> tokNull tokTrue tokFalse
 %token<token> tokIf tokThen tokElif tokElse tokEnd
@@ -102,7 +90,9 @@ meta
 body
     : funcdefs
     {
-        $$ = &Query{FuncDefs: reverseFuncDef($1.([]*FuncDef))}
+        funcdefs := $1.([]*FuncDef)
+        slices.Reverse(funcdefs)
+        $$ = &Query{FuncDefs: funcdefs}
     }
     | query
 
@@ -144,7 +134,7 @@ query
     : funcdef query %prec tokFuncDefQuery
     {
         query := $2.(*Query)
-        query.FuncDefs = prependFuncDef(query.FuncDefs, $1.(*FuncDef))
+        query.FuncDefs = slices.Insert(query.FuncDefs, 0, $1.(*FuncDef))
         $$ = query
     }
     | query '|' query
@@ -216,9 +206,9 @@ bindpatterns
     {
         $$ = []*Pattern{$1.(*Pattern)}
     }
-    | bindpatterns tokDestAltOp pattern
+    | bindpatterns '?' tokAltOp pattern
     {
-        $$ = append($1.([]*Pattern), $3.(*Pattern))
+        $$ = append($1.([]*Pattern), $4.(*Pattern))
     }
 
 pattern
@@ -375,17 +365,17 @@ term
     {
         $$ = &Term{Type: TermTypeTry, Try: &Try{$2.(*Query), $3.(*Query)}}
     }
-    | tokReduce expr tokAs pattern '(' query ';' query ')'
+    | tokReduce expr tokAs bindpatterns '(' query ';' query ')'
     {
-        $$ = &Term{Type: TermTypeReduce, Reduce: &Reduce{$2.(*Query), $4.(*Pattern), $6.(*Query), $8.(*Query)}}
+        $$ = &Term{Type: TermTypeReduce, Reduce: &Reduce{$2.(*Query), $4.([]*Pattern), $6.(*Query), $8.(*Query)}}
     }
-    | tokForeach expr tokAs pattern '(' query ';' query ')'
+    | tokForeach expr tokAs bindpatterns '(' query ';' query ')'
     {
-        $$ = &Term{Type: TermTypeForeach, Foreach: &Foreach{$2.(*Query), $4.(*Pattern), $6.(*Query), $8.(*Query), nil}}
+        $$ = &Term{Type: TermTypeForeach, Foreach: &Foreach{$2.(*Query), $4.([]*Pattern), $6.(*Query), $8.(*Query), nil}}
     }
-    | tokForeach expr tokAs pattern '(' query ';' query ';' query ')'
+    | tokForeach expr tokAs bindpatterns '(' query ';' query ';' query ')'
     {
-        $$ = &Term{Type: TermTypeForeach, Foreach: &Foreach{$2.(*Query), $4.(*Pattern), $6.(*Query), $8.(*Query), $10.(*Query)}}
+        $$ = &Term{Type: TermTypeForeach, Foreach: &Foreach{$2.(*Query), $4.([]*Pattern), $6.(*Query), $8.(*Query), $10.(*Query)}}
     }
     | tokBreak tokVariable
     {
