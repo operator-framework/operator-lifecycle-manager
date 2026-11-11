@@ -37,7 +37,6 @@ func (s APISet) PopAPIKey() *opregistry.APIKey {
 
 func GVKStringToProvidedAPISet(gvksStr string) APISet {
 	set := make(APISet)
-	// TODO: Should we make gvk strings lowercase to avoid issues with user set gvks?
 	gvks := strings.Split(strings.Replace(gvksStr, " ", "", -1), ",")
 	for _, gvkStr := range gvks {
 		gvk, _ := schema.ParseKindArg(gvkStr)
@@ -49,12 +48,22 @@ func GVKStringToProvidedAPISet(gvksStr string) APISet {
 	return set
 }
 
+// Group is intentionally excluded — an empty Group is valid for core Kubernetes APIs.
+func isValidAPIKey(key opregistry.APIKey) bool {
+	return key.Kind != "" && key.Version != ""
+}
+
 func APIKeyToGVKString(key opregistry.APIKey) string {
-	// TODO: Add better validation of GVK
+	if !isValidAPIKey(key) {
+		return ""
+	}
 	return strings.Join([]string{key.Kind, key.Version, key.Group}, ".")
 }
 
 func APIKeyToGVKHash(key opregistry.APIKey) (string, error) {
+	if !isValidAPIKey(key) {
+		return "", fmt.Errorf("invalid APIKey: Kind and Version must be non-empty")
+	}
 	hash := fnv.New64a()
 	if _, err := hash.Write([]byte(APIKeyToGVKString(key))); err != nil {
 		return "", err
@@ -63,12 +72,11 @@ func APIKeyToGVKHash(key opregistry.APIKey) (string, error) {
 }
 
 func (s APISet) String() string {
-	gvkStrs := make([]string, len(s))
-	i := 0
+	gvkStrs := make([]string, 0, len(s))
 	for api := range s {
-		// TODO: Only add valid GVK strings
-		gvkStrs[i] = APIKeyToGVKString(api)
-		i++
+		if str := APIKeyToGVKString(api); str != "" {
+			gvkStrs = append(gvkStrs, str)
+		}
 	}
 	sort.Strings(gvkStrs)
 
