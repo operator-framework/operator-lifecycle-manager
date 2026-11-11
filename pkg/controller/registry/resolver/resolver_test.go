@@ -20,8 +20,8 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
-	"github.com/operator-framework/operator-registry/pkg/api"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/operator-registry/v2/pkg/api"
+	opregistry "github.com/operator-framework/operator-registry/v2/pkg/registry"
 )
 
 var testGVKKey = opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}

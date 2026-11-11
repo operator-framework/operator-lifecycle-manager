@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-registry/pkg/configmap"
+	"github.com/operator-framework/operator-registry/v2/pkg/configmap"
 	errorwrap "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/client-go/listers/core/v1"

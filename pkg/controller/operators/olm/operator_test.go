@@ -54,7 +54,7 @@ import (
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	opregistry "github.com/operator-framework/operator-registry/v2/pkg/registry"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"

@@ -5,7 +5,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/operator-framework/operator-registry/pkg/api"
+	"github.com/operator-framework/operator-registry/v2/pkg/api"
 	"google.golang.org/grpc"
 )
 

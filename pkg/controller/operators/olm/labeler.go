@@ -6,7 +6,7 @@ import (
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	opregistry "github.com/operator-framework/operator-registry/v2/pkg/registry"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/labels"

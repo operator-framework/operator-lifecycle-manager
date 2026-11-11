@@ -10,8 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-registry/pkg/api"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/operator-registry/v2/pkg/api"
+	opregistry "github.com/operator-framework/operator-registry/v2/pkg/registry"
 )
 
 // todo: drop fields from cache.Entry and move to pkg/controller/operators/olm

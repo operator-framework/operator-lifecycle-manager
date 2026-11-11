@@ -18,7 +18,7 @@ import (
 	listersv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister/operatorlisterfakes"
-	"github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/operator-registry/v2/pkg/registry"
 )
 
 func TestCopyToNamespace(t *testing.T) {

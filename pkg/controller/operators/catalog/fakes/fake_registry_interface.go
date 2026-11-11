@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/client"
+	"github.com/operator-framework/operator-registry/v2/pkg/api"
+	"github.com/operator-framework/operator-registry/v2/pkg/client"
 )
 
 type FakeClientInterface struct {

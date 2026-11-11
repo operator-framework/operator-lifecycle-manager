@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
-	"github.com/operator-framework/operator-registry/pkg/api"
+	"github.com/operator-framework/operator-registry/v2/pkg/api"
 	"github.com/stretchr/testify/assert"
 )
 
