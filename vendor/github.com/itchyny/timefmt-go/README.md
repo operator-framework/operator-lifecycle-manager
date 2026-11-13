@@ -1,11 +1,10 @@
 # timefmt-go
-[![CI Status](https://github.com/itchyny/timefmt-go/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/itchyny/timefmt-go/actions?query=branch:main)
-[![Go Report Card](https://goreportcard.com/badge/github.com/itchyny/timefmt-go)](https://goreportcard.com/report/github.com/itchyny/timefmt-go)
+[![CI Status](https://github.com/itchyny/timefmt-go/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/itchyny/timefmt-go/actions/workflows/ci.yaml?query=branch%3Amain)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/itchyny/timefmt-go/blob/main/LICENSE)
 [![release](https://img.shields.io/github/release/itchyny/timefmt-go/all.svg)](https://github.com/itchyny/timefmt-go/releases)
 [![pkg.go.dev](https://pkg.go.dev/badge/github.com/itchyny/timefmt-go)](https://pkg.go.dev/github.com/itchyny/timefmt-go)
 
-### Efficient time formatting library (strftime, strptime) for Golang
+### Efficient time formatting library (strftime, strptime) for Go
 This is a Go language package for formatting and parsing date time strings.
 
 ```go
@@ -55,12 +54,14 @@ Note that `E` and `O` modifier characters are not supported.
   - composed directives like `%F %T`,
   - century years like `%C %y`,
   - week directives like `%W %a` and `%G-W%V-%u`.
-- `ParseInLocation` is provided for configuring the default location.
+- `ParseInLocation` is provided for configuring the location of a source without a time zone offset.
 
-![](https://user-images.githubusercontent.com/375258/88606920-de475c80-d0b8-11ea-8d40-cbfee9e35c2e.jpg)
+![Time formatting and parsing libraries performance comparison](https://raw.githubusercontent.com/itchyny/timefmt-go-bench/main/bench.svg)
+
+The graph above is reproducible by [timefmt-go-bench](https://github.com/itchyny/timefmt-go-bench).
 
 ## Bug Tracker
-Report bug at [Issues・itchyny/timefmt-go - GitHub](https://github.com/itchyny/timefmt-go/issues).
+Report bugs at [Issues - itchyny/timefmt-go - GitHub](https://github.com/itchyny/timefmt-go/issues).
 
 ## Author
 itchyny (<https://github.com/itchyny>)

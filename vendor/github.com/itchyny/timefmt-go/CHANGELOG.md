@@ -1,4 +1,21 @@
 # Changelog
+## [v0.1.9](https://github.com/itchyny/timefmt-go/compare/v0.1.8..v0.1.9) (2026-10-01)
+* fix parsing `%p` to reinterpret the hour on a 12-hour clock
+* fix parsing `%s` to validate the range of Unix time
+* fix parsing `%s` in a location or with `%z` to keep the absolute time
+* fix parsing `%G` and `%g` without `%V` to start at the first week of the ISO year
+* fix parsing `%G` and `%g` to return error with non-ISO date directives
+* fix parsing week date directives (`%V`, `%U`, `%W`) with leap second
+* fix parsing time zone name of `%Z` following `%z`
+* fix parsing `%Z` for numeric and mixed case time zone abbreviations (`+07`, `ChST`)
+* fix parsing `%Z` not to retain the source string in the time zone name
+* fix `%^Z` and `%#Z` mangling digits and symbols in time zone name
+* fix `%#Z` panicking on a single-character time zone name
+* fix error messages of non-ASCII format directives and characters
+* improve performance of parsing by avoiding `defer` (10-28% less time in benchmarks)
+* improve performance of parsing a byte slice converted to a string (no allocation up to 32 bytes)
+* improve performance of formatting by emitting digits at once (2-6% less time in benchmarks)
+
 ## [v0.1.8](https://github.com/itchyny/timefmt-go/compare/v0.1.7..v0.1.8) (2026-04-01)
 * fix parsing negative year and Unix time (`%Y`, `%G`, `%s`)
 * fix formatting negative year, century, Unix time (`%Y`, `%G`, `%C`, `%y`, `%g`, `%s`)

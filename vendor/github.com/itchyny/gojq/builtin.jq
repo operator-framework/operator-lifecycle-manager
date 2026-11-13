@@ -2,6 +2,7 @@ def map(f): [.[] | f];
 def add(f): [f] | add;
 def map_values(f): .[] |= f;
 def in(xs): . as $x | xs | has($x);
+def abs: if . < 0 then -. else . end;
 def not: if . then false else true end;
 def select(f): if f then . else empty end;
 
@@ -139,11 +140,14 @@ def todateiso8601: strftime("%Y-%m-%dT%H:%M:%SZ");
 def fromdate: fromdateiso8601;
 def todate: todateiso8601;
 
-def match($re): match($re; null);
+def match($re):
+  if $re | type == "array" then match($re[0]; $re[1]) else match($re; null) end;
 def match($re; $flags): _match($re; $flags; false)[];
-def test($re): test($re; null);
+def test($re):
+  if $re | type == "array" then test($re[0]; $re[1]) else test($re; null) end;
 def test($re; $flags): _match($re; $flags; true);
-def capture($re): capture($re; null);
+def capture($re):
+  if $re | type == "array" then capture($re[0]; $re[1]) else capture($re; null) end;
 def capture($re; $flags): match($re; $flags) | .captures | _captures;
 def scan($re): scan($re; null);
 def scan($re; $flags):

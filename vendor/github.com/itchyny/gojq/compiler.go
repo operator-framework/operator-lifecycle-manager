@@ -1,10 +1,11 @@
 package gojq
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ type compiler struct {
 	variables     []string
 	customFuncs   map[string]function
 	inputIter     Iter
+	inputMu       sync.Mutex
 	codes         []*code
 	codeinfos     []codeinfo
 	builtinScope  *scopeinfo
@@ -131,18 +133,13 @@ func (c *compiler) compile(q *Query) error {
 }
 
 func (c *compiler) compileImport(i *Import) error {
-	var path, alias string
-	var err error
-	if i.ImportPath != "" {
-		path, alias = i.ImportPath, i.ImportAlias
-	} else {
-		path = i.IncludePath
-	}
+	path, alias := cmp.Or(i.ImportPath, i.IncludePath), i.ImportAlias
 	if c.moduleLoader == nil {
 		return fmt.Errorf("cannot load module: %q", path)
 	}
 	if strings.HasPrefix(alias, "$") {
 		var vals any
+		var err error
 		if moduleLoader, ok := c.moduleLoader.(interface {
 			LoadJSONWithMeta(string, map[string]any) (any, error)
 		}); ok {
@@ -165,6 +162,7 @@ func (c *compiler) compileImport(i *Import) error {
 		return nil
 	}
 	var q *Query
+	var err error
 	if moduleLoader, ok := c.moduleLoader.(interface {
 		LoadModuleWithMeta(string, map[string]any) (*Query, error)
 	}); ok {
@@ -531,23 +529,36 @@ func (c *compiler) compileBind(l, r *Query, patterns []*Pattern) error {
 	if err := c.compileQuery(l); err != nil {
 		return err
 	}
+	return c.compilePatterns(patterns, func() error {
+		if len(patterns) == 1 && c.codes[len(c.codes)-2].op == opexpbegin {
+			c.codes[len(c.codes)-2].op = opnop
+		} else {
+			c.append(&code{op: opexpend})
+		}
+		return c.compileQuery(r)
+	})
+}
+
+func (c *compiler) compilePatterns(patterns []*Pattern, body func() error) error {
 	var pc int
 	var vs [][2]int
+	if len(patterns) > 1 {
+		for _, p := range patterns {
+			vs = c.pushPatternVariables(vs, p)
+		}
+	}
 	for i, p := range patterns {
 		var pcc int
-		var err error
 		if i < len(patterns)-1 {
 			defer c.lazy(func() *code {
 				return &code{op: opforkalt, v: pcc}
 			})()
 		}
-		if 0 < i {
-			for _, v := range vs {
-				c.append(&code{op: oppush, v: nil})
-				c.append(&code{op: opstore, v: v})
-			}
+		for _, v := range vs {
+			c.append(&code{op: oppush, v: nil})
+			c.append(&code{op: opstore, v: v})
 		}
-		if vs, err = c.compilePattern(vs[:0], p); err != nil {
+		if _, err := c.compilePattern(nil, p); err != nil {
 			return err
 		}
 		if i < len(patterns)-1 {
@@ -560,12 +571,29 @@ func (c *compiler) compileBind(l, r *Query, patterns []*Pattern) error {
 	if len(patterns) > 1 {
 		pc = len(c.codes)
 	}
-	if len(patterns) == 1 && c.codes[len(c.codes)-2].op == opexpbegin {
-		c.codes[len(c.codes)-2].op = opnop
-	} else {
-		c.append(&code{op: opexpend})
+	return body()
+}
+
+func (c *compiler) pushPatternVariables(vs [][2]int, p *Pattern) [][2]int {
+	if p.Name != "" {
+		if v := c.pushVariable(p.Name); !slices.Contains(vs, v) {
+			vs = append(vs, v)
+		}
+	} else if len(p.Array) > 0 {
+		for _, p := range p.Array {
+			vs = c.pushPatternVariables(vs, p)
+		}
+	} else if len(p.Object) > 0 {
+		for _, kv := range p.Object {
+			if kv.Key != "" && kv.Key[0] == '$' {
+				vs = c.pushPatternVariables(vs, &Pattern{Name: kv.Key})
+			}
+			if kv.Val != nil {
+				vs = c.pushPatternVariables(vs, kv.Val)
+			}
+		}
 	}
-	return c.compileQuery(r)
+	return vs
 }
 
 func (c *compiler) compilePattern(vs [][2]int, p *Pattern) ([][2]int, error) {
@@ -725,17 +753,19 @@ func (c *compiler) compileReduce(e *Reduce) error {
 	if err := c.compileQuery(e.Query); err != nil {
 		return err
 	}
-	if _, err := c.compilePattern(nil, e.Pattern); err != nil {
+	if err := c.compilePatterns(e.Patterns, func() error {
+		c.append(&code{op: opload, v: v})
+		f := c.newScopeDepth()
+		if err := c.compileQuery(e.Update); err != nil {
+			return err
+		}
+		f()
+		c.append(&code{op: opstore, v: v})
+		c.append(&code{op: opbacktrack})
+		return nil
+	}); err != nil {
 		return err
 	}
-	c.append(&code{op: opload, v: v})
-	f = c.newScopeDepth()
-	if err := c.compileQuery(e.Update); err != nil {
-		return err
-	}
-	f()
-	c.append(&code{op: opstore, v: v})
-	c.append(&code{op: opbacktrack})
 	setfork()
 	c.append(&code{op: oppop})
 	c.append(&code{op: opload, v: v})
@@ -756,22 +786,21 @@ func (c *compiler) compileForeach(e *Foreach) error {
 	if err := c.compileQuery(e.Query); err != nil {
 		return err
 	}
-	if _, err := c.compilePattern(nil, e.Pattern); err != nil {
-		return err
-	}
-	c.append(&code{op: opload, v: v})
-	f = c.newScopeDepth()
-	if err := c.compileQuery(e.Update); err != nil {
-		return err
-	}
-	f()
-	c.append(&code{op: opdup})
-	c.append(&code{op: opstore, v: v})
-	if e.Extract != nil {
-		defer c.newScopeDepth()()
-		return c.compileQuery(e.Extract)
-	}
-	return nil
+	return c.compilePatterns(e.Patterns, func() error {
+		c.append(&code{op: opload, v: v})
+		f := c.newScopeDepth()
+		if err := c.compileQuery(e.Update); err != nil {
+			return err
+		}
+		f()
+		c.append(&code{op: opdup})
+		c.append(&code{op: opstore, v: v})
+		if e.Extract != nil {
+			defer c.newScopeDepth()()
+			return c.compileQuery(e.Extract)
+		}
+		return nil
+	})
 }
 
 func (c *compiler) compileLabel(e *Label) error {
@@ -1096,7 +1125,7 @@ func (c *compiler) compileModify() {
 		&code{op: opcall, v: [3]any{funcAllocator, 0, "_allocator"}},
 		&code{op: opstore, v: a},
 		&code{op: opload, v: v},
-		&code{op: opfork, v: len(c.codes) + 39}, // reduce [L1]
+		&code{op: opfork, v: len(c.codes) + 40}, // reduce [L1]
 		&code{op: oppathbegin},                  // path(p)
 		&code{op: opload, v: p},
 		&code{op: opcallpc},
@@ -1105,12 +1134,13 @@ func (c *compiler) compileModify() {
 		&code{op: opstore, v: p},                // as $p (.;
 		&code{op: opforklabel, v: l},            // label $l |
 		&code{op: opload, v: v},                 //
-		&code{op: opfork, v: len(c.codes) + 36}, // [L2]
+		&code{op: opfork, v: len(c.codes) + 37}, // [L2]
 		&code{op: oppop},                        // (getpath($p) |
+		&code{op: opload, v: a},
 		&code{op: opload, v: a},
 		&code{op: opload, v: p},
 		&code{op: opload, v: v},
-		&code{op: opcall, v: [3]any{internalFuncs["getpath"].callback, 1, "getpath"}},
+		&code{op: opcall, v: [3]any{funcGetpathWithAllocator, 2, "getpath"}},
 		&code{op: opload, v: f}, //                 f)
 		&code{op: opcallpc},
 		&code{op: opload, v: p}, //                 setpath($p; ...)
@@ -1118,8 +1148,8 @@ func (c *compiler) compileModify() {
 		&code{op: opcall, v: [3]any{funcSetpathWithAllocator, 3, "_setpath"}},
 		&code{op: opstore, v: v},
 		&code{op: opload, v: v},                 // ., break $l
-		&code{op: opfork, v: len(c.codes) + 34}, // [L4]
-		&code{op: opjump, v: len(c.codes) + 38}, // [L3]
+		&code{op: opfork, v: len(c.codes) + 35}, // [L4]
+		&code{op: opjump, v: len(c.codes) + 39}, // [L3]
 		&code{op: opload, v: l},                 // [L4]
 		&code{op: opcall, v: [3]any{funcBreak(""), 0, "_break"}},
 		&code{op: opload, v: p},   //               append $p to $d [L2]
@@ -1194,9 +1224,8 @@ func (c *compiler) funcBuiltins(any, []any) any {
 			}
 		}
 	}
-	sort.Slice(xs, func(i, j int) bool {
-		return xs[i].name < xs[j].name ||
-			xs[i].name == xs[j].name && xs[i].arity < xs[j].arity
+	slices.SortFunc(xs, func(x, y *funcNameArity) int {
+		return cmp.Or(cmp.Compare(x.name, y.name), cmp.Compare(x.arity, y.arity))
 	})
 	ys := make([]any, len(xs))
 	for i, x := range xs {
@@ -1206,6 +1235,8 @@ func (c *compiler) funcBuiltins(any, []any) any {
 }
 
 func (c *compiler) funcInput(any, []any) any {
+	c.inputMu.Lock()
+	defer c.inputMu.Unlock()
 	v, ok := c.inputIter.Next()
 	if !ok {
 		return errors.New("break")
@@ -1256,9 +1287,8 @@ func listModuleDefs(q *Query) []any {
 			xs = append(xs, &funcNameArity{fd.Name, len(fd.Args)})
 		}
 	}
-	sort.Slice(xs, func(i, j int) bool {
-		return xs[i].name < xs[j].name ||
-			xs[i].name == xs[j].name && xs[i].arity < xs[j].arity
+	slices.SortFunc(xs, func(x, y *funcNameArity) int {
+		return cmp.Or(cmp.Compare(x.name, y.name), cmp.Compare(x.arity, y.arity))
 	})
 	defs := make([]any, len(xs))
 	for i, x := range xs {
@@ -1274,11 +1304,7 @@ func listModuleDeps(q *Query) []any {
 		if v == nil {
 			v = make(map[string]any)
 		}
-		relpath := i.ImportPath
-		if relpath == "" {
-			relpath = i.IncludePath
-		}
-		v["relpath"] = relpath
+		v["relpath"] = cmp.Or(i.ImportPath, i.IncludePath)
 		if i.ImportAlias != "" {
 			v["as"] = strings.TrimPrefix(i.ImportAlias, "$")
 		}

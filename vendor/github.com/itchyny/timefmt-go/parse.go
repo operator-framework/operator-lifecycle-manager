@@ -3,36 +3,41 @@ package timefmt
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // Parse time string using the format.
-func Parse(source, format string) (t time.Time, err error) {
+func Parse(source, format string) (time.Time, error) {
 	return parse(source, format, time.UTC, time.Local)
 }
 
 // ParseInLocation parses time string with the default location.
 // The location is also used to parse the time zone name (%Z).
-func ParseInLocation(source, format string, loc *time.Location) (t time.Time, err error) {
+func ParseInLocation(source, format string, loc *time.Location) (time.Time, error) {
 	return parse(source, format, loc, loc)
 }
 
-func parse(source, format string, loc, base *time.Location) (t time.Time, err error) {
+func parse(source, format string, loc, base *time.Location) (time.Time, error) {
+	t, err := parseTime(source, format, loc, base)
+	if err != nil {
+		err = fmt.Errorf("failed to parse %q with %q: %w", strings.Clone(source), format, err)
+	}
+	return t, err
+}
+
+func parseTime(source, format string, loc, base *time.Location) (time.Time, error) {
 	year, month, day, hour, minute, second, nanosecond := 1900, 1, 0, 0, 0, 0, 0
-	defer func() {
-		if err != nil {
-			err = fmt.Errorf("failed to parse %q with %q: %w", source, format, err)
-		}
-	}()
-	var j, week, weekday, yday, colons, sign int
+	var j, week, weekday, yday, ampm, colons, sign int
 	century, weekstart := -1, time.Weekday(-1)
-	var pm, hasISOYear, hasZoneName, hasZoneOffset bool
+	var hasISOYear, hasUnix, hasZoneName, hasZoneOffset bool
 	var pending string
+	var err error
 	for i, l := 0, len(source); i < len(format); i++ {
 		if b := format[i]; b == '%' {
 			if i++; i == len(format) {
-				err = errors.New(`stray "%"`)
-				return
+				return time.Time{}, errors.New(`stray "%"`)
 			}
 			b = format[i]
 		L:
@@ -43,7 +48,7 @@ func parse(source, format string, loc, base *time.Location) (t time.Time, err er
 			case 'Y':
 				sign, j = parseSign(source, j, l)
 				if year, j, err = parseInt(source, j, 4, 0, 9999, b); err != nil {
-					return
+					return time.Time{}, err
 				}
 				year *= sign
 			case 'g':
@@ -51,7 +56,7 @@ func parse(source, format string, loc, base *time.Location) (t time.Time, err er
 				fallthrough
 			case 'y':
 				if year, j, err = parseInt(source, j, 2, 0, 99, b); err != nil {
-					return
+					return time.Time{}, err
 				}
 				if year < 69 {
 					year += 2000
@@ -61,57 +66,56 @@ func parse(source, format string, loc, base *time.Location) (t time.Time, err er
 			case 'C':
 				sign, j = parseSign(source, j, l)
 				if sign < 0 {
-					err = errors.New(`negative century is not supported for "%C"`)
-					return
+					return time.Time{}, errors.New(`negative century is not supported for "%C"`)
 				}
 				if century, j, err = parseInt(source, j, 2, 0, 99, 'C'); err != nil {
-					return
+					return time.Time{}, err
 				}
 			case 'm':
 				if month, j, err = parseInt(source, j, 2, 1, 12, 'm'); err != nil {
-					return
+					return time.Time{}, err
 				}
 			case 'B':
 				if month, j, err = parseAny(source, j, longMonthNames, 'B'); err != nil {
-					return
+					return time.Time{}, err
 				}
 			case 'b', 'h':
 				if month, j, err = parseAny(source, j, shortMonthNames, b); err != nil {
-					return
+					return time.Time{}, err
 				}
 			case 'A':
 				if weekday, j, err = parseAny(source, j, longWeekNames, 'A'); err != nil {
-					return
+					return time.Time{}, err
 				}
 			case 'a':
 				if weekday, j, err = parseAny(source, j, shortWeekNames, 'a'); err != nil {
-					return
+					return time.Time{}, err
 				}
 			case 'w':
 				if weekday, j, err = parseInt(source, j, 1, 0, 6, 'w'); err != nil {
-					return
+					return time.Time{}, err
 				}
 				weekday++
 			case 'u':
 				if weekday, j, err = parseInt(source, j, 1, 1, 7, 'u'); err != nil {
-					return
+					return time.Time{}, err
 				}
 				weekday = weekday%7 + 1
 			case 'V':
 				if week, j, err = parseInt(source, j, 2, 1, 53, b); err != nil {
-					return
+					return time.Time{}, err
 				}
 				weekstart = time.Thursday
 				weekday = or(weekday, 2)
 			case 'U':
 				if week, j, err = parseInt(source, j, 2, 0, 53, b); err != nil {
-					return
+					return time.Time{}, err
 				}
 				weekstart = time.Sunday
 				weekday = or(weekday, 1)
 			case 'W':
 				if week, j, err = parseInt(source, j, 2, 0, 53, b); err != nil {
-					return
+					return time.Time{}, err
 				}
 				weekstart = time.Monday
 				weekday = or(weekday, 2)
@@ -122,11 +126,11 @@ func parse(source, format string, loc, base *time.Location) (t time.Time, err er
 				fallthrough
 			case 'd':
 				if day, j, err = parseInt(source, j, 2, 1, 31, b); err != nil {
-					return
+					return time.Time{}, err
 				}
 			case 'j':
 				if yday, j, err = parseInt(source, j, 3, 1, 366, 'j'); err != nil {
-					return
+					return time.Time{}, err
 				}
 			case 'k':
 				if j < l && source[j] == ' ' {
@@ -135,7 +139,7 @@ func parse(source, format string, loc, base *time.Location) (t time.Time, err er
 				fallthrough
 			case 'H':
 				if hour, j, err = parseInt(source, j, 2, 0, 23, b); err != nil {
-					return
+					return time.Time{}, err
 				}
 			case 'l':
 				if j < l && source[j] == ' ' {
@@ -144,59 +148,76 @@ func parse(source, format string, loc, base *time.Location) (t time.Time, err er
 				fallthrough
 			case 'I':
 				if hour, j, err = parseInt(source, j, 2, 1, 12, b); err != nil {
-					return
+					return time.Time{}, err
 				}
 				if hour == 12 {
 					hour = 0
 				}
 			case 'P', 'p':
-				var ampm int
 				if ampm, j, err = parseAny(source, j, []string{"AM", "PM"}, b); err != nil {
-					return
+					return time.Time{}, err
 				}
-				pm = ampm == 2
 			case 'M':
 				if minute, j, err = parseInt(source, j, 2, 0, 59, 'M'); err != nil {
-					return
+					return time.Time{}, err
 				}
 			case 'S':
 				if second, j, err = parseInt(source, j, 2, 0, 60, 'S'); err != nil {
-					return
+					return time.Time{}, err
 				}
 			case 's':
 				sign, j = parseSign(source, j, l)
-				var unix int64
-				if unix, j, err = parseInt64(source, j, 19, 's'); err != nil {
-					return
+				// 2147483647-12-31T23:59:59Z, the last second of the maximum year.
+				maxUnix := int64(67767976233532799)
+				if sign < 0 {
+					// -2147483648-01-01T00:00:00Z, the first second of the
+					// minimum year, negated since the sign is applied below.
+					maxUnix = 67768100567971200
 				}
-				t = time.Unix(int64(sign)*unix, 0).In(time.UTC)
+				var unix int64
+				if unix, j, err = parseInt64(source, j, maxUnix, 's'); err != nil {
+					return time.Time{}, err
+				}
+				t := time.Unix(int64(sign)*unix, 0).In(time.UTC)
 				var mon time.Month
 				year, mon, day = t.Date()
 				hour, minute, second = t.Clock()
-				month = int(mon)
+				month, hasUnix = int(mon), true
 			case 'f':
 				microsecond, i := 0, j
 				if microsecond, j, err = parseInt(source, j, 6, 0, 999999, 'f'); err != nil {
-					return
+					return time.Time{}, err
 				}
 				for i = j - i; i < 6; i++ {
 					microsecond *= 10
 				}
 				nanosecond = microsecond * 1000
 			case 'Z':
+				if j >= l {
+					return time.Time{}, parseFormatError('Z')
+				}
 				i := j
-				for ; j < l; j++ {
-					if c := source[j]; c < 'A' || 'Z' < c {
-						break
+				if source[j] == '+' || source[j] == '-' {
+					for j++; j < l; j++ {
+						if source[j]-'0' >= 10 {
+							break
+						}
+					}
+				} else if j+4 <= l && (source[j:j+4] == "ChST" || source[j:j+4] == "MeST") {
+					j += 4
+				} else {
+					for ; j < l; j++ {
+						if source[j]-'A' > 'Z'-'A' {
+							break
+						}
 					}
 				}
-				t, err = time.ParseInLocation("MST", source[i:j], base)
+				name := strings.Clone(source[i:j])
+				t, err := time.ParseInLocation("MST", name, base)
 				if err != nil {
-					err = fmt.Errorf(`cannot parse %q with "%%Z"`, source[i:j])
-					return
+					return time.Time{}, parseFormatError('Z')
 				}
 				if hasZoneOffset {
-					name, _ := t.Zone()
 					_, offset := locationZone(loc)
 					loc = time.FixedZone(name, offset)
 				} else {
@@ -205,8 +226,7 @@ func parse(source, format string, loc, base *time.Location) (t time.Time, err er
 				hasZoneName = true
 			case 'z':
 				if j >= l {
-					err = parseZFormatError(colons)
-					return
+					return time.Time{}, parseZFormatError(colons)
 				}
 				sign = 1
 				switch source[j] {
@@ -216,13 +236,11 @@ func parse(source, format string, loc, base *time.Location) (t time.Time, err er
 				case '+':
 					hour, minute, second, i := 0, 0, 0, j+1
 					if hour, j, _ = parseInt(source, i, 2, 0, 23, 'z'); j != i+2 {
-						err = parseZFormatError(colons)
-						return
+						return time.Time{}, parseZFormatError(colons)
 					}
 					if j >= l || source[j] != ':' {
 						if colons > 0 && colons < 3 {
-							err = expectedColonForZFormatError(colons)
-							return
+							return time.Time{}, expectedColonForZFormatError(colons)
 						}
 					} else if j++; colons == 0 {
 						colons = 4
@@ -230,22 +248,19 @@ func parse(source, format string, loc, base *time.Location) (t time.Time, err er
 					i = j
 					if minute, j, _ = parseInt(source, i, 2, 0, 59, 'z'); j != i+2 {
 						if colons > 0 && colons != 3 {
-							err = parseZFormatError(colons & 3)
-							return
+							return time.Time{}, parseZFormatError(colons & 3)
 						}
 						j = i
 					} else if colons > 1 {
 						if j >= l || source[j] != ':' {
 							if colons < 3 {
-								err = expectedColonForZFormatError(colons)
-								return
+								return time.Time{}, expectedColonForZFormatError(colons)
 							}
 						} else {
 							i = j + 1
 							if second, j, _ = parseInt(source, i, 2, 0, 59, 'z'); j != i+2 {
 								if colons < 3 {
-									err = parseZFormatError(colons)
-									return
+									return time.Time{}, parseZFormatError(colons)
 								}
 								j = i - 1
 							}
@@ -260,14 +275,12 @@ func parse(source, format string, loc, base *time.Location) (t time.Time, err er
 				case 'Z':
 					loc, colons, j = time.UTC, 0, j+1
 				default:
-					err = parseZFormatError(colons)
-					return
+					return time.Time{}, parseZFormatError(colons)
 				}
 			case ':':
 				if pending != "" {
 					if j >= l || source[j] != b {
-						err = expectedFormatError(b)
-						return
+						return time.Time{}, expectedFormatError(b)
 					}
 					j++
 				} else {
@@ -280,8 +293,7 @@ func parse(source, format string, loc, base *time.Location) (t time.Time, err er
 							break
 						}
 					}
-					err = expectedZAfterColonError(colons)
-					return
+					return time.Time{}, expectedZAfterColonError(colons)
 				}
 			case 't', 'n':
 				i := j
@@ -294,13 +306,11 @@ func parse(source, format string, loc, base *time.Location) (t time.Time, err er
 					}
 				}
 				if i == j {
-					err = fmt.Errorf(`expected a space for "%%%c"`, b)
-					return
+					return time.Time{}, fmt.Errorf(`expected a space for "%%%c"`, b)
 				}
 			case '%':
 				if j >= l || source[j] != b {
-					err = expectedFormatError(b)
-					return
+					return time.Time{}, expectedFormatError(b)
 				}
 				j++
 			case 'c':
@@ -321,12 +331,11 @@ func parse(source, format string, loc, base *time.Location) (t time.Time, err er
 				pending = "H:M"
 			default:
 				if pending == "" {
-					err = fmt.Errorf(`unexpected format "%%%c"`, b)
-					return
+					r, _ := utf8.DecodeRuneInString(format[i:])
+					return time.Time{}, unexpectedFormatError(r)
 				}
 				if j >= l || source[j] != b {
-					err = expectedFormatError(b)
-					return
+					return time.Time{}, expectedFormatError(b)
 				}
 				j++
 			}
@@ -335,52 +344,61 @@ func parse(source, format string, loc, base *time.Location) (t time.Time, err er
 				goto L
 			}
 		} else if j >= l || source[j] != b {
-			err = expectedFormatError(b)
-			return
+			r, _ := utf8.DecodeRuneInString(format[i:])
+			return time.Time{}, expectedFormatError(r)
 		} else {
 			j++
 		}
 	}
 	if j < len(source) {
-		err = fmt.Errorf("unparsed string %q", source[j:])
-		return
+		return time.Time{}, fmt.Errorf("unparsed string %q", strings.Clone(source[j:]))
 	}
-	if pm {
-		hour += 12
+	if ampm > 0 {
+		hour = hour%12 + (ampm-1)*12
 	}
 	if century >= 0 {
 		year = century*100 + year%100
 	}
-	if day == 0 {
-		if yday > 0 {
-			if hasISOYear {
-				err = errors.New(`use "%Y" to parse non-ISO year for "%j"`)
-				return
-			}
-			return time.Date(year, time.January, yday, hour, minute, second, nanosecond, loc), nil
-		}
-		if weekstart >= time.Sunday {
-			if weekstart == time.Thursday {
-				if !hasISOYear {
-					err = errors.New(`use "%G" to parse ISO year for "%V"`)
-					return
-				}
-			} else if hasISOYear {
-				err = errors.New(`use "%Y" to parse non-ISO year for "%U" or "%W"`)
-				return
-			}
-			if weekstart > time.Sunday && weekday == 1 {
-				week++
-			}
-			t := time.Date(year, time.January, -int(weekstart), hour, minute, second, nanosecond, loc)
-			return t.AddDate(0, 0, week*7-int(t.Weekday())+weekday-1), nil
-		}
+	switch {
+	default:
 		day = 1
+		fallthrough
+	case day > 0:
+		if hasISOYear {
+			return time.Time{}, errors.New(`use "%Y" to parse non-ISO year`)
+		}
+		if hasUnix {
+			return time.Date(year, time.Month(month), day, hour, minute, second, nanosecond, time.UTC).In(loc), nil
+		}
+		return time.Date(year, time.Month(month), day, hour, minute, second, nanosecond, loc), nil
+	case yday > 0:
+		if hasISOYear {
+			return time.Time{}, errors.New(`use "%Y" to parse non-ISO year for "%j"`)
+		}
+		return time.Date(year, time.January, yday, hour, minute, second, nanosecond, loc), nil
+	case hasISOYear:
+		if weekstart < time.Sunday {
+			weekstart, week, weekday = time.Thursday, 1, or(weekday, 2)
+		}
+		fallthrough
+	case weekstart >= time.Sunday:
+		if (weekstart == time.Thursday) != hasISOYear {
+			if hasISOYear {
+				return time.Time{}, errors.New(`use "%Y" to parse non-ISO year for "%U" or "%W"`)
+			}
+			return time.Time{}, errors.New(`use "%G" to parse ISO year for "%V"`)
+		}
+		if weekstart > time.Sunday && weekday == 1 {
+			week++
+		}
+		t := time.Date(year, time.January, -int(weekstart), 0, 0, 0, 0, time.UTC)
+		return time.Date(year, time.January,
+			week*7-int(weekstart)-int(t.Weekday())+weekday-1,
+			hour, minute, second, nanosecond, loc), nil
 	}
-	return time.Date(year, time.Month(month), day, hour, minute, second, nanosecond, loc), nil
 }
 
-func locationZone(loc *time.Location) (name string, offset int) {
+func locationZone(loc *time.Location) (string, int) {
 	return time.Date(2000, time.January, 1, 0, 0, 0, 0, loc).Zone()
 }
 
@@ -390,10 +408,16 @@ func (err parseFormatError) Error() string {
 	return fmt.Sprintf(`cannot parse "%%%c"`, byte(err))
 }
 
-type expectedFormatError byte
+type expectedFormatError rune
 
 func (err expectedFormatError) Error() string {
-	return fmt.Sprintf("expected %q", byte(err))
+	return fmt.Sprintf("expected %q", rune(err))
+}
+
+type unexpectedFormatError rune
+
+func (err unexpectedFormatError) Error() string {
+	return fmt.Sprintf(`unexpected format "%%%c"`, rune(err))
 }
 
 type parseZFormatError int
@@ -425,9 +449,8 @@ func parseSign(source string, index, l int) (int, int) {
 // wrapper of parseInt64 to avoid the overhead of int64 arithmetic and
 // function call indirection in the hot path (~20% slower in benchmarks).
 func parseInt(source string, index, size, minimum, maximum int, format byte) (int, int, error) {
-	var value int
-	i := index
-	for size = min(i+size, len(source)); i < size; i++ {
+	value, i := 0, index
+	for l := min(index+size, len(source)); i < l; i++ {
 		if b := source[i] - '0'; b < 10 {
 			value = value*10 + int(b)
 		} else {
@@ -440,12 +463,18 @@ func parseInt(source string, index, size, minimum, maximum int, format byte) (in
 	return value, i, nil
 }
 
-func parseInt64(source string, index, size int, format byte) (int64, int, error) {
-	var value int64
-	i := index
-	for size = min(i+size, len(source)); i < size; i++ {
+// parseInt64 parses an integer from source. The maximum value is limited so
+// that the year of the parsed time fits in int on 32-bit architectures, and
+// the accumulation never overflows int64. The number of digits needs no limit
+// because the maximum value bounds it.
+func parseInt64(source string, index int, maximum int64, format byte) (int64, int, error) {
+	value, i := int64(0), index
+	for ; i < len(source); i++ {
 		if b := source[i] - '0'; b < 10 {
 			value = value*10 + int64(b)
+			if value > maximum {
+				return 0, 0, parseFormatError(format)
+			}
 		} else {
 			break
 		}

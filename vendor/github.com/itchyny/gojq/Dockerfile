@@ -1,11 +1,11 @@
-FROM golang:1.26 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.27 AS builder
 
 WORKDIR /app
 COPY go.* ./
 RUN go mod download
 COPY . .
-ENV CGO_ENABLED=0
-RUN make build
+ARG TARGETOS TARGETARCH
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH make build
 
 FROM gcr.io/distroless/static:debug
 
