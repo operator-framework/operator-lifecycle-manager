@@ -1,9 +1,6 @@
 package pflag
 
-import (
-	"errors"
-	"strconv"
-)
+import "strconv"
 
 // -- int64 Value
 type int64Value int64
@@ -15,11 +12,8 @@ func newInt64Value(val int64, p *int64) *int64Value {
 
 func (i *int64Value) Set(s string) error {
 	v, err := strconv.ParseInt(s, 0, 64)
-	if err != nil {
-		return errors.New("must be an integer")
-	}
 	*i = int64Value(v)
-	return nil
+	return err
 }
 
 func (i *int64Value) Type() string {

@@ -15,7 +15,6 @@ import (
 type failFunc func(message string, callerSkip ...int)
 type skipFunc func(message string, callerSkip ...int)
 type cleanupFunc func(args ...any)
-type onFailureFunc func(args ...any)
 type reportFunc func() types.SpecReport
 type addReportEntryFunc func(names string, args ...any)
 type ginkgoWriterInterface interface {
@@ -33,14 +32,13 @@ var formatters = map[bool]formatter.Formatter{
 	false: formatter.NewWithNoColorBool(false),
 }
 
-func New(writer ginkgoWriterInterface, fail failFunc, skip skipFunc, cleanup cleanupFunc, onFailure onFailureFunc, report reportFunc, addReportEntry addReportEntryFunc, ginkgoRecover ginkgoRecoverFunc, attachProgressReporter attachProgressReporterFunc, randomSeed int64, parallelProcess int, parallelTotal int, noColor bool, offset int) *ginkgoTestingTProxy {
+func New(writer ginkgoWriterInterface, fail failFunc, skip skipFunc, cleanup cleanupFunc, report reportFunc, addReportEntry addReportEntryFunc, ginkgoRecover ginkgoRecoverFunc, attachProgressReporter attachProgressReporterFunc, randomSeed int64, parallelProcess int, parallelTotal int, noColor bool, offset int) *ginkgoTestingTProxy {
 	return &ginkgoTestingTProxy{
 		fail:                   fail,
 		offset:                 offset,
 		writer:                 writer,
 		skip:                   skip,
 		cleanup:                cleanup,
-		onFailure:              onFailure,
 		report:                 report,
 		addReportEntry:         addReportEntry,
 		ginkgoRecover:          ginkgoRecover,
@@ -56,7 +54,6 @@ type ginkgoTestingTProxy struct {
 	fail                   failFunc
 	skip                   skipFunc
 	cleanup                cleanupFunc
-	onFailure              onFailureFunc
 	report                 reportFunc
 	offset                 int
 	writer                 ginkgoWriterInterface
@@ -233,10 +230,6 @@ func (t *ginkgoTestingTProxy) GinkgoRecover() {
 func (t *ginkgoTestingTProxy) DeferCleanup(args ...any) {
 	finalArgs := []any{internal.Offset(1)}
 	t.cleanup(append(finalArgs, args...)...)
-}
-func (t *ginkgoTestingTProxy) DeferOnFailure(args ...any) {
-	finalArgs := []any{internal.Offset(1)}
-	t.onFailure(append(finalArgs, args...)...)
 }
 func (t *ginkgoTestingTProxy) RandomSeed() int64 {
 	return t.randomSeed

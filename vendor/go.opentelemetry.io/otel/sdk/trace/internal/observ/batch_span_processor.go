@@ -47,8 +47,6 @@ type BSP struct {
 	processedQueueFullOpts []metric.AddOption
 }
 
-// NewBSP creates new instrumentation for a BatchSpanProcessor.
-// It returns nil if observability is not enabled.
 func NewBSP(id int64, qLen func() int64, qMax int64) (*BSP, error) {
 	if !x.Observability.Enabled() {
 		return nil, nil
@@ -110,16 +108,12 @@ func NewBSP(id int64, qLen func() int64, qMax int64) (*BSP, error) {
 	}, err
 }
 
-// Shutdown unregisters the callbacks registered by NewBSP.
 func (b *BSP) Shutdown() error { return b.reg.Unregister() }
 
-// Processed records n spans as having finished processing successfully.
 func (b *BSP) Processed(ctx context.Context, n int64) {
 	b.processed.Add(ctx, n, b.processedOpts...)
 }
 
-// ProcessedQueueFull records n spans as having finished processing with a
-// queue-full error.
 func (b *BSP) ProcessedQueueFull(ctx context.Context, n int64) {
 	b.processed.Add(ctx, n, b.processedQueueFullOpts...)
 }

@@ -401,12 +401,12 @@ func funcOpMul(_, l, r any) any {
 		deepMergeObjects,
 		func(l, r any) any {
 			if l, ok := l.(string); ok {
-				if r, ok := ToFloat64(r); ok {
+				if r, ok := toFloat(r); ok {
 					return repeatString(l, r)
 				}
 			}
 			if r, ok := r.(string); ok {
-				if l, ok := ToFloat64(l); ok {
+				if l, ok := toFloat(l); ok {
 					return repeatString(r, l)
 				}
 			}
@@ -473,7 +473,17 @@ func funcOpDiv(_, l, r any) any {
 			}
 			return bigToFloat(l) / bigToFloat(r)
 		},
-		func(l, r string) any { return splitString(l, r) },
+		func(l, r string) any {
+			if l == "" {
+				return []any{}
+			}
+			xs := strings.Split(l, r)
+			vs := make([]any, len(xs))
+			for i, x := range xs {
+				vs[i] = x
+			}
+			return vs
+		},
 		func(l, r []any) any { return &binopTypeError{"divide", l, r} },
 		func(l, r map[string]any) any { return &binopTypeError{"divide", l, r} },
 		func(l, r any) any { return &binopTypeError{"divide", l, r} },

@@ -18,6 +18,7 @@ func (bytesHex bytesHexValue) String() string {
 // Set implements pflag.Value.Set.
 func (bytesHex *bytesHexValue) Set(value string) error {
 	bin, err := hex.DecodeString(strings.TrimSpace(value))
+
 	if err != nil {
 		return err
 	}
@@ -38,18 +39,20 @@ func newBytesHexValue(val []byte, p *[]byte) *bytesHexValue {
 }
 
 func bytesHexConv(sval string) (interface{}, error) {
+
 	bin, err := hex.DecodeString(sval)
 
 	if err == nil {
 		return bin, nil
 	}
 
-	return nil, fmt.Errorf("invalid string being converted to Bytes: %s %s", sval, err.Error())
+	return nil, fmt.Errorf("invalid string being converted to Bytes: %s %s", sval, err)
 }
 
 // GetBytesHex return the []byte value of a flag with the given name
 func (f *FlagSet) GetBytesHex(name string) ([]byte, error) {
 	val, err := f.getFlagType(name, "bytesHex", bytesHexConv)
+
 	if err != nil {
 		return []byte{}, err
 	}
@@ -116,6 +119,7 @@ func (bytesBase64 bytesBase64Value) String() string {
 // Set implements pflag.Value.Set.
 func (bytesBase64 *bytesBase64Value) Set(value string) error {
 	bin, err := base64.StdEncoding.DecodeString(strings.TrimSpace(value))
+
 	if err != nil {
 		return err
 	}
@@ -136,17 +140,19 @@ func newBytesBase64Value(val []byte, p *[]byte) *bytesBase64Value {
 }
 
 func bytesBase64ValueConv(sval string) (interface{}, error) {
+
 	bin, err := base64.StdEncoding.DecodeString(sval)
 	if err == nil {
 		return bin, nil
 	}
 
-	return nil, fmt.Errorf("invalid string being converted to Bytes: %s %s", sval, err.Error())
+	return nil, fmt.Errorf("invalid string being converted to Bytes: %s %s", sval, err)
 }
 
 // GetBytesBase64 return the []byte value of a flag with the given name
 func (f *FlagSet) GetBytesBase64(name string) ([]byte, error) {
 	val, err := f.getFlagType(name, "bytesBase64", bytesBase64ValueConv)
+
 	if err != nil {
 		return []byte{}, err
 	}

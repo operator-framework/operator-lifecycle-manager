@@ -15,36 +15,14 @@ endif
 
 # Tools #
 
-# The tools required to build and test the project come from three sources:
-# 1. .bingo/Variables.mk: tools that are orthogonal to OLM, e.g.
-#   - golangci-lint
-#   - helm
-#   - kind
-#   - setup-envtest
-#   - yq
-# 2. go.mod/tools.go: imports testing libraries, modules that need to be vendored and/or have a low tolerance for skew with the main module
-#                     or because they are already imported by the main module but we want to pull down the whole dependency
-#                     to run some cmd or script, or get some resource (e.g. CRD yaml files).
-#   - OLM API CRDs
-#   - Code generation tools, e.g. k8s.io/code-generator
-
-# bingo manages the type 1 tools. If
-#  a) we don't want their dependencies affecting ours, and
-#  b) the tool's version doesn't need to track closely with OLM
-# the tool goes here
-include .bingo/Variables.mk
-
-# go.mod/tools.go manages type 2 tools. If
-# a) we use the library for development, e.g testing, assertion, etc.
-# b) we need some resource (e.g. yaml file)
-# c) need to run a script that is in the library
-# c) need to track tools closely with OLM (e.g. have the same k8s library version)
-# the tools belongs in go.mod. If your normal imports don't pull down everything you need into vendor
-# then add the import to tools.go
-# Note: The code generation tools are either being used in go:generate directives or
-# they are setup in a different script, e.g. ./scripts/update_codegen.sh
-TOOL_EXEC := go run -mod=vendor
-GINKGO := $(TOOL_EXEC) github.com/onsi/ginkgo/v2/ginkgo
+# Tool binaries are pinned by tool directives in go.mod. tools.go also imports
+# dependencies needed for code generation and CRD resources in vendor/.
+GOLANGCI_LINT := go tool golangci-lint
+HELM := go tool helm
+KIND := go tool kind
+SETUP_ENVTEST := go tool setup-envtest
+YQ := go tool yq
+GINKGO := go tool ginkgo
 
 # Target environment and Dependencies #
 
@@ -195,7 +173,7 @@ clean: #HELP Clean up build artifacts
 #SECTION Development
 
 .PHONY: lint
-lint: $(GOLANGCI_LINT) #HELP Run linters
+lint: #HELP Run linters
 	$(GOLANGCI_LINT) run $(GOLANGCI_LINT_ARGS)
 
 .PHONY: vet
@@ -210,13 +188,6 @@ vendor: #HELP Update vendored dependencies
 	go mod tidy
 	go mod vendor
 
-.PHONY: bingo-upgrade
-bingo-upgrade: $(BINGO) #EXHELP Upgrade tools
-	@for pkg in $$($(BINGO) list | awk '{ print $$3 }' | tail -n +3 | sed 's/@.*//'); do \
-		echo -e "Upgrading \033[35m$$pkg\033[0m to latest..."; \
-		$(BINGO) get "$$pkg@latest"; \
-	done
-
 #SECTION Testing
 
 # Note: We want to use TESTCMD = because we need it to be re-evaluated every time it is used
@@ -228,7 +199,7 @@ test: clean unit test-split #HELP Run all tests
 
 .PHONY: unit
 unit: GO_TEST_ENV += KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)"
-unit: $(SETUP_ENVTEST) #HELP Run OLM unit tests with setup-envtest for kubernetes $(KUBE_MINOR).x
+unit: #HELP Run OLM unit tests with setup-envtest for kubernetes $(KUBE_MINOR).x
 	$(UNIT_TEST_CMD) ./pkg/controller/... ./pkg/...
 
 .PHONY: test-split
@@ -244,18 +215,18 @@ coverage: unit #HELP Run OLM unit tests with coverage
 #SECTION Deployment
 
 .PHONY: kind-clean
-kind-clean: $(KIND) #HELP Delete kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0)
+kind-clean: #HELP Delete kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0)
 	$(KIND) delete cluster --name $(KIND_CLUSTER_NAME) || true
 
 .PHONY: kind-create
 kind-create: kind-clean #HELP Create a new kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0)
-	env K8S_VERSION=v$(KUBE_MINOR) KIND=$(KIND) GOBIN=$(GOBIN) hack/tools/validate_kindest_node.sh
+	env K8S_VERSION=v$(KUBE_MINOR) hack/tools/validate_kindest_node.sh
 	$(KIND) create cluster --name $(KIND_CLUSTER_NAME) $(KIND_CREATE_OPTS)
 	$(KIND) export kubeconfig --name $(KIND_CLUSTER_NAME)
 
 .PHONY: deploy
 OLM_IMAGE := quay.io/operator-framework/olm:local
-deploy: $(KIND) $(HELM) #HELP Deploy OLM to kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0) using $OLM_IMAGE (default: quay.io/operator-framework/olm:local)
+deploy: #HELP Deploy OLM to kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0) using $OLM_IMAGE (default: quay.io/operator-framework/olm:local)
 	$(KIND) load docker-image $(OLM_IMAGE) --name $(KIND_CLUSTER_NAME); \
 	$(HELM) upgrade --install olm deploy/chart \
 		--set debug=true \
@@ -271,7 +242,7 @@ deploy: $(KIND) $(HELM) #HELP Deploy OLM to kind cluster $KIND_CLUSTER_NAME (def
 		--wait;
 
 .PHONY: undeploy
-undeploy: $(KIND) $(HELM) #HELP Uninstall OLM from kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0)
+undeploy: #HELP Uninstall OLM from kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0)
 	$(KIND) export kubeconfig --name $(KIND_CLUSTER_NAME)
 
 	# Uninstall Helm chart and remove CRDs
@@ -300,7 +271,7 @@ e2e: #HELP Run e2e tests against a cluster running OLM (params: $E2E_TEST_NS (op
 e2e-local: e2e-build kind-create cert-manager-install e2e-local-deploy e2e
 
 .PHONY: e2e-local-deploy
-e2e-local-deploy: $(KIND) $(HELM) #HELP Deploy OLM for e2e testing
+e2e-local-deploy: #HELP Deploy OLM for e2e testing
 	$(KIND) load docker-image $(OLM_IMAGE) --name $(KIND_CLUSTER_NAME); \
 	$(HELM) upgrade --install olm deploy/chart \
 		--set debug=true \
@@ -367,7 +338,7 @@ verify: vendor verify-codegen verify-mockgen verify-manifests #HELP Run all veri
 #SECTION Release
 
 .PHONY: package
-package: $(YQ) $(HELM) #HELP Package OLM for release
+package: #HELP Package OLM for release
 package:
 ifndef TARGET
 	$(error TARGET is undefined)
