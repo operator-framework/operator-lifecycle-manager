@@ -1156,6 +1156,14 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 							Ref:         ref("github.com/operator-framework/api/pkg/lib/release.OperatorRelease"),
 						},
 					},
+					"disableRoleAggregation": {
+						SchemaProps: spec.SchemaProps{
+							Description: "disableRoleAggregation disables OLM's automatic aggregation of permissions for APIs provided by this CSV into the cluster-wide and OperatorGroup-specific admin, edit, and view ClusterRoles. Defaults to false.\n\nWhen false or omitted, OLM includes role aggregation labels on the ClusterRoles it creates for provided APIs. Subjects receive these permissions through RoleBindings or ClusterRoleBindings to the corresponding admin, edit, or view ClusterRoles. The scope of access depends on the bindings used.\n\nWhen true, OLM continues to create and maintain the ClusterRoles for provided APIs, but omits their role aggregation labels. Enabling this field may cause users who rely on aggregated permissions to lose access to those APIs unless equivalent permissions are granted through separate RoleBindings or ClusterRoleBindings.",
+							Default:     false,
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 					"maturity": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},

@@ -133,6 +133,11 @@ When an `OperatorGroup` is created, 3 ClusterRoles each containing a single Aggr
   * ClusterRoleSelector set to match the `olm.opgroup.permissions/aggregate-to-view: <operatorgroup-name>` label
 
 When a CSV becomes an active member of an `OperatorGroup` and is not in a failed state with reason InterOperatorGroupOwnerConflict, the following RBAC resources are generated:
+
+By default, the provided-API ClusterRoles below include both Kubernetes-wide aggregation labels (`rbac.authorization.k8s.io/aggregate-to-admin`, `rbac.authorization.k8s.io/aggregate-to-edit`, or `rbac.authorization.k8s.io/aggregate-to-view`) and OperatorGroup-specific aggregation labels (`olm.opgroup.permissions/aggregate-to-admin`, `olm.opgroup.permissions/aggregate-to-edit`, or `olm.opgroup.permissions/aggregate-to-view`). These labels aggregate permissions into both the Kubernetes `admin`, `edit`, and `view` ClusterRoles and the corresponding OperatorGroup-specific ClusterRoles.
+
+A CSV can set `spec.disableRoleAggregation: true` to disable both forms of aggregation. OLM will continue to create and maintain the provided-API ClusterRoles and their rules, but will omit both sets of aggregation labels. When enabling this setting for an existing operator, users can lose access to its provided APIs; a cluster administrator must restore any needed access through separate role bindings.
+
 * For each provided API resource from a CRD:
   * A `<kind.group-version-admin>` ClusterRole is generated with the `*` verb on `<group>` `<kind>` with aggregation labels `rbac.authorization.k8s.io/aggregate-to-admin: true` and `olm.opgroup.permissions/aggregate-to-admin: <operatorgroup-name>`
   * A `<kind.group-version-edit>` ClusterRole is generated with the `create, update, patch, delete` verbs on `<group>` `<kind>` with aggregation labels `rbac.authorization.k8s.io/aggregate-to-edit: true` and `olm.opgroup.permissions/aggregate-to-edit: <operatorgroup-name>`

@@ -293,7 +293,26 @@ type ClusterServiceVersionSpec struct {
 	// (dot-separated identifiers containing only alphanumerics and hyphens) and are limited
 	// to a maximum length of 20 characters.
 	// +optional
-	Release                   release.OperatorRelease   `json:"release,omitzero"`
+	Release release.OperatorRelease `json:"release,omitzero"`
+
+	// disableRoleAggregation disables OLM's automatic aggregation of permissions
+	// for APIs provided by this CSV into the cluster-wide and OperatorGroup-specific
+	// admin, edit, and view ClusterRoles. Defaults to false.
+	//
+	// When false or omitted, OLM includes role aggregation labels on the
+	// ClusterRoles it creates for provided APIs. Subjects receive these
+	// permissions through RoleBindings or ClusterRoleBindings to the
+	// corresponding admin, edit, or view ClusterRoles. The scope of access
+	// depends on the bindings used.
+	//
+	// When true, OLM continues to create and maintain the ClusterRoles for
+	// provided APIs, but omits their role aggregation labels. Enabling this
+	// field may cause users who rely on aggregated permissions to lose access
+	// to those APIs unless equivalent permissions are granted through separate
+	// RoleBindings or ClusterRoleBindings.
+	// +optional
+	DisableRoleAggregation bool `json:"disableRoleAggregation,omitzero"`
+
 	Maturity                  string                    `json:"maturity,omitempty"`
 	CustomResourceDefinitions CustomResourceDefinitions `json:"customresourcedefinitions,omitempty"`
 	APIServiceDefinitions     APIServiceDefinitions     `json:"apiservicedefinitions,omitempty"`

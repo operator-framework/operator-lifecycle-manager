@@ -383,24 +383,25 @@ func (a *Operator) pruneProvidedAPIs(group *operatorsv1.OperatorGroup, groupProv
 }
 
 // ensureProvidedAPIClusterRole ensures that a clusterrole exists (admin, edit, or view) for a single provided API Type
-func (a *Operator) ensureProvidedAPIClusterRole(namePrefix, suffix string, verbs []string, group, resource string, resourceNames []string, api ownerutil.Owner, key opregistry.APIKey) error {
+func (a *Operator) ensureProvidedAPIClusterRole(namePrefix, suffix string, verbs []string, group, resource string, resourceNames []string, api ownerutil.Owner, key opregistry.APIKey, enableRoleAggregation bool) error {
 	aggregationLabel, err := aggregationLabelFromAPIKey(key, suffix)
 	if err != nil {
 		return err
 	}
 	clusterRole := &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: namePrefix + suffix,
-			Labels: map[string]string{
-				// Matches aggregation rules on the bootstrap ClusterRoles.
-				// https://github.com/kubernetes/kubernetes/blob/61847eab61788fb0543b4cf147773c9da646ed2f/plugin/pkg/auth/authorizer/rbac/bootstrappolicy/policy.go#L232
-				fmt.Sprintf("rbac.authorization.k8s.io/aggregate-to-%s", suffix): "true",
-				aggregationLabel:           "true",
-				install.OLMManagedLabelKey: install.OLMManagedLabelValue,
-			},
+			Name:            namePrefix + suffix,
+			Labels:          map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 			OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(api)},
 		},
 		Rules: []rbacv1.PolicyRule{{Verbs: verbs, APIGroups: []string{group}, Resources: []string{resource}, ResourceNames: resourceNames}},
+	}
+
+	if enableRoleAggregation {
+		// Matches aggregation rules on the bootstrap ClusterRoles.
+		// https://github.com/kubernetes/kubernetes/blob/61847eab61788fb0543b4cf147773c9da646ed2f/plugin/pkg/auth/authorizer/rbac/bootstrappolicy/policy.go#L232
+		clusterRole.Labels[fmt.Sprintf("rbac.authorization.k8s.io/aggregate-to-%s", suffix)] = "true"
+		clusterRole.Labels[aggregationLabel] = "true"
 	}
 
 	existingCR, err := a.lister.RbacV1().ClusterRoleLister().Get(clusterRole.Name)
@@ -443,11 +444,11 @@ func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion)
 		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
 		key := opregistry.APIKey{Group: group, Version: owned.Version, Kind: owned.Kind, Plural: plural}
 		for suffix, verbs := range VerbsForSuffix {
-			if err := a.ensureProvidedAPIClusterRole(namePrefix, suffix, verbs, group, plural, nil, crd, key); err != nil {
+			if err := a.ensureProvidedAPIClusterRole(namePrefix, suffix, verbs, group, plural, nil, crd, key, !csv.Spec.DisableRoleAggregation); err != nil {
 				return err
 			}
 		}
-		if err := a.ensureProvidedAPIClusterRole(namePrefix+"crd", ViewSuffix, []string{"get"}, "apiextensions.k8s.io", "customresourcedefinitions", []string{owned.Name}, crd, key); err != nil {
+		if err := a.ensureProvidedAPIClusterRole(namePrefix+"crd", ViewSuffix, []string{"get"}, "apiextensions.k8s.io", "customresourcedefinitions", []string{owned.Name}, crd, key, true); err != nil {
 			return err
 		}
 	}
@@ -460,7 +461,7 @@ func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion)
 		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
 		key := opregistry.APIKey{Group: owned.Group, Version: owned.Version, Kind: owned.Kind}
 		for suffix, verbs := range VerbsForSuffix {
-			if err := a.ensureProvidedAPIClusterRole(namePrefix, suffix, verbs, owned.Group, owned.Name, nil, svc, key); err != nil {
+			if err := a.ensureProvidedAPIClusterRole(namePrefix, suffix, verbs, owned.Group, owned.Name, nil, svc, key, !csv.Spec.DisableRoleAggregation); err != nil {
 				return err
 			}
 		}
