@@ -2426,9 +2426,11 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
-		// Ensure cluster roles exist for using provided apis
-		if err := a.ensureClusterRolesForCSV(out); err != nil {
-			logger.WithError(err).Info("couldn't ensure clusterroles for provided api types")
+		// Reconcile the aggregated ClusterRoles for provided APIs: per-API fold
+		// over all active providing CSVs; deletes the roles when any provider
+		// has opted out of role aggregation (see providedapirbac.go).
+		if err := a.reconcileProvidedAPIRBAC(out); err != nil {
+			logger.WithError(err).Info("couldn't reconcile clusterroles for provided api types")
 			syncError = err
 			return
 		}

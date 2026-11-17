@@ -11,7 +11,6 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -426,47 +425,10 @@ func (a *Operator) ensureProvidedAPIClusterRole(namePrefix, suffix string, verbs
 	return nil
 }
 
-// ensureClusterRolesForCSV ensures that ClusterRoles for writing and reading provided APIs exist for each operator
-func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion) error {
-	for _, owned := range csv.Spec.CustomResourceDefinitions.Owned {
-		crd, err := a.lister.APIExtensionsV1().CustomResourceDefinitionLister().Get(owned.Name)
-		if err != nil {
-			return fmt.Errorf("crd %q not found: %s", owned.Name, err.Error())
-		}
-		crd.SetGroupVersionKind(apiextensionsv1.SchemeGroupVersion.WithKind("customresourcedefinition"))
-		nameGroupPair := strings.SplitN(owned.Name, ".", 2) // -> etcdclusters etcd.database.coreos.com
-		if len(nameGroupPair) != 2 {
-			return fmt.Errorf("invalid parsing of name '%v', got %v", owned.Name, nameGroupPair)
-		}
-		plural := nameGroupPair[0]
-		group := nameGroupPair[1]
-		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
-		key := opregistry.APIKey{Group: group, Version: owned.Version, Kind: owned.Kind, Plural: plural}
-		for suffix, verbs := range VerbsForSuffix {
-			if err := a.ensureProvidedAPIClusterRole(namePrefix, suffix, verbs, group, plural, nil, crd, key); err != nil {
-				return err
-			}
-		}
-		if err := a.ensureProvidedAPIClusterRole(namePrefix+"crd", ViewSuffix, []string{"get"}, "apiextensions.k8s.io", "customresourcedefinitions", []string{owned.Name}, crd, key); err != nil {
-			return err
-		}
-	}
-	for _, owned := range csv.Spec.APIServiceDefinitions.Owned {
-		svcName := strings.Join([]string{owned.Version, owned.Group}, ".")
-		svc, err := a.lister.APIRegistrationV1().APIServiceLister().Get(svcName)
-		if err != nil {
-			return fmt.Errorf("apiservice %q not found: %s", svcName, err.Error())
-		}
-		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
-		key := opregistry.APIKey{Group: owned.Group, Version: owned.Version, Kind: owned.Kind}
-		for suffix, verbs := range VerbsForSuffix {
-			if err := a.ensureProvidedAPIClusterRole(namePrefix, suffix, verbs, owned.Group, owned.Name, nil, svc, key); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
+// ensureClusterRolesForCSV has been replaced by reconcileProvidedAPIRBAC
+// (providedapirbac.go), which folds the per-API decision over all active
+// providing CSVs and deletes the aggregated roles when any provider has
+// opted out of role aggregation.
 
 func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersion, operatorGroup *operatorsv1.OperatorGroup) error {
 	targetNamespaces := operatorGroup.Status.Namespaces
