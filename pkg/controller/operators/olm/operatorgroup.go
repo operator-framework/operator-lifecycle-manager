@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -425,10 +426,131 @@ func (a *Operator) ensureProvidedAPIClusterRole(namePrefix, suffix string, verbs
 	return nil
 }
 
-// ensureClusterRolesForCSV has been replaced by reconcileProvidedAPIRBAC
-// (providedapirbac.go), which folds the per-API decision over all active
-// providing CSVs and deletes the aggregated roles when any provider has
-// opted out of role aggregation.
+// ensureClusterRolesForCSV ensures that ClusterRoles for writing and reading provided APIs exist for each operator
+func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion) error {
+	for _, owned := range csv.Spec.CustomResourceDefinitions.Owned {
+		crd, err := a.lister.APIExtensionsV1().CustomResourceDefinitionLister().Get(owned.Name)
+		if err != nil {
+			return fmt.Errorf("crd %q not found: %s", owned.Name, err.Error())
+		}
+		crd.SetGroupVersionKind(apiextensionsv1.SchemeGroupVersion.WithKind("customresourcedefinition"))
+		nameGroupPair := strings.SplitN(owned.Name, ".", 2) // -> etcdclusters etcd.database.coreos.com
+		if len(nameGroupPair) != 2 {
+			return fmt.Errorf("invalid parsing of name '%v', got %v", owned.Name, nameGroupPair)
+		}
+		plural := nameGroupPair[0]
+		group := nameGroupPair[1]
+		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
+		key := opregistry.APIKey{Group: group, Version: owned.Version, Kind: owned.Kind, Plural: plural}
+		for suffix, verbs := range VerbsForSuffix {
+			if err := a.ensureProvidedAPIClusterRole(namePrefix, suffix, verbs, group, plural, nil, crd, key); err != nil {
+				return err
+			}
+		}
+		if err := a.ensureProvidedAPIClusterRole(namePrefix+"crd", ViewSuffix, []string{"get"}, "apiextensions.k8s.io", "customresourcedefinitions", []string{owned.Name}, crd, key); err != nil {
+			return err
+		}
+	}
+	for _, owned := range csv.Spec.APIServiceDefinitions.Owned {
+		svcName := strings.Join([]string{owned.Version, owned.Group}, ".")
+		svc, err := a.lister.APIRegistrationV1().APIServiceLister().Get(svcName)
+		if err != nil {
+			return fmt.Errorf("apiservice %q not found: %s", svcName, err.Error())
+		}
+		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
+		key := opregistry.APIKey{Group: owned.Group, Version: owned.Version, Kind: owned.Kind}
+		for suffix, verbs := range VerbsForSuffix {
+			if err := a.ensureProvidedAPIClusterRole(namePrefix, suffix, verbs, owned.Group, owned.Name, nil, svc, key); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// reconcileClusterRolesForCSV ensures that ClusterRoles for writing and
+// reading provided APIs exist for each operator, unless role aggregation has
+// been disabled via the OlmConfig singleton, in which case any previously
+// generated roles are removed. Mirrors the CopiedCSVs pattern: the policy is
+// read live from the OlmConfig singleton and defaults to enabled (legacy
+// behavior) when the object or field is absent, so the decision is identical
+// on every reconcile and cannot flap.
+func (a *Operator) reconcileClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion) error {
+	enabled, err := a.roleAggregationIsEnabled()
+	if err != nil {
+		return err
+	}
+	if enabled {
+		return a.ensureClusterRolesForCSV(csv)
+	}
+	return a.deleteClusterRolesForCSV(csv)
+}
+
+// deleteClusterRolesForCSV deletes the ClusterRoles OLM generates for the
+// APIs provided by csv. Deleting the labeled source roles is what closes the
+// aggregation: the kube-apiserver's ClusterRole aggregation controller
+// removes their rules from the default admin/edit/view ClusterRoles as soon
+// as the source roles are gone.
+func (a *Operator) deleteClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion) error {
+	for _, owned := range csv.Spec.CustomResourceDefinitions.Owned {
+		crd, err := a.lister.APIExtensionsV1().CustomResourceDefinitionLister().Get(owned.Name)
+		if err != nil {
+			return fmt.Errorf("crd %q not found: %s", owned.Name, err.Error())
+		}
+		crd.SetGroupVersionKind(apiextensionsv1.SchemeGroupVersion.WithKind("customresourcedefinition"))
+		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
+		for _, name := range []string{
+			namePrefix + AdminSuffix,
+			namePrefix + EditSuffix,
+			namePrefix + ViewSuffix,
+			namePrefix + "crd" + ViewSuffix,
+		} {
+			if err := a.deleteProvidedAPIClusterRole(name, crd); err != nil {
+				return err
+			}
+		}
+	}
+	for _, owned := range csv.Spec.APIServiceDefinitions.Owned {
+		svcName := strings.Join([]string{owned.Version, owned.Group}, ".")
+		svc, err := a.lister.APIRegistrationV1().APIServiceLister().Get(svcName)
+		if err != nil {
+			return fmt.Errorf("apiservice %q not found: %s", svcName, err.Error())
+		}
+		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
+		for _, name := range []string{
+			namePrefix + AdminSuffix,
+			namePrefix + EditSuffix,
+			namePrefix + ViewSuffix,
+		} {
+			if err := a.deleteProvidedAPIClusterRole(name, svc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// deleteProvidedAPIClusterRole deletes an OLM-generated aggregated
+// ClusterRole by its deterministic name, but only when it carries the OLM
+// signature (owned by the provided API and labeled olm.managed), so that
+// out-of-band roles that merely collide with the name are left untouched.
+func (a *Operator) deleteProvidedAPIClusterRole(name string, api ownerutil.Owner) error {
+	existing, err := a.lister.RbacV1().ClusterRoleLister().Get(name)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	if !ownerutil.IsOwnedBy(existing, api) || existing.Labels[install.OLMManagedLabelKey] != install.OLMManagedLabelValue {
+		// Not a role OLM generated for this API: a name collision with an
+		// out-of-band role. Leave it alone.
+		a.logger.WithField("clusterrole", name).Debug("skipping deletion of non-OLM-managed clusterrole")
+		return nil
+	}
+	a.logger.Infof("deleting cluster role %s: role aggregation disabled by olmconfig policy", name)
+	return a.opClient.DeleteClusterRole(name, &metav1.DeleteOptions{})
+}
 
 func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersion, operatorGroup *operatorsv1.OperatorGroup) error {
 	targetNamespaces := operatorGroup.Status.Namespaces

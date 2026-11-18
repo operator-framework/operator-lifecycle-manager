@@ -25,6 +25,13 @@ type Features struct {
 	// When reenabled, OLM will recreate the "Copied CSVs" for each
 	// cluster scoped operator.
 	DisableCopiedCSVs *bool `json:"disableCopiedCSVs,omitempty"`
+	// DisableRoleAggregation is used to disable OLM's automatic
+	// aggregation of access to provided APIs into the default
+	// user-facing admin, edit and view ClusterRoles. When disabled,
+	// OLM will not generate the aggregated ClusterRoles for provided
+	// APIs and will remove any that were previously generated. When
+	// reenabled, OLM will regenerate them.
+	DisableRoleAggregation *bool `json:"disableRoleAggregation,omitempty"`
 	// PackageServerSyncInterval is used to define the sync interval for
 	// packagerserver pods. Packageserver pods periodically check the
 	// status of CatalogSources; this specifies the period using duration
@@ -80,6 +87,16 @@ func (config *OLMConfig) CopiedCSVsAreEnabled() bool {
 	}
 
 	return !*config.Spec.Features.DisableCopiedCSVs
+}
+
+// RoleAggregationIsEnabled returns true if and only if the olmConfigs DisableRoleAggregation is set and true,
+// otherwise false is returned
+func (config *OLMConfig) RoleAggregationIsEnabled() bool {
+	if config == nil || config.Spec.Features == nil || config.Spec.Features.DisableRoleAggregation == nil {
+		return true
+	}
+
+	return !*config.Spec.Features.DisableRoleAggregation
 }
 
 func (config *OLMConfig) PackageServerSyncInterval() *time.Duration {

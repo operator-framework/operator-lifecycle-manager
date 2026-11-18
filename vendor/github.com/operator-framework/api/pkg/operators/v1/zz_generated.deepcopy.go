@@ -83,6 +83,11 @@ func (in *Features) DeepCopyInto(out *Features) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.DisableRoleAggregation != nil {
+		in, out := &in.DisableRoleAggregation, &out.DisableRoleAggregation
+		*out = new(bool)
+		**out = **in
+	}
 	if in.PackageServerSyncInterval != nil {
 		in, out := &in.PackageServerSyncInterval, &out.PackageServerSyncInterval
 		*out = new(metav1.Duration)

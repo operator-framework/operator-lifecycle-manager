@@ -1864,6 +1864,20 @@ func (a *Operator) copiedCSVsAreEnabled() (bool, error) {
 	return olmConfig.CopiedCSVsAreEnabled(), nil
 }
 
+func (a *Operator) roleAggregationIsEnabled() (bool, error) {
+	olmConfig, err := a.client.OperatorsV1().OLMConfigs().Get(context.TODO(), "cluster", metav1.GetOptions{})
+	if err != nil {
+		// Default to enabled (legacy behavior) if olmConfig singleton cannot be found
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, err
+	}
+
+	// If there was no error, return value based on olmConfig singleton
+	return olmConfig.RoleAggregationIsEnabled(), nil
+}
+
 func (a *Operator) getCopiedCSVDisabledEventsForCSV(csv *v1alpha1.ClusterServiceVersion) ([]corev1.Event, error) {
 	result := []corev1.Event{}
 	if csv == nil {
@@ -2426,11 +2440,11 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
-		// Reconcile the aggregated ClusterRoles for provided APIs: per-API fold
-		// over all active providing CSVs; deletes the roles when any provider
-		// has opted out of role aggregation (see providedapirbac.go).
-		if err := a.reconcileProvidedAPIRBAC(out); err != nil {
-			logger.WithError(err).Info("couldn't reconcile clusterroles for provided api types")
+		// Ensure cluster roles exist for using provided apis, unless role
+		// aggregation is disabled via OlmConfig policy, in which case any
+		// previously generated roles are removed.
+		if err := a.reconcileClusterRolesForCSV(out); err != nil {
+			logger.WithError(err).Info("couldn't ensure clusterroles for provided api types")
 			syncError = err
 			return
 		}

@@ -57,6 +57,14 @@ spec:
                         When reenabled, OLM will recreate the "Copied CSVs" for each
                         cluster scoped operator.
                       type: boolean
+                    disableRoleAggregation:
+                      description: |-
+                        DisableRoleAggregation is used to disable OLM's automatic aggregation
+                        of access to provided APIs into the default user-facing admin, edit
+                        and view ClusterRoles. When disabled, OLM will not generate the
+                        aggregated ClusterRoles for provided APIs and will remove any that
+                        were previously generated. When reenabled, OLM will regenerate them.
+                      type: boolean
                     packageServerSyncInterval:
                       description: |-
                         PackageServerSyncInterval is used to define the sync interval for
