@@ -6,21 +6,24 @@ import (
 
 	"github.com/stretchr/testify/require"
 	rbacv1 "k8s.io/api/rbac/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"k8s.io/utils/ptr"
+
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 )
 
 const (
 	testCRDName = "widgets.test.io"
 	testCRDUID  = types.UID("crd-uid")
+	testGroup   = "test.io"
+	testPlural  = "widgets"
 )
 
 func roleAggregationTestCSV(name, namespace string) *v1alpha1.ClusterServiceVersion {
@@ -57,6 +60,28 @@ func roleAggregationTestOLMConfig(disabled *bool) *operatorsv1.OLMConfig {
 	}
 }
 
+// aggregatedRoleLabels returns the full label set OLM puts on a generated
+// role when aggregation is enabled, for the given suffix.
+func aggregatedRoleLabels(t *testing.T, suffix string) map[string]string {
+	t.Helper()
+	key := opregistry.APIKey{Group: testGroup, Version: "v1", Kind: "Widget", Plural: testPlural}
+	hash, err := cache.APIKeyToGVKHash(key)
+	require.NoError(t, err)
+	return map[string]string{
+		install.OLMManagedLabelKey:                                    install.OLMManagedLabelValue,
+		"rbac.authorization.k8s.io/aggregate-to-" + suffix:            "true",
+		"olm.opgroup.permissions/aggregate-to-" + hash + "-" + suffix: "true",
+	}
+}
+
+// getRole fetches a ClusterRole from the (fake) cluster.
+func getRole(t *testing.T, op *Operator, name string) *rbacv1.ClusterRole {
+	t.Helper()
+	role, err := op.opClient.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), name, metav1.GetOptions{})
+	require.NoError(t, err)
+	return role
+}
+
 // TestRoleAggregationIsEnabled covers the policy accessor: absent singleton
 // and unset field fail open to legacy (enabled) behavior.
 func TestRoleAggregationIsEnabled(t *testing.T) {
@@ -87,44 +112,47 @@ func TestRoleAggregationIsEnabled(t *testing.T) {
 	}
 }
 
-// TestReconcileClusterRolesForCSV covers the OlmConfig-dictated reconcile:
-// policy enabled (or absent) keeps the legacy ensure behavior; policy
-// disabled deletes previously generated roles, including for owned
-// APIServices, and preserves out-of-band roles that collide with the
-// deterministic names.
-func TestReconcileClusterRolesForCSV(t *testing.T) {
-	olmGeneratedRole := func(name string, ownerRef metav1.OwnerReference) *rbacv1.ClusterRole {
-		block, controller := false, false
-		ownerRef.Controller = &controller
-		ownerRef.BlockOwnerDeletion = &block
-		return &rbacv1.ClusterRole{
-			TypeMeta: metav1.TypeMeta{Kind: "ClusterRole", APIVersion: rbacv1.SchemeGroupVersion.String()},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
-				Labels: map[string]string{
-					install.OLMManagedLabelKey:                    install.OLMManagedLabelValue,
-					"rbac.authorization.k8s.io/aggregate-to-edit": "true",
-				},
-				OwnerReferences: []metav1.OwnerReference{ownerRef},
-			},
-			Rules: []rbacv1.PolicyRule{{APIGroups: []string{"test.io"}, Resources: []string{"widgets"}, Verbs: EditVerbs}},
-		}
+// TestEnsureClusterRolesForCSVAggregationLabels covers the OlmConfig-dictated
+// coupling of the aggregation labels: enabled (or absent) policy keeps the
+// legacy behavior (roles generated with both aggregation labels); disabled
+// policy maintains the roles without them. Both policy transitions converge
+// through the existing label-equality update path: a role generated under
+// the previous policy has its aggregation labels removed (disable) or
+// re-added (enable) while its rules are preserved.
+func TestEnsureClusterRolesForCSVAggregationLabels(t *testing.T) {
+	roleNames := map[string]string{
+		"admin":   testCRDName + "-v1-admin",
+		"edit":    testCRDName + "-v1-edit",
+		"view":    testCRDName + "-v1-view",
+		"crdview": testCRDName + "-v1-crdview",
 	}
-	crdOwnerRef := metav1.OwnerReference{APIVersion: "apiextensions.k8s.io/v1", Kind: "customresourcedefinition", Name: testCRDName, UID: testCRDUID}
+	// The suffix each role name uses for its aggregation labels.
+	roleSuffixes := map[string]string{
+		"admin":   "admin",
+		"edit":    "edit",
+		"view":    "view",
+		"crdview": "view", // the crdview role is created with ViewSuffix
+	}
 
-	assertRoles := func(t *testing.T, op *Operator, names []string, wantDeleted bool) {
+	assertLabels := func(t *testing.T, op *Operator, aggregated bool) {
 		t.Helper()
-		for _, name := range names {
-			_, err := op.opClient.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), name, metav1.GetOptions{})
-			if wantDeleted {
-				require.True(t, apierrors.IsNotFound(err), "expected role %s to be deleted", name)
-			} else {
-				require.NoError(t, err, "expected role %s to exist", name)
+		for kind, name := range roleNames {
+			role := getRole(t, op, name)
+			require.Equal(t, install.OLMManagedLabelValue, role.Labels[install.OLMManagedLabelKey], "%s must remain OLM-managed", kind)
+			for label := range aggregatedRoleLabels(t, roleSuffixes[kind]) {
+				if label == install.OLMManagedLabelKey {
+					continue
+				}
+				if aggregated {
+					require.Equal(t, "true", role.Labels[label], "%s must carry aggregation label %s", kind, label)
+				} else {
+					require.NotContains(t, role.Labels, label, "%s must not carry aggregation label %s", kind, label)
+				}
 			}
 		}
 	}
 
-	t.Run("policy absent: roles ensured (legacy behavior)", func(t *testing.T) {
+	t.Run("policy absent: roles generated with aggregation labels (legacy behavior)", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
 		csv := roleAggregationTestCSV("a", "ns-a")
@@ -134,84 +162,100 @@ func TestReconcileClusterRolesForCSV(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		require.NoError(t, op.reconcileClusterRolesForCSV(csv))
-		assertRoles(t, op, []string{
-			testCRDName + "-v1-admin",
-			testCRDName + "-v1-edit",
-			testCRDName + "-v1-view",
-			testCRDName + "-v1-crdview",
-		}, false)
+		require.NoError(t, op.ensureClusterRolesForCSV(csv))
+		assertLabels(t, op, true)
 	})
 
-	t.Run("policy disabled: previously generated roles deleted", func(t *testing.T) {
+	t.Run("policy disabled: roles generated without aggregation labels", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
 		csv := roleAggregationTestCSV("a", "ns-a")
 		op, err := NewFakeOperator(ctx,
 			withClientObjs(csv, roleAggregationTestOLMConfig(ptr.To(true))),
 			withPartialMetadata(roleAggregationTestCRDPartial()),
-			withK8sObjs(
-				olmGeneratedRole(testCRDName+"-v1-admin", crdOwnerRef),
-				olmGeneratedRole(testCRDName+"-v1-edit", crdOwnerRef),
-				olmGeneratedRole(testCRDName+"-v1-view", crdOwnerRef),
-				olmGeneratedRole(testCRDName+"-v1-crdview", crdOwnerRef),
-			),
 		)
 		require.NoError(t, err)
 
-		require.NoError(t, op.reconcileClusterRolesForCSV(csv))
-		assertRoles(t, op, []string{
-			testCRDName + "-v1-admin",
-			testCRDName + "-v1-edit",
-			testCRDName + "-v1-view",
-			testCRDName + "-v1-crdview",
-		}, true)
+		require.NoError(t, op.ensureClusterRolesForCSV(csv))
+		assertLabels(t, op, false)
+		// rules are still maintained
+		edit := getRole(t, op, roleNames["edit"])
+		require.Equal(t, []rbacv1.PolicyRule{{Verbs: EditVerbs, APIGroups: []string{testGroup}, Resources: []string{testPlural}}}, edit.Rules)
 	})
 
-	t.Run("policy disabled: out-of-band role with colliding name preserved", func(t *testing.T) {
+	t.Run("policy transition to disabled: aggregation labels removed, rules preserved", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
 		csv := roleAggregationTestCSV("a", "ns-a")
-		outOfBand := olmGeneratedRole(testCRDName+"-v1-edit", crdOwnerRef)
-		outOfBand.Labels = map[string]string{"someone-elses": "role"}
-		outOfBand.OwnerReferences = nil
+		// Pre-existing roles exactly as generated under the enabled policy.
+		block, controller := false, false
+		mkRole := func(suffix, name string) *rbacv1.ClusterRole {
+			return &rbacv1.ClusterRole{
+				TypeMeta: metav1.TypeMeta{Kind: "ClusterRole", APIVersion: rbacv1.SchemeGroupVersion.String()},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   name,
+					Labels: aggregatedRoleLabels(t, suffix),
+					OwnerReferences: []metav1.OwnerReference{{
+						APIVersion:         "apiextensions.k8s.io/v1",
+						Kind:               "customresourcedefinition",
+						Name:               testCRDName,
+						UID:                testCRDUID,
+						Controller:         &controller,
+						BlockOwnerDeletion: &block,
+					}},
+				},
+				Rules: []rbacv1.PolicyRule{{Verbs: EditVerbs, APIGroups: []string{testGroup}, Resources: []string{testPlural}}},
+			}
+		}
 		op, err := NewFakeOperator(ctx,
 			withClientObjs(csv, roleAggregationTestOLMConfig(ptr.To(true))),
 			withPartialMetadata(roleAggregationTestCRDPartial()),
-			withK8sObjs(outOfBand),
-		)
-		require.NoError(t, err)
-
-		require.NoError(t, op.reconcileClusterRolesForCSV(csv))
-		assertRoles(t, op, []string{testCRDName + "-v1-edit"}, false)
-	})
-
-	t.Run("policy disabled: apiservice-owned roles deleted", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.TODO())
-		defer cancel()
-		const apiserviceName = "v1.widgets.test.io"
-		csv := roleAggregationTestCSV("a", "ns-a")
-		csv.Spec.CustomResourceDefinitions = v1alpha1.CustomResourceDefinitions{}
-		csv.Spec.APIServiceDefinitions = v1alpha1.APIServiceDefinitions{
-			Owned: []v1alpha1.APIServiceDescription{{Name: "widgets", Group: "widgets.test.io", Version: "v1", Kind: "Widget"}},
-		}
-		apiservice := &apiregistrationv1.APIService{
-			TypeMeta:   metav1.TypeMeta{Kind: "APIService", APIVersion: apiregistrationv1.SchemeGroupVersion.String()},
-			ObjectMeta: metav1.ObjectMeta{Name: apiserviceName, UID: types.UID("apiservice-uid")},
-		}
-		apiserviceOwnerRef := metav1.OwnerReference{APIVersion: apiregistrationv1.SchemeGroupVersion.String(), Kind: "APIService", Name: apiserviceName, UID: types.UID("apiservice-uid")}
-		op, err := NewFakeOperator(ctx,
-			withClientObjs(csv, roleAggregationTestOLMConfig(ptr.To(true))),
-			withRegObjs(apiservice),
 			withK8sObjs(
-				olmGeneratedRole("widgets-v1-admin", apiserviceOwnerRef),
-				olmGeneratedRole("widgets-v1-edit", apiserviceOwnerRef),
-				olmGeneratedRole("widgets-v1-view", apiserviceOwnerRef),
+				mkRole("admin", roleNames["admin"]),
+				mkRole("edit", roleNames["edit"]),
+				mkRole("view", roleNames["view"]),
+				mkRole("view", roleNames["crdview"]),
 			),
 		)
 		require.NoError(t, err)
 
-		require.NoError(t, op.reconcileClusterRolesForCSV(csv))
-		assertRoles(t, op, []string{"widgets-v1-admin", "widgets-v1-edit", "widgets-v1-view"}, true)
+		require.NoError(t, op.ensureClusterRolesForCSV(csv))
+		assertLabels(t, op, false)
+		edit := getRole(t, op, roleNames["edit"])
+		require.Equal(t, []rbacv1.PolicyRule{{Verbs: EditVerbs, APIGroups: []string{testGroup}, Resources: []string{testPlural}}}, edit.Rules)
+	})
+
+	t.Run("policy transition to enabled: aggregation labels re-added", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.TODO())
+		defer cancel()
+		csv := roleAggregationTestCSV("a", "ns-a")
+		// Pre-existing role as generated under the disabled policy: managed,
+		// with rules, but without aggregation labels.
+		block, controller := false, false
+		deLabeled := &rbacv1.ClusterRole{
+			TypeMeta: metav1.TypeMeta{Kind: "ClusterRole", APIVersion: rbacv1.SchemeGroupVersion.String()},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   roleNames["edit"],
+				Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
+				OwnerReferences: []metav1.OwnerReference{{
+					APIVersion:         "apiextensions.k8s.io/v1",
+					Kind:               "customresourcedefinition",
+					Name:               testCRDName,
+					UID:                testCRDUID,
+					Controller:         &controller,
+					BlockOwnerDeletion: &block,
+				}},
+			},
+			Rules: []rbacv1.PolicyRule{{Verbs: EditVerbs, APIGroups: []string{testGroup}, Resources: []string{testPlural}}},
+		}
+		op, err := NewFakeOperator(ctx,
+			withClientObjs(csv), // no OLMConfig: aggregation enabled
+			withPartialMetadata(roleAggregationTestCRDPartial()),
+			withK8sObjs(deLabeled),
+		)
+		require.NoError(t, err)
+
+		require.NoError(t, op.ensureClusterRolesForCSV(csv))
+		assertLabels(t, op, true)
 	})
 }

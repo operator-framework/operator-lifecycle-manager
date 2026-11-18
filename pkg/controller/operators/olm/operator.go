@@ -2440,10 +2440,8 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
-		// Ensure cluster roles exist for using provided apis, unless role
-		// aggregation is disabled via OlmConfig policy, in which case any
-		// previously generated roles are removed.
-		if err := a.reconcileClusterRolesForCSV(out); err != nil {
+		// Ensure cluster roles exist for using provided apis
+		if err := a.ensureClusterRolesForCSV(out); err != nil {
 			logger.WithError(err).Info("couldn't ensure clusterroles for provided api types")
 			syncError = err
 			return
