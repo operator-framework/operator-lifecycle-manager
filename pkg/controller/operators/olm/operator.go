@@ -1864,20 +1864,6 @@ func (a *Operator) copiedCSVsAreEnabled() (bool, error) {
 	return olmConfig.CopiedCSVsAreEnabled(), nil
 }
 
-func (a *Operator) roleAggregationIsEnabled() (bool, error) {
-	olmConfig, err := a.client.OperatorsV1().OLMConfigs().Get(context.TODO(), "cluster", metav1.GetOptions{})
-	if err != nil {
-		// Default to enabled (legacy behavior) if olmConfig singleton cannot be found
-		if apierrors.IsNotFound(err) {
-			return true, nil
-		}
-		return false, err
-	}
-
-	// If there was no error, return value based on olmConfig singleton
-	return olmConfig.RoleAggregationIsEnabled(), nil
-}
-
 func (a *Operator) getCopiedCSVDisabledEventsForCSV(csv *v1alpha1.ClusterServiceVersion) ([]corev1.Event, error) {
 	result := []corev1.Event{}
 	if csv == nil {

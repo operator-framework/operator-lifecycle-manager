@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 
@@ -19,14 +20,52 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 )
 
-const (
-	testCRDName = "widgets.test.io"
-	testCRDUID  = types.UID("crd-uid")
-	testGroup   = "test.io"
-	testPlural  = "widgets"
+// testAPI describes one provided API under test.
+type testAPI struct {
+	crdName string
+	uid     types.UID
+	group   string
+	plural  string
+	version string
+	kind    string
+}
+
+var (
+	widgets = testAPI{crdName: "widgets.test.io", uid: types.UID("widgets-crd-uid"), group: "test.io", plural: "widgets", version: "v1", kind: "Widget"}
+	gadgets = testAPI{crdName: "gadgets.test.io", uid: types.UID("gadgets-crd-uid"), group: "test.io", plural: "gadgets", version: "v1", kind: "Gadget"}
 )
 
-func roleAggregationTestCSV(name, namespace string) *v1alpha1.ClusterServiceVersion {
+func (a testAPI) crdPartial() *metav1.PartialObjectMetadata {
+	return &metav1.PartialObjectMetadata{
+		TypeMeta:   metav1.TypeMeta{Kind: "customresourcedefinition", APIVersion: "apiextensions.k8s.io/v1"},
+		ObjectMeta: metav1.ObjectMeta{Name: a.crdName, UID: a.uid},
+	}
+}
+
+func (a testAPI) crdDescription() v1alpha1.CRDDescription {
+	return v1alpha1.CRDDescription{Name: a.crdName, Version: a.version, Kind: a.kind}
+}
+
+func (a testAPI) roleName(suffix string) string {
+	return a.crdName + "-" + a.version + "-" + suffix
+}
+
+// roleNames returns the four generated role names for the API, keyed by the
+// label suffix each role uses (the crdview role is created with ViewSuffix).
+func (a testAPI) roleNames() map[string]string {
+	return map[string]string{
+		"admin":   a.roleName("admin"),
+		"edit":    a.roleName("edit"),
+		"view":    a.roleName("view"),
+		"crdview": a.crdName + "-" + a.version + "-crdview",
+	}
+}
+
+func roleAggregationTestCSV(name, namespace string, apis ...testAPI) *v1alpha1.ClusterServiceVersion {
+	owned := make([]v1alpha1.CRDDescription, 0, len(apis))
+	for _, a := range apis {
+		owned = append(owned, a.crdDescription())
+	}
 	return &v1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.ClusterServiceVersionKind,
@@ -38,33 +77,24 @@ func roleAggregationTestCSV(name, namespace string) *v1alpha1.ClusterServiceVers
 			UID:       types.UID(name + "-" + namespace),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-				Owned: []v1alpha1.CRDDescription{{Name: testCRDName, Version: "v1", Kind: "Widget"}},
-			},
+			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{Owned: owned},
 		},
 		Status: v1alpha1.ClusterServiceVersionStatus{Phase: v1alpha1.CSVPhaseSucceeded},
 	}
 }
 
-func roleAggregationTestCRDPartial() *metav1.PartialObjectMetadata {
-	return &metav1.PartialObjectMetadata{
-		TypeMeta:   metav1.TypeMeta{Kind: "customresourcedefinition", APIVersion: "apiextensions.k8s.io/v1"},
-		ObjectMeta: metav1.ObjectMeta{Name: testCRDName, UID: testCRDUID},
-	}
-}
-
-func roleAggregationTestOLMConfig(disabled *bool) *operatorsv1.OLMConfig {
+func roleAggregationTestOLMConfig(features *operatorsv1.Features) *operatorsv1.OLMConfig {
 	return &operatorsv1.OLMConfig{
 		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
-		Spec:       operatorsv1.OLMConfigSpec{Features: &operatorsv1.Features{DisableRoleAggregation: disabled}},
+		Spec:       operatorsv1.OLMConfigSpec{Features: features},
 	}
 }
 
 // aggregatedRoleLabels returns the full label set OLM puts on a generated
-// role when aggregation is enabled, for the given suffix.
-func aggregatedRoleLabels(t *testing.T, suffix string) map[string]string {
+// role of the given suffix when aggregation is enabled for the API.
+func aggregatedRoleLabels(t *testing.T, a testAPI, suffix string) map[string]string {
 	t.Helper()
-	key := opregistry.APIKey{Group: testGroup, Version: "v1", Kind: "Widget", Plural: testPlural}
+	key := opregistry.APIKey{Group: a.group, Version: a.version, Kind: a.kind, Plural: a.plural}
 	hash, err := cache.APIKeyToGVKHash(key)
 	require.NoError(t, err)
 	return map[string]string{
@@ -82,71 +112,89 @@ func getRole(t *testing.T, op *Operator, name string) *rbacv1.ClusterRole {
 	return role
 }
 
-// TestRoleAggregationIsEnabled covers the policy accessor: absent singleton
-// and unset field fail open to legacy (enabled) behavior.
-func TestRoleAggregationIsEnabled(t *testing.T) {
+// mkGeneratedRole builds a role exactly as OLM generates it for the API when
+// aggregation is enabled.
+func mkGeneratedRole(t *testing.T, a testAPI, name, labelSuffix string) *rbacv1.ClusterRole {
+	t.Helper()
+	block, controller := false, false
+	return &rbacv1.ClusterRole{
+		TypeMeta: metav1.TypeMeta{Kind: "ClusterRole", APIVersion: rbacv1.SchemeGroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: aggregatedRoleLabels(t, a, labelSuffix),
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion:         "apiextensions.k8s.io/v1",
+				Kind:               "customresourcedefinition",
+				Name:               a.crdName,
+				UID:                a.uid,
+				Controller:         &controller,
+				BlockOwnerDeletion: &block,
+			}},
+		},
+		Rules: []rbacv1.PolicyRule{{Verbs: EditVerbs, APIGroups: []string{a.group}, Resources: []string{a.plural}}},
+	}
+}
+
+// TestRoleAggregationPolicyIsEnabledFor covers the internal policy
+// evaluation with the default-deny-with-allowlist semantics: unset disable
+// keeps the legacy behavior for every API (defensively ignoring an
+// allowlist that could only have been set through an unvalidated path);
+// roleAggregation.disable=true disables aggregation for every API except
+// allowlist matches, and an empty allowlist disables it for every API.
+// Matching is exact per group, version and kind.
+func TestRoleAggregationPolicyIsEnabledFor(t *testing.T) {
+	widgetsGVK := metav1.GroupVersionKind{Group: widgets.group, Version: widgets.version, Kind: widgets.kind}
+	gadgetsGVK := metav1.GroupVersionKind{Group: gadgets.group, Version: gadgets.version, Kind: gadgets.kind}
+	widgetsV2GVK := metav1.GroupVersionKind{Group: widgets.group, Version: "v2", Kind: widgets.kind}
+
 	table := []struct {
 		name     string
 		olmcfg   *operatorsv1.OLMConfig
+		query    metav1.GroupVersionKind
 		expected bool
 	}{
-		{name: "no olmconfig singleton", expected: true},
-		{name: "field unset", olmcfg: roleAggregationTestOLMConfig(nil), expected: true},
-		{name: "field false", olmcfg: roleAggregationTestOLMConfig(ptr.To(false)), expected: true},
-		{name: "field true", olmcfg: roleAggregationTestOLMConfig(ptr.To(true)), expected: false},
+		{name: "nil config", query: widgetsGVK, expected: true},
+		{name: "nil features", olmcfg: roleAggregationTestOLMConfig(nil), query: widgetsGVK, expected: true},
+		{name: "unset disable keeps legacy behavior for every api", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{}), query: widgetsGVK, expected: true},
+		{name: "unset disable defensively ignores an allowlist", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: &operatorsv1.OLMConfigRoleAggregation{EnableAPIs: []metav1.GroupVersionKind{widgetsGVK}}}), query: gadgetsGVK, expected: true},
+		{name: "disabled with empty allowlist aggregates nothing", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: &operatorsv1.OLMConfigRoleAggregation{Disable: ptr.To(true)}}), query: widgetsGVK, expected: false},
+		{name: "disabled with allowlist entry matching the api", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: &operatorsv1.OLMConfigRoleAggregation{Disable: ptr.To(true), EnableAPIs: []metav1.GroupVersionKind{widgetsGVK}}}), query: widgetsGVK, expected: true},
+		{name: "disabled with allowlist entry for another kind", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: &operatorsv1.OLMConfigRoleAggregation{Disable: ptr.To(true), EnableAPIs: []metav1.GroupVersionKind{widgetsGVK}}}), query: gadgetsGVK, expected: false},
+		{name: "disabled with allowlist entry for another version of the same kind", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: &operatorsv1.OLMConfigRoleAggregation{Disable: ptr.To(true), EnableAPIs: []metav1.GroupVersionKind{widgetsGVK}}}), query: widgetsV2GVK, expected: false},
 	}
 	for _, tt := range table {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.TODO())
-			defer cancel()
-			var opts []fakeOperatorOption
-			if tt.olmcfg != nil {
-				opts = append(opts, withClientObjs(tt.olmcfg))
-			}
-			op, err := NewFakeOperator(ctx, opts...)
-			require.NoError(t, err)
-			enabled, err := op.roleAggregationIsEnabled()
-			require.NoError(t, err)
-			require.Equal(t, tt.expected, enabled)
+			policy := newRoleAggregationPolicy(tt.olmcfg)
+			require.Equal(t, tt.expected, policy.isEnabledFor(tt.query.Group, tt.query.Version, tt.query.Kind))
 		})
 	}
 }
 
 // TestEnsureClusterRolesForCSVAggregationLabels covers the OlmConfig-dictated
-// coupling of the aggregation labels: enabled (or absent) policy keeps the
-// legacy behavior (roles generated with both aggregation labels); disabled
-// policy maintains the roles without them. Both policy transitions converge
-// through the existing label-equality update path: a role generated under
-// the previous policy has its aggregation labels removed (disable) or
-// re-added (enable) while its rules are preserved.
+// coupling of the aggregation labels: the default policy keeps the legacy
+// behavior (roles generated with both aggregation labels); restrictive mode
+// (roleAggregation.disable=true) maintains roles without the labels except
+// for allowlisted APIs, with the existing label-equality update path
+// converging roles generated under a previous policy in either direction
+// while preserving their rules.
 func TestEnsureClusterRolesForCSVAggregationLabels(t *testing.T) {
-	roleNames := map[string]string{
-		"admin":   testCRDName + "-v1-admin",
-		"edit":    testCRDName + "-v1-edit",
-		"view":    testCRDName + "-v1-view",
-		"crdview": testCRDName + "-v1-crdview",
-	}
-	// The suffix each role name uses for its aggregation labels.
-	roleSuffixes := map[string]string{
-		"admin":   "admin",
-		"edit":    "edit",
-		"view":    "view",
-		"crdview": "view", // the crdview role is created with ViewSuffix
-	}
+	// roleSuffixes maps each generated role to the suffix used for its
+	// aggregation labels (the crdview role is created with ViewSuffix).
+	roleSuffixes := map[string]string{"admin": "admin", "edit": "edit", "view": "view", "crdview": "view"}
 
-	assertLabels := func(t *testing.T, op *Operator, aggregated bool) {
+	assertLabels := func(t *testing.T, op *Operator, a testAPI, aggregated bool) {
 		t.Helper()
-		for kind, name := range roleNames {
+		for kind, name := range a.roleNames() {
 			role := getRole(t, op, name)
-			require.Equal(t, install.OLMManagedLabelValue, role.Labels[install.OLMManagedLabelKey], "%s must remain OLM-managed", kind)
-			for label := range aggregatedRoleLabels(t, roleSuffixes[kind]) {
+			require.Equal(t, install.OLMManagedLabelValue, role.Labels[install.OLMManagedLabelKey], "%s %s must remain OLM-managed", a.crdName, kind)
+			for label := range aggregatedRoleLabels(t, a, roleSuffixes[kind]) {
 				if label == install.OLMManagedLabelKey {
 					continue
 				}
 				if aggregated {
-					require.Equal(t, "true", role.Labels[label], "%s must carry aggregation label %s", kind, label)
+					require.Equal(t, "true", role.Labels[label], "%s %s must carry aggregation label %s", a.crdName, kind, label)
 				} else {
-					require.NotContains(t, role.Labels, label, "%s must not carry aggregation label %s", kind, label)
+					require.NotContains(t, role.Labels, label, "%s %s must not carry aggregation label %s", a.crdName, kind, label)
 				}
 			}
 		}
@@ -155,107 +203,106 @@ func TestEnsureClusterRolesForCSVAggregationLabels(t *testing.T) {
 	t.Run("policy absent: roles generated with aggregation labels (legacy behavior)", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
-		csv := roleAggregationTestCSV("a", "ns-a")
+		csv := roleAggregationTestCSV("a", "ns-a", widgets)
 		op, err := NewFakeOperator(ctx,
 			withClientObjs(csv),
-			withPartialMetadata(roleAggregationTestCRDPartial()),
+			withPartialMetadata(widgets.crdPartial()),
 		)
 		require.NoError(t, err)
 
 		require.NoError(t, op.ensureClusterRolesForCSV(csv))
-		assertLabels(t, op, true)
+		assertLabels(t, op, widgets, true)
 	})
 
-	t.Run("policy disabled: roles generated without aggregation labels", func(t *testing.T) {
+	t.Run("restrictive mode with empty allowlist: roles generated without aggregation labels", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
-		csv := roleAggregationTestCSV("a", "ns-a")
+		csv := roleAggregationTestCSV("a", "ns-a", widgets)
 		op, err := NewFakeOperator(ctx,
-			withClientObjs(csv, roleAggregationTestOLMConfig(ptr.To(true))),
-			withPartialMetadata(roleAggregationTestCRDPartial()),
+			withClientObjs(csv, roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: &operatorsv1.OLMConfigRoleAggregation{Disable: ptr.To(true)}})),
+			withPartialMetadata(widgets.crdPartial()),
 		)
 		require.NoError(t, err)
 
 		require.NoError(t, op.ensureClusterRolesForCSV(csv))
-		assertLabels(t, op, false)
+		assertLabels(t, op, widgets, false)
 		// rules are still maintained
-		edit := getRole(t, op, roleNames["edit"])
-		require.Equal(t, []rbacv1.PolicyRule{{Verbs: EditVerbs, APIGroups: []string{testGroup}, Resources: []string{testPlural}}}, edit.Rules)
+		edit := getRole(t, op, widgets.roleName("edit"))
+		require.Equal(t, []rbacv1.PolicyRule{{Verbs: EditVerbs, APIGroups: []string{widgets.group}, Resources: []string{widgets.plural}}}, edit.Rules)
 	})
 
-	t.Run("policy transition to disabled: aggregation labels removed, rules preserved", func(t *testing.T) {
+	t.Run("restrictive mode transition: aggregation labels removed, rules preserved", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
-		csv := roleAggregationTestCSV("a", "ns-a")
-		// Pre-existing roles exactly as generated under the enabled policy.
-		block, controller := false, false
-		mkRole := func(suffix, name string) *rbacv1.ClusterRole {
-			return &rbacv1.ClusterRole{
-				TypeMeta: metav1.TypeMeta{Kind: "ClusterRole", APIVersion: rbacv1.SchemeGroupVersion.String()},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:   name,
-					Labels: aggregatedRoleLabels(t, suffix),
-					OwnerReferences: []metav1.OwnerReference{{
-						APIVersion:         "apiextensions.k8s.io/v1",
-						Kind:               "customresourcedefinition",
-						Name:               testCRDName,
-						UID:                testCRDUID,
-						Controller:         &controller,
-						BlockOwnerDeletion: &block,
-					}},
-				},
-				Rules: []rbacv1.PolicyRule{{Verbs: EditVerbs, APIGroups: []string{testGroup}, Resources: []string{testPlural}}},
-			}
-		}
+		csv := roleAggregationTestCSV("a", "ns-a", widgets)
 		op, err := NewFakeOperator(ctx,
-			withClientObjs(csv, roleAggregationTestOLMConfig(ptr.To(true))),
-			withPartialMetadata(roleAggregationTestCRDPartial()),
+			withClientObjs(csv, roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: &operatorsv1.OLMConfigRoleAggregation{Disable: ptr.To(true)}})),
+			withPartialMetadata(widgets.crdPartial()),
 			withK8sObjs(
-				mkRole("admin", roleNames["admin"]),
-				mkRole("edit", roleNames["edit"]),
-				mkRole("view", roleNames["view"]),
-				mkRole("view", roleNames["crdview"]),
+				mkGeneratedRole(t, widgets, widgets.roleName("admin"), "admin"),
+				mkGeneratedRole(t, widgets, widgets.roleName("edit"), "edit"),
+				mkGeneratedRole(t, widgets, widgets.roleName("view"), "view"),
+				mkGeneratedRole(t, widgets, widgets.crdName+"-"+widgets.version+"-crdview", "view"),
 			),
 		)
 		require.NoError(t, err)
 
 		require.NoError(t, op.ensureClusterRolesForCSV(csv))
-		assertLabels(t, op, false)
-		edit := getRole(t, op, roleNames["edit"])
-		require.Equal(t, []rbacv1.PolicyRule{{Verbs: EditVerbs, APIGroups: []string{testGroup}, Resources: []string{testPlural}}}, edit.Rules)
+		assertLabels(t, op, widgets, false)
+		edit := getRole(t, op, widgets.roleName("edit"))
+		require.Equal(t, []rbacv1.PolicyRule{{Verbs: EditVerbs, APIGroups: []string{widgets.group}, Resources: []string{widgets.plural}}}, edit.Rules)
 	})
 
-	t.Run("policy transition to enabled: aggregation labels re-added", func(t *testing.T) {
+	t.Run("re-enable transition: aggregation labels re-added", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
-		csv := roleAggregationTestCSV("a", "ns-a")
-		// Pre-existing role as generated under the disabled policy: managed,
-		// with rules, but without aggregation labels.
-		block, controller := false, false
-		deLabeled := &rbacv1.ClusterRole{
-			TypeMeta: metav1.TypeMeta{Kind: "ClusterRole", APIVersion: rbacv1.SchemeGroupVersion.String()},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:   roleNames["edit"],
-				Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
-				OwnerReferences: []metav1.OwnerReference{{
-					APIVersion:         "apiextensions.k8s.io/v1",
-					Kind:               "customresourcedefinition",
-					Name:               testCRDName,
-					UID:                testCRDUID,
-					Controller:         &controller,
-					BlockOwnerDeletion: &block,
-				}},
-			},
-			Rules: []rbacv1.PolicyRule{{Verbs: EditVerbs, APIGroups: []string{testGroup}, Resources: []string{testPlural}}},
-		}
+		csv := roleAggregationTestCSV("a", "ns-a", widgets)
+		deLabeled := mkGeneratedRole(t, widgets, widgets.roleName("edit"), "edit")
+		deLabeled.Labels = map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}
 		op, err := NewFakeOperator(ctx,
 			withClientObjs(csv), // no OLMConfig: aggregation enabled
-			withPartialMetadata(roleAggregationTestCRDPartial()),
+			withPartialMetadata(widgets.crdPartial()),
 			withK8sObjs(deLabeled),
 		)
 		require.NoError(t, err)
 
 		require.NoError(t, op.ensureClusterRolesForCSV(csv))
-		assertLabels(t, op, true)
+		assertLabels(t, op, widgets, true)
+	})
+
+	t.Run("restrictive mode with allowlist: only allowlisted apis keep aggregation, others de-labeled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.TODO())
+		defer cancel()
+		csv := roleAggregationTestCSV("a", "ns-a", widgets, gadgets)
+		widgetsGVK := metav1.GroupVersionKind{Group: widgets.group, Version: widgets.version, Kind: widgets.kind}
+		olmcfg := roleAggregationTestOLMConfig(&operatorsv1.Features{
+			RoleAggregation: &operatorsv1.OLMConfigRoleAggregation{
+				Disable:    ptr.To(true),
+				EnableAPIs: []metav1.GroupVersionKind{widgetsGVK},
+			},
+		})
+		// Pre-existing roles for BOTH apis as generated under the legacy
+		// policy: gadgets must be de-labeled, widgets must keep its labels.
+		mkAll := func(a testAPI) []runtime.Object {
+			return []runtime.Object{
+				mkGeneratedRole(t, a, a.roleName("admin"), "admin"),
+				mkGeneratedRole(t, a, a.roleName("edit"), "edit"),
+				mkGeneratedRole(t, a, a.roleName("view"), "view"),
+				mkGeneratedRole(t, a, a.crdName+"-"+a.version+"-crdview", "view"),
+			}
+		}
+		op, err := NewFakeOperator(ctx,
+			withClientObjs(csv, olmcfg),
+			withPartialMetadata(widgets.crdPartial(), gadgets.crdPartial()),
+			withK8sObjs(append(mkAll(widgets), mkAll(gadgets)...)...),
+		)
+		require.NoError(t, err)
+
+		require.NoError(t, op.ensureClusterRolesForCSV(csv))
+		assertLabels(t, op, widgets, true)
+		assertLabels(t, op, gadgets, false)
+		// rules are still maintained for the de-labeled api
+		edit := getRole(t, op, gadgets.roleName("edit"))
+		require.Equal(t, []rbacv1.PolicyRule{{Verbs: EditVerbs, APIGroups: []string{gadgets.group}, Resources: []string{gadgets.plural}}}, edit.Rules)
 	})
 }

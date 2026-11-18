@@ -57,14 +57,6 @@ spec:
                         When reenabled, OLM will recreate the "Copied CSVs" for each
                         cluster scoped operator.
                       type: boolean
-                    disableRoleAggregation:
-                      description: |-
-                        DisableRoleAggregation is used to disable OLM's automatic aggregation
-                        of access to provided APIs into the default user-facing admin, edit
-                        and view ClusterRoles. When disabled, OLM will not generate the
-                        aggregated ClusterRoles for provided APIs and will remove any that
-                        were previously generated. When reenabled, OLM will regenerate them.
-                      type: boolean
                     packageServerSyncInterval:
                       description: |-
                         PackageServerSyncInterval is used to define the sync interval for
@@ -75,6 +67,55 @@ spec:
                         period defaults to the value specified within the packageserver.
                       type: string
                       pattern: ^([0-9]+(\.[0-9]+)?(s|m|h))+$
+                    roleAggregation:
+                      description: |-
+                        RoleAggregation configures OLM's automatic aggregation of access
+                        to provided APIs into the default user-facing admin, edit and
+                        view ClusterRoles. When unset, aggregation is enabled for every
+                        provided API (the legacy behavior).
+                      type: object
+                      properties:
+                        disable:
+                          description: |-
+                            Disable is used to disable OLM's automatic role aggregation
+                            of access to provided APIs into the default
+                            user-facing admin, edit and view ClusterRoles, except for the
+                            APIs listed in enableAPIs. When true, the generated
+                            ClusterRoles for provided APIs are maintained without
+                            the aggregation labels, so the aggregated roles drop their rules;
+                            when unset or false, the labels are restored.
+                          type: boolean
+                        enableAPIs:
+                          description: |-
+                            EnableAPIs lists the provided APIs that remain aggregated into
+                            the default user-facing admin, edit and view ClusterRoles while
+                            role aggregation is otherwise disabled by disable: aggregation is
+                            performed only for provided APIs matching one of the entries
+                            (group, version and kind must all match; entries for other
+                            versions of the same kind do not match). Provided APIs that do
+                            not match are still granted their generated ClusterRoles, but
+                            without the aggregation labels. May only be set when disable is
+                            true.
+                          type: array
+                          items:
+                            description: |-
+                              GroupVersionKind unambiguously identifies a kind.  It doesn't anonymously include GroupVersion
+                              to avoid automatic coercion.  It doesn't use a GroupVersion to avoid custom marshalling
+                            type: object
+                            required:
+                              - group
+                              - kind
+                              - version
+                            properties:
+                              group:
+                                type: string
+                              kind:
+                                type: string
+                              version:
+                                type: string
+                          x-kubernetes-validations:
+                            - rule: '!has(self) || self.size() == 0 || (has(root.spec.features.roleAggregation.disable) && root.spec.features.roleAggregation.disable)'
+                              message: enableAPIs may only be set when disable is true
             status:
               description: OLMConfigStatus is the status for an OLMConfig resource.
               type: object

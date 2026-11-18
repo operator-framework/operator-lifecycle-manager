@@ -435,13 +435,15 @@ func (a *Operator) ensureProvidedAPIClusterRole(namePrefix, suffix string, verbs
 }
 
 // ensureClusterRolesForCSV ensures that ClusterRoles for writing and reading provided APIs exist for each operator.
-// Whether the roles carry the aggregation labels (and are therefore aggregated into the default user-facing
+// Whether each API's roles carry the aggregation labels (and are therefore aggregated into the default user-facing
 // admin/edit/view ClusterRoles and the OperatorGroup's aggregated roles) is dictated by the OlmConfig
-// role-aggregation policy, read once per reconcile: enabled keeps the legacy behavior, disabled maintains the
-// roles without the aggregation labels, which the existing label-equality convergence below applies in either
-// direction within one resync.
+// role-aggregation policy, converted into its internal set-based form once
+// per reconcile: an empty policy keeps the legacy behavior for every API,
+// while roleAggregation.disable or a non-empty roleAggregation.enableAPIs
+// restricts aggregation per API. The existing label-equality convergence
+// below applies the decision in either direction within one resync.
 func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion) error {
-	aggregate, err := a.roleAggregationIsEnabled()
+	roleAggregation, err := a.roleAggregationPolicy()
 	if err != nil {
 		return err
 	}
@@ -459,6 +461,7 @@ func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion)
 		group := nameGroupPair[1]
 		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
 		key := opregistry.APIKey{Group: group, Version: owned.Version, Kind: owned.Kind, Plural: plural}
+		aggregate := roleAggregation.isEnabledFor(group, owned.Version, owned.Kind)
 		for suffix, verbs := range VerbsForSuffix {
 			if err := a.ensureProvidedAPIClusterRole(namePrefix, suffix, verbs, group, plural, nil, crd, key, aggregate); err != nil {
 				return err
@@ -476,6 +479,7 @@ func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion)
 		}
 		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
 		key := opregistry.APIKey{Group: owned.Group, Version: owned.Version, Kind: owned.Kind}
+		aggregate := roleAggregation.isEnabledFor(owned.Group, owned.Version, owned.Kind)
 		for suffix, verbs := range VerbsForSuffix {
 			if err := a.ensureProvidedAPIClusterRole(namePrefix, suffix, verbs, owned.Group, owned.Name, nil, svc, key, aggregate); err != nil {
 				return err
