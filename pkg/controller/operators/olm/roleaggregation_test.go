@@ -9,7 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 
@@ -141,31 +140,29 @@ func mkGeneratedRole(t *testing.T, a testAPI, name, labelSuffix string) *rbacv1.
 // allowlist that could only have been set through an unvalidated path);
 // roleAggregation.disable=true disables aggregation for every API except
 // allowlist matches, and an empty allowlist disables it for every API.
-// Matching is exact per group, version and kind.
+// Matching is exact per group and kind, independent of version.
 func TestRoleAggregationPolicyIsEnabledFor(t *testing.T) {
-	widgetsGVK := metav1.GroupVersionKind{Group: widgets.group, Version: widgets.version, Kind: widgets.kind}
-	gadgetsGVK := metav1.GroupVersionKind{Group: gadgets.group, Version: gadgets.version, Kind: gadgets.kind}
-	widgetsV2GVK := metav1.GroupVersionKind{Group: widgets.group, Version: "v2", Kind: widgets.kind}
+	widgetsGK := operatorsv1.GroupKind{Group: widgets.group, Kind: widgets.kind}
+	gadgetsGK := operatorsv1.GroupKind{Group: gadgets.group, Kind: gadgets.kind}
 
 	table := []struct {
 		name     string
 		olmcfg   *operatorsv1.OLMConfig
-		query    metav1.GroupVersionKind
+		query    operatorsv1.GroupKind
 		expected bool
 	}{
-		{name: "nil config", query: widgetsGVK, expected: true},
-		{name: "nil features", olmcfg: roleAggregationTestOLMConfig(nil), query: widgetsGVK, expected: true},
-		{name: "unset disable keeps legacy behavior for every api", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{}), query: widgetsGVK, expected: true},
-		{name: "unset disable defensively ignores an allowlist", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: &operatorsv1.OLMConfigRoleAggregation{EnableAPIs: []metav1.GroupVersionKind{widgetsGVK}}}), query: gadgetsGVK, expected: true},
-		{name: "disabled with empty allowlist aggregates nothing", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: &operatorsv1.OLMConfigRoleAggregation{Disable: ptr.To(true)}}), query: widgetsGVK, expected: false},
-		{name: "disabled with allowlist entry matching the api", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: &operatorsv1.OLMConfigRoleAggregation{Disable: ptr.To(true), EnableAPIs: []metav1.GroupVersionKind{widgetsGVK}}}), query: widgetsGVK, expected: true},
-		{name: "disabled with allowlist entry for another kind", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: &operatorsv1.OLMConfigRoleAggregation{Disable: ptr.To(true), EnableAPIs: []metav1.GroupVersionKind{widgetsGVK}}}), query: gadgetsGVK, expected: false},
-		{name: "disabled with allowlist entry for another version of the same kind", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: &operatorsv1.OLMConfigRoleAggregation{Disable: ptr.To(true), EnableAPIs: []metav1.GroupVersionKind{widgetsGVK}}}), query: widgetsV2GVK, expected: false},
+		{name: "nil config", query: widgetsGK, expected: true},
+		{name: "nil features", olmcfg: roleAggregationTestOLMConfig(nil), query: widgetsGK, expected: true},
+		{name: "unset disable keeps legacy behavior for every api", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{}), query: widgetsGK, expected: true},
+		{name: "unset disable defensively ignores an allowlist", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: operatorsv1.OLMConfigRoleAggregation{EnableAPIs: []operatorsv1.GroupKind{widgetsGK}}}), query: gadgetsGK, expected: true},
+		{name: "disabled with empty allowlist aggregates nothing", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: operatorsv1.OLMConfigRoleAggregation{Disable: true}}), query: widgetsGK, expected: false},
+		{name: "disabled with allowlist entry matching the api", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: operatorsv1.OLMConfigRoleAggregation{Disable: true, EnableAPIs: []operatorsv1.GroupKind{widgetsGK}}}), query: widgetsGK, expected: true},
+		{name: "disabled with allowlist entry for another kind", olmcfg: roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: operatorsv1.OLMConfigRoleAggregation{Disable: true, EnableAPIs: []operatorsv1.GroupKind{widgetsGK}}}), query: gadgetsGK, expected: false},
 	}
 	for _, tt := range table {
 		t.Run(tt.name, func(t *testing.T) {
 			policy := newRoleAggregationPolicy(tt.olmcfg)
-			require.Equal(t, tt.expected, policy.isEnabledFor(tt.query.Group, tt.query.Version, tt.query.Kind))
+			require.Equal(t, tt.expected, policy.isEnabledFor(tt.query.Group, tt.query.Kind))
 		})
 	}
 }
@@ -219,7 +216,7 @@ func TestEnsureClusterRolesForCSVAggregationLabels(t *testing.T) {
 		defer cancel()
 		csv := roleAggregationTestCSV("a", "ns-a", widgets)
 		op, err := NewFakeOperator(ctx,
-			withClientObjs(csv, roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: &operatorsv1.OLMConfigRoleAggregation{Disable: ptr.To(true)}})),
+			withClientObjs(csv, roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: operatorsv1.OLMConfigRoleAggregation{Disable: true}})),
 			withPartialMetadata(widgets.crdPartial()),
 		)
 		require.NoError(t, err)
@@ -236,7 +233,7 @@ func TestEnsureClusterRolesForCSVAggregationLabels(t *testing.T) {
 		defer cancel()
 		csv := roleAggregationTestCSV("a", "ns-a", widgets)
 		op, err := NewFakeOperator(ctx,
-			withClientObjs(csv, roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: &operatorsv1.OLMConfigRoleAggregation{Disable: ptr.To(true)}})),
+			withClientObjs(csv, roleAggregationTestOLMConfig(&operatorsv1.Features{RoleAggregation: operatorsv1.OLMConfigRoleAggregation{Disable: true}})),
 			withPartialMetadata(widgets.crdPartial()),
 			withK8sObjs(
 				mkGeneratedRole(t, widgets, widgets.roleName("admin"), "admin"),
@@ -274,11 +271,11 @@ func TestEnsureClusterRolesForCSVAggregationLabels(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
 		csv := roleAggregationTestCSV("a", "ns-a", widgets, gadgets)
-		widgetsGVK := metav1.GroupVersionKind{Group: widgets.group, Version: widgets.version, Kind: widgets.kind}
+		widgetsGK := operatorsv1.GroupKind{Group: widgets.group, Kind: widgets.kind}
 		olmcfg := roleAggregationTestOLMConfig(&operatorsv1.Features{
-			RoleAggregation: &operatorsv1.OLMConfigRoleAggregation{
-				Disable:    ptr.To(true),
-				EnableAPIs: []metav1.GroupVersionKind{widgetsGVK},
+			RoleAggregation: operatorsv1.OLMConfigRoleAggregation{
+				Disable:    true,
+				EnableAPIs: []operatorsv1.GroupKind{widgetsGK},
 			},
 		})
 		// Pre-existing roles for BOTH apis as generated under the legacy
@@ -304,5 +301,30 @@ func TestEnsureClusterRolesForCSVAggregationLabels(t *testing.T) {
 		// rules are still maintained for the de-labeled api
 		edit := getRole(t, op, gadgets.roleName("edit"))
 		require.Equal(t, []rbacv1.PolicyRule{{Verbs: EditVerbs, APIGroups: []string{gadgets.group}, Resources: []string{gadgets.plural}}}, edit.Rules)
+	})
+
+	t.Run("version independence: version-free entry matches any owned version of the kind", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.TODO())
+		defer cancel()
+		widgetsV2 := widgets
+		widgetsV2.version = "v2"
+		csv := roleAggregationTestCSV("a", "ns-a", widgetsV2)
+		widgetsGK := operatorsv1.GroupKind{Group: widgets.group, Kind: widgets.kind}
+		olmcfg := roleAggregationTestOLMConfig(&operatorsv1.Features{
+			RoleAggregation: operatorsv1.OLMConfigRoleAggregation{
+				Disable:    true,
+				EnableAPIs: []operatorsv1.GroupKind{widgetsGK},
+			},
+		})
+		op, err := NewFakeOperator(ctx,
+			withClientObjs(csv, olmcfg),
+			withPartialMetadata(widgetsV2.crdPartial()),
+		)
+		require.NoError(t, err)
+
+		// The entry carries no version, yet the v2-owned api is aggregated:
+		// matching is keyed on group+kind alone.
+		require.NoError(t, op.ensureClusterRolesForCSV(csv))
+		assertLabels(t, op, widgetsV2, true)
 	})
 }

@@ -12,45 +12,45 @@ import (
 
 // roleAggregationPolicy is the internal form of the OlmConfig
 // roleAggregation feature, converted from the on-cluster object before any
-// use: the enableAPIs allowlist is stored as a set so that GVK lookups are
+// use: the enableAPIs allowlist is stored as a set so that API lookups are
 // O(1). The zero value is the legacy policy (aggregation enabled for every
 // API).
 type roleAggregationPolicy struct {
 	// disabled records whether role aggregation is disabled (the
 	// default-deny gate). When false, aggregation is enabled for every API.
 	disabled bool
-	// enabledGVKs is the set of gvks that remain aggregated while
-	// aggregation is otherwise disabled. An empty set disables
-	// aggregation for every API.
-	enabledGVKs sets.Set[metav1.GroupVersionKind]
+	// enabledAPIs is the set of apis (group+kind) that remain aggregated
+	// while aggregation is otherwise disabled. An empty set disables
+	// aggregation for every API. Matching is version-independent: the
+	// aggregated permission applies to the resource as a whole.
+	enabledAPIs sets.Set[operatorsv1.GroupKind]
 }
 
 // newRoleAggregationPolicy converts the roleAggregation feature of an
-// OlmConfig into its internal form. A nil config, missing features or a
-// missing roleAggregation stanza convert to the legacy policy.
+// OlmConfig into its internal form. A nil config or missing features convert
+// to the legacy policy; the zero value of the roleAggregation stanza (unset
+// or disable=false with no enableAPIs) is itself the legacy policy.
 func newRoleAggregationPolicy(config *operatorsv1.OLMConfig) roleAggregationPolicy {
-	if config == nil || config.Spec.Features == nil || config.Spec.Features.RoleAggregation == nil {
+	if config == nil || config.Spec.Features == nil {
 		return roleAggregationPolicy{}
 	}
 
 	roleAggregation := config.Spec.Features.RoleAggregation
-	policy := roleAggregationPolicy{
-		enabledGVKs: sets.New(roleAggregation.EnableAPIs...),
+	return roleAggregationPolicy{
+		disabled:    roleAggregation.Disable,
+		enabledAPIs: sets.New(roleAggregation.EnableAPIs...),
 	}
-	if roleAggregation.Disable != nil {
-		policy.disabled = *roleAggregation.Disable
-	}
-	return policy
 }
 
 // isEnabledFor reports whether role aggregation is enabled for the API
-// identified by the given group, version and kind: every API when
-// aggregation is not disabled, and otherwise only the allowlisted gvks.
-func (p roleAggregationPolicy) isEnabledFor(group, version, kind string) bool {
+// identified by the given group and kind: every API when aggregation is not
+// disabled, and otherwise only the allowlisted apis. Matching is
+// version-independent: an entry matches every served version of the kind.
+func (p roleAggregationPolicy) isEnabledFor(group, kind string) bool {
 	if !p.disabled {
 		return true
 	}
-	return p.enabledGVKs.Has(metav1.GroupVersionKind{Group: group, Version: version, Kind: kind})
+	return p.enabledAPIs.Has(operatorsv1.GroupKind{Group: group, Kind: kind})
 }
 
 // roleAggregationPolicy fetches the OlmConfig singleton and returns its

@@ -461,7 +461,7 @@ func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion)
 		group := nameGroupPair[1]
 		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
 		key := opregistry.APIKey{Group: group, Version: owned.Version, Kind: owned.Kind, Plural: plural}
-		aggregate := roleAggregation.isEnabledFor(group, owned.Version, owned.Kind)
+		aggregate := roleAggregation.isEnabledFor(group, owned.Kind)
 		for suffix, verbs := range VerbsForSuffix {
 			if err := a.ensureProvidedAPIClusterRole(namePrefix, suffix, verbs, group, plural, nil, crd, key, aggregate); err != nil {
 				return err
@@ -479,7 +479,7 @@ func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion)
 		}
 		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
 		key := opregistry.APIKey{Group: owned.Group, Version: owned.Version, Kind: owned.Kind}
-		aggregate := roleAggregation.isEnabledFor(owned.Group, owned.Version, owned.Kind)
+		aggregate := roleAggregation.isEnabledFor(owned.Group, owned.Kind)
 		for suffix, verbs := range VerbsForSuffix {
 			if err := a.ensureProvidedAPIClusterRole(namePrefix, suffix, verbs, owned.Group, owned.Name, nil, svc, key, aggregate); err != nil {
 				return err
