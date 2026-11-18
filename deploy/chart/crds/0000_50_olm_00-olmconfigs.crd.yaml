@@ -99,7 +99,7 @@ spec:
                             ClusterRoles, but without the aggregation labels. May only be
                             set when disable is true.
                           type: array
-                          maxItems: 64
+                          maxItems: 1024
                           items:
                             description: |-
                               GroupKind identifies a kind of API within a group, independently of any

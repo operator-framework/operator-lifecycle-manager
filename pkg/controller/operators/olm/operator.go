@@ -1738,7 +1738,7 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 		return fmt.Errorf("casting ClusterServiceVersion failed")
 	}
 
-	olmConfig, err := a.client.OperatorsV1().OLMConfigs().Get(context.TODO(), "cluster", metav1.GetOptions{})
+	olmConfig, err := a.informersByNamespace[corev1.NamespaceAll].OLMConfigInformer.Lister().Get("cluster")
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
@@ -1850,7 +1850,7 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 // If the "cluster" olmConfig resource is not found, true will be returned
 // without an error.
 func (a *Operator) copiedCSVsAreEnabled() (bool, error) {
-	olmConfig, err := a.client.OperatorsV1().OLMConfigs().Get(context.TODO(), "cluster", metav1.GetOptions{})
+	olmConfig, err := a.informersByNamespace[corev1.NamespaceAll].OLMConfigInformer.Lister().Get("cluster")
 	if err != nil {
 		// Default to true if olmConfig singleton cannot be found
 		if apierrors.IsNotFound(err) {

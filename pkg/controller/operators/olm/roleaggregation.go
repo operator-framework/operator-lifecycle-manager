@@ -1,13 +1,11 @@
 package olm
 
 import (
-	"context"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // roleAggregationPolicy is the internal form of the OlmConfig
@@ -53,15 +51,15 @@ func (p roleAggregationPolicy) isEnabledFor(group, kind string) bool {
 	return p.enabledAPIs.Has(operatorsv1.GroupKind{Group: group, Kind: kind})
 }
 
-// roleAggregationPolicy fetches the OlmConfig singleton and returns its
-// roleAggregation feature already converted into the internal form, so the
-// conversion (and its O(1) lookup set) is available to every consumer from
-// the earliest possible point. Defaults to the legacy policy when the
-// singleton cannot be found.
+// roleAggregationPolicy reads the OlmConfig singleton from the informer
+// cache and returns its roleAggregation feature already converted into the
+// internal form, so the conversion (and its O(1) lookup set) is available to
+// every consumer from the earliest possible point. Defaults to the legacy
+// policy when the singleton cannot be found. The OLMConfig informer requeues
+// CSVs on change, so convergence to a new policy is event-driven.
 func (a *Operator) roleAggregationPolicy() (roleAggregationPolicy, error) {
-	olmConfig, err := a.client.OperatorsV1().OLMConfigs().Get(context.TODO(), "cluster", metav1.GetOptions{})
+	olmConfig, err := a.informersByNamespace[corev1.NamespaceAll].OLMConfigInformer.Lister().Get("cluster")
 	if err != nil {
-		// Default to no policy (legacy behavior) if olmConfig singleton cannot be found
 		if apierrors.IsNotFound(err) {
 			return roleAggregationPolicy{}, nil
 		}

@@ -177,13 +177,25 @@ func TestRoleAggregationPolicyIsEnabledFor(t *testing.T) {
 func TestEnsureClusterRolesForCSVAggregationLabels(t *testing.T) {
 	// roleSuffixes maps each generated role to the suffix used for its
 	// aggregation labels (the crdview role is created with ViewSuffix).
-	roleSuffixes := map[string]string{"admin": "admin", "edit": "edit", "view": "view", "crdview": "view"}
+	// The crdview role always aggregates (CRD get for discovery), so it is
+	// excluded from policy-driven label assertions.
+	roleSuffixes := map[string]string{"admin": "admin", "edit": "edit", "view": "view"}
 
 	assertLabels := func(t *testing.T, op *Operator, a testAPI, aggregated bool) {
 		t.Helper()
 		for kind, name := range a.roleNames() {
 			role := getRole(t, op, name)
 			require.Equal(t, install.OLMManagedLabelValue, role.Labels[install.OLMManagedLabelKey], "%s %s must remain OLM-managed", a.crdName, kind)
+			if kind == "crdview" {
+				// crdview always aggregates: viewers need CRD get for discovery
+				for label := range aggregatedRoleLabels(t, a, "view") {
+					if label == install.OLMManagedLabelKey {
+						continue
+					}
+					require.Equal(t, "true", role.Labels[label], "%s crdview must always carry aggregation label %s", a.crdName, label)
+				}
+				continue
+			}
 			for label := range aggregatedRoleLabels(t, a, roleSuffixes[kind]) {
 				if label == install.OLMManagedLabelKey {
 					continue
