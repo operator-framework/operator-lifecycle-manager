@@ -6,3 +6,6 @@ spec:
   features:
     roleAggregation:
       disable: true
+      enableAPIs:
+      - group: packages.operators.coreos.com
+        kind: PackageManifest

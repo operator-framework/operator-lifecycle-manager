@@ -71,7 +71,9 @@ type OLMConfigRoleAggregation struct {
 	// set when disable is true.
 	// +optional
 	// +kubebuilder:validation:MaxItems=1024
-	// +listType=set
+	// +listType=map
+	// +listMapKey=group
+	// +listMapKey=kind
 	EnableAPIs []GroupKind `json:"enableAPIs,omitempty,omitzero"`
 }
 

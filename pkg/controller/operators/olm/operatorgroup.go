@@ -383,11 +383,9 @@ func (a *Operator) pruneProvidedAPIs(group *operatorsv1.OperatorGroup, groupProv
 }
 
 // ensureProvidedAPIClusterRole ensures that a clusterrole exists (admin, edit, or view) for a single provided API Type.
-// The aggregation labels are coupled: they are present on the role only when aggregate is true, so that the
-// kube-apiserver's ClusterRole aggregation controller includes (or excludes) the role's rules in the default
-// user-facing ClusterRoles (and the OperatorGroup's aggregated roles) according to the OlmConfig role-aggregation
-// policy. Toggling the policy converges through the label-equality check and update below: the two-way merge patch
-// applied by UpdateClusterRole removes labels absent from the desired object.
+// The aggregation labels are present only when aggregate is true, so the kube-apiserver's ClusterRole aggregation
+// controller includes the role's rules in the default user-facing ClusterRoles accordingly. Toggling the policy
+// converges through the label-equality check and update below.
 func (a *Operator) ensureProvidedAPIClusterRole(namePrefix, suffix string, verbs []string, group, resource string, resourceNames []string, api ownerutil.Owner, key opregistry.APIKey, aggregate bool) error {
 	aggregationLabel, err := aggregationLabelFromAPIKey(key, suffix)
 	if err != nil {
@@ -435,12 +433,8 @@ func (a *Operator) ensureProvidedAPIClusterRole(namePrefix, suffix string, verbs
 }
 
 // ensureClusterRolesForCSV ensures that ClusterRoles for writing and reading provided APIs exist for each operator.
-// Whether each API's roles carry the aggregation labels (and are therefore aggregated into the default user-facing
-// admin/edit/view ClusterRoles and the OperatorGroup's aggregated roles) is dictated by the OlmConfig
-// role-aggregation policy, converted into its internal set-based form once
-// per reconcile: an empty policy keeps the legacy behavior for every API,
-// while roleAggregation.disable or a non-empty roleAggregation.enableAPIs
-// restricts aggregation per API. The existing label-equality convergence
+// Whether each API's roles carry the aggregation labels — and are therefore aggregated into the default user-facing
+// admin/edit/view ClusterRoles — is dictated by the OlmConfig role-aggregation policy; the label-equality convergence
 // below applies the decision in either direction within one resync.
 func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion) error {
 	roleAggregation, err := a.roleAggregationPolicy()
@@ -467,7 +461,7 @@ func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion)
 				return err
 			}
 		}
-		// unconditionally allow role aggregation for CRD 'get'
+		// always aggregate CRD 'get' so viewers can discover provided API types
 		if err := a.ensureProvidedAPIClusterRole(namePrefix+"crd", ViewSuffix, []string{"get"}, "apiextensions.k8s.io", "customresourcedefinitions", []string{owned.Name}, crd, key, true); err != nil {
 			return err
 		}

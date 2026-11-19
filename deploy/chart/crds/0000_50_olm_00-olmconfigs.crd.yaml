@@ -128,7 +128,10 @@ spec:
                                 minLength: 1
                                 pattern: ^[A-Za-z]([-A-Za-z0-9]*[A-Za-z0-9])?$
                             x-kubernetes-map-type: atomic
-                          x-kubernetes-list-type: set
+                          x-kubernetes-list-map-keys:
+                            - group
+                            - kind
+                          x-kubernetes-list-type: map
                       x-kubernetes-validations:
                         - rule: '!has(self.enableAPIs) || self.enableAPIs.size() == 0 || (has(self.disable) && self.disable)'
                           message: enableAPIs may only be set when disable is true

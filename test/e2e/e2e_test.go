@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/yaml"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
@@ -111,30 +113,41 @@ var _ = BeforeSuite(func() {
 	deprovision = ctx.MustProvision(ctx.Ctx())
 	ctx.MustInstall(ctx.Ctx())
 
-	// Re-enable role aggregation for e2e tests that verify the legacy
-	// aggregation behavior. The helm chart defaults new installs to
-	// disable: true, but the existing test suite expects aggregation to
-	// be active.
-	olmConfig := &operatorsv1.OLMConfig{
-		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+	// Verify the chart's default OlmConfig configuration from its template so
+	// that changes to the default must consciously update this suite as well.
+	// The template is read rather than the live object so the check is stable
+	// across repeated runs against the same cluster.
+	chartTemplatePath := filepath.Join("..", "..", "deploy", "chart", "templates", "0000_50_olm_03-olmconfig.yaml")
+	chartBytes, err := os.ReadFile(chartTemplatePath)
+	Expect(err).To(Succeed())
+	var chartConfig struct {
+		Spec struct {
+			Features struct {
+				RoleAggregation struct {
+					Disable    bool                    `json:"disable"`
+					EnableAPIs []operatorsv1.GroupKind `json:"enableAPIs"`
+				} `json:"roleAggregation"`
+			} `json:"features"`
+		} `json:"spec"`
 	}
-	_, err := ctx.Ctx().OperatorClient().OperatorsV1().OLMConfigs().Patch(
-		context.TODO(), "cluster", types.StrategicMergePatchType,
-		[]byte(`{"spec":{"features":{"roleAggregation":{"disable":false}}}}`),
+	Expect(yaml.Unmarshal(chartBytes, &chartConfig)).To(Succeed())
+	Expect(chartConfig.Spec.Features.RoleAggregation.Disable).To(BeTrue())
+	Expect(chartConfig.Spec.Features.RoleAggregation.EnableAPIs).To(ContainElement(operatorsv1.GroupKind{
+		Group: "packages.operators.coreos.com",
+		Kind:  "PackageManifest",
+	}))
+
+	// Re-enable role aggregation: the chart defaults new installs to
+	// disable: true with the packageserver API allowlisted, but this suite
+	// verifies the legacy aggregating behavior. A merge patch is required
+	// (CRDs do not support strategic merge), and enableAPIs must be nulled
+	// out alongside disable: false to satisfy the "enableAPIs may only be
+	// set when disable is true" validation rule.
+	_, err = ctx.Ctx().OperatorClient().OperatorsV1().OLMConfigs().Patch(
+		context.TODO(), "cluster", types.MergePatchType,
+		[]byte(`{"spec":{"features":{"roleAggregation":{"disable":false,"enableAPIs":null}}}}`),
 		metav1.PatchOptions{},
 	)
-	if err != nil {
-		// OlmConfig may not exist yet on some clusters; create it with
-		// aggregation enabled.
-		olmConfig.Spec = operatorsv1.OLMConfigSpec{
-			Features: &operatorsv1.Features{
-				RoleAggregation: operatorsv1.OLMConfigRoleAggregation{Disable: false},
-			},
-		}
-		_, err = ctx.Ctx().OperatorClient().OperatorsV1().OLMConfigs().Create(
-			context.TODO(), olmConfig, metav1.CreateOptions{},
-		)
-	}
 	Expect(err).To(Succeed())
 
 	var groups operatorsv1.OperatorGroupList
