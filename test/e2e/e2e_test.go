@@ -13,6 +13,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -110,6 +111,32 @@ var _ = BeforeSuite(func() {
 	deprovision = ctx.MustProvision(ctx.Ctx())
 	ctx.MustInstall(ctx.Ctx())
 
+	// Re-enable role aggregation for e2e tests that verify the legacy
+	// aggregation behavior. The helm chart defaults new installs to
+	// disable: true, but the existing test suite expects aggregation to
+	// be active.
+	olmConfig := &operatorsv1.OLMConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+	}
+	_, err := ctx.Ctx().OperatorClient().OperatorsV1().OLMConfigs().Patch(
+		context.TODO(), "cluster", types.StrategicMergePatchType,
+		[]byte(`{"spec":{"features":{"roleAggregation":{"disable":false}}}}`),
+		metav1.PatchOptions{},
+	)
+	if err != nil {
+		// OlmConfig may not exist yet on some clusters; create it with
+		// aggregation enabled.
+		olmConfig.Spec = operatorsv1.OLMConfigSpec{
+			Features: &operatorsv1.Features{
+				RoleAggregation: operatorsv1.OLMConfigRoleAggregation{Disable: false},
+			},
+		}
+		_, err = ctx.Ctx().OperatorClient().OperatorsV1().OLMConfigs().Create(
+			context.TODO(), olmConfig, metav1.CreateOptions{},
+		)
+	}
+	Expect(err).To(Succeed())
+
 	var groups operatorsv1.OperatorGroupList
 	Expect(ctx.Ctx().Client().List(context.Background(), &groups, client.InNamespace(testNamespace))).To(Succeed())
 	if len(groups.Items) == 0 {
@@ -138,7 +165,7 @@ var _ = BeforeSuite(func() {
 		ContainElement(Not(BeZero())),
 	))
 
-	_, err := fetchCatalogSourceOnStatus(ctx.Ctx().OperatorClient(), "operatorhubio-catalog", operatorNamespace, catalogSourceRegistryPodSynced())
+	_, err = fetchCatalogSourceOnStatus(ctx.Ctx().OperatorClient(), "operatorhubio-catalog", operatorNamespace, catalogSourceRegistryPodSynced())
 	Expect(err).NotTo(HaveOccurred())
 
 })

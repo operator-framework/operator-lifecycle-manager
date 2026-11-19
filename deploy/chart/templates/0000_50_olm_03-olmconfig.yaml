@@ -1,17 +1,3 @@
-{{- $existing := lookup "operators.coreos.com/v1" "OLMConfig" "" "cluster" }}
-{{- if $existing }}
-{{- /* Existing cluster: render current state so helm upgrade is a no-op. */}}
-{{- /* This preserves whatever the admin has configured (including no spec). */}}
-apiVersion: operators.coreos.com/v1
-kind: OLMConfig
-metadata:
-  name: cluster
-{{- with $existing.spec }}
-spec:
-{{- toYaml . | nindent 2 }}
-{{- end }}
-{{- else }}
-{{- /* New install: default role aggregation to disabled. */}}
 apiVersion: operators.coreos.com/v1
 kind: OLMConfig
 metadata:
@@ -20,4 +6,3 @@ spec:
   features:
     roleAggregation:
       disable: true
-{{- end }}
