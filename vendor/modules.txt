@@ -548,7 +548,7 @@ github.com/openshift/client-go/config/listers/config/v1alpha2
 # github.com/openshift/library-go v0.0.0-20261019145849-b3e46fec8a08
 ## explicit; go 1.26.0
 github.com/openshift/library-go/pkg/crypto
-# github.com/operator-framework/api v0.47.0 => ../api
+# github.com/operator-framework/api v0.47.1
 ## explicit; go 1.26.3
 github.com/operator-framework/api/crds
 github.com/operator-framework/api/pkg/constraints
@@ -2081,4 +2081,3 @@ sigs.k8s.io/structured-merge-diff/v6/value
 # sigs.k8s.io/yaml v1.6.0
 ## explicit; go 1.22
 sigs.k8s.io/yaml
-# github.com/operator-framework/api => ../api

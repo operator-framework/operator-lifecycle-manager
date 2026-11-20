@@ -21,7 +21,7 @@ require (
 	github.com/openshift/api v0.0.0-20261017003925-24b2699a9b32
 	github.com/openshift/client-go v0.0.0-20261006222332-348fc1ca8bb1
 	github.com/openshift/library-go v0.0.0-20261019145849-b3e46fec8a08
-	github.com/operator-framework/api v0.47.0
+	github.com/operator-framework/api v0.47.1
 	github.com/operator-framework/operator-registry v1.74.0
 	github.com/otiai10/copy v1.14.1
 	github.com/pkg/errors v0.9.1
@@ -52,6 +52,7 @@ require (
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
 	sigs.k8s.io/controller-runtime v0.25.2
 	sigs.k8s.io/controller-tools v0.22.0
+	sigs.k8s.io/yaml v1.6.0
 )
 
 require (
@@ -201,9 +202,6 @@ require (
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
-	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
 retract v3.11.0+incompatible // https://github.com/operator-framework/operator-lifecycle-manager/issues/2253
-
-replace github.com/operator-framework/api => ../api
