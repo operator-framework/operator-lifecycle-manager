@@ -709,7 +709,7 @@ var _ = Describe("Operator Group", Label("OperatorGroup"), func() {
 		// when the roles were generated before the policy change was
 		// observed and are de-labeled by a subsequent resync.
 		rolePrefix := fmt.Sprintf("%s-%s-", crd.GetName(), crd.Spec.Versions[0].Name)
-		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		err = wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
 			for _, suffix := range []string{"admin", "edit", "view"} {
 				role, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), rolePrefix+suffix, metav1.GetOptions{})
 				if err != nil {
@@ -734,7 +734,7 @@ var _ = Describe("Operator Group", Label("OperatorGroup"), func() {
 		// The crdview role is always aggregated so viewers retain CRD read
 		// access for discovery.
 		GinkgoT().Logf("Ensure crdview clusterrole retains aggregation labels")
-		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		err = wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
 			role, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), rolePrefix+"crdview", metav1.GetOptions{})
 			if err != nil {
 				if apierrors.IsNotFound(err) {
@@ -747,7 +747,7 @@ var _ = Describe("Operator Group", Label("OperatorGroup"), func() {
 		require.NoError(GinkgoT(), err)
 
 		GinkgoT().Logf("Check CRD access not aggregated")
-		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		err = wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
 			res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), &authorizationv1.SubjectAccessReview{
 				Spec: authorizationv1.SubjectAccessReviewSpec{
 					User: padmin,
@@ -772,7 +772,7 @@ var _ = Describe("Operator Group", Label("OperatorGroup"), func() {
 		require.NoError(GinkgoT(), err)
 
 		GinkgoT().Logf("Check CRD get via crdview aggregation still allowed for bound viewers")
-		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		err = wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
 			res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), &authorizationv1.SubjectAccessReview{
 				Spec: authorizationv1.SubjectAccessReviewSpec{
 					User: pviewer,
@@ -866,7 +866,7 @@ var _ = Describe("Operator Group", Label("OperatorGroup"), func() {
 		defer cleanupPadmin()
 
 		rolePrefix := fmt.Sprintf("%s-%s-", crd.GetName(), crd.Spec.Versions[0].Name)
-		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		err = wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
 			for _, suffix := range []string{"admin", "edit", "view"} {
 				role, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), rolePrefix+suffix, metav1.GetOptions{})
 				if err != nil {
@@ -884,7 +884,7 @@ var _ = Describe("Operator Group", Label("OperatorGroup"), func() {
 		require.NoError(GinkgoT(), err)
 
 		GinkgoT().Logf("Check CRD access aggregated for the allowlisted API")
-		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		err = wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
 			res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), &authorizationv1.SubjectAccessReview{
 				Spec: authorizationv1.SubjectAccessReviewSpec{
 					User: padmin,

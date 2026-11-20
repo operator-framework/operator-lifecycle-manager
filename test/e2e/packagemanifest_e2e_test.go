@@ -75,7 +75,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, false, nil))
 		}()
 
-		err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		err := wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
 			role, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), packageManifestRole, metav1.GetOptions{})
 			if err != nil {
 				if apierrors.IsNotFound(err) {
@@ -97,7 +97,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 		// chart's allowlist entry.
 		require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, true, []operatorsv1.GroupKind{{Group: "packages.operators.coreos.com", Kind: "PackageManifest"}}))
 
-		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		err = wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
 			role, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), packageManifestRole, metav1.GetOptions{})
 			if err != nil {
 				return false, err
@@ -143,11 +143,11 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 		}
 
 		// Viewer access must survive in both configurations.
-		err = wait.Poll(pollInterval, pollDuration, viewerCanList)
+		err = wait.Poll(pollInterval, convergencePollDuration, viewerCanList)
 		require.NoError(GinkgoT(), err)
 
 		require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, false, nil))
-		err = wait.Poll(pollInterval, pollDuration, viewerCanList)
+		err = wait.Poll(pollInterval, convergencePollDuration, viewerCanList)
 		require.NoError(GinkgoT(), err)
 	})
 
