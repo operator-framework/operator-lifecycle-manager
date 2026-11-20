@@ -2,3 +2,10 @@ apiVersion: operators.coreos.com/v1
 kind: OLMConfig
 metadata:
   name: cluster
+spec:
+  features:
+    roleAggregation:
+      disable: true
+      enableAPIs:
+      - group: packages.operators.coreos.com
+        kind: PackageManifest

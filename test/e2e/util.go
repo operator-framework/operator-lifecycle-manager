@@ -52,6 +52,10 @@ import (
 const (
 	pollInterval = 100 * time.Millisecond
 	pollDuration = 5 * time.Minute
+	// convergencePollDuration budgets policy-convergence polls: the
+	// OlmConfig sync requeues divergent CSVs, so this stays under the
+	// periodic CSV informer resync that acts as the fallback.
+	convergencePollDuration = 1 * time.Minute
 
 	olmConfigMap = "olm-operators" // No-longer used, how long do we keep this around?
 

@@ -4,15 +4,22 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"strings"
 
 	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	opver "github.com/operator-framework/api/pkg/lib/version"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/stretchr/testify/require"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -41,6 +48,107 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 
 	AfterEach(func() {
 		TearDown(generatedNamespace.GetName())
+	})
+
+	It("retains access to the packagemanifests API when role aggregation is disabled by the chart default", func() {
+
+		By(`Disable role aggregation without an allowlist`)
+		By(`Ensure the OLM-generated packagemanifests clusterrole loses its aggregation labels`)
+		By(`Disable role aggregation with the chart default PackageManifest allowlist`)
+		By(`Ensure the OLM-generated packagemanifests clusterrole regains its aggregation labels`)
+		By(`Ensure the chart-shipped aggregate-olm-view clusterrole still grants packagemanifests access`)
+		By(`Ensure a bound viewer can list packagemanifests while aggregation is disabled`)
+		By(`Restore role aggregation and re-verify viewer access`)
+
+		// Access to packagemanifests with aggregation disabled rests on two
+		// independent layers — the chart-shipped aggregate-olm-view role
+		// (always labeled) and the chart's OlmConfig allowlist entry (keeps
+		// OLM's generated roles labeled) — each of which can silently
+		// regress while the other masks it.
+
+		packageManifestRole := "packagemanifests-v1-view"
+
+		// Phase 1: with no allowlist, the OLM-generated role must lose its
+		// labels, proving the allowlist is load-bearing.
+		require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, true, nil))
+		defer func() {
+			require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, false, nil))
+		}()
+
+		err := wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
+			role, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), packageManifestRole, metav1.GetOptions{})
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil // role not generated yet
+				}
+				return false, err
+			}
+			for labelKey := range role.Labels {
+				if strings.Contains(labelKey, "aggregate-to") {
+					return false, nil // not converged to the disabled policy yet
+				}
+			}
+			return true, nil
+		})
+		require.NoError(GinkgoT(), err)
+
+		// Phase 2: with the chart default allowlist, the role regains its
+		// labels, proving the packageserver CSV's descriptor matches the
+		// chart's allowlist entry.
+		require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, true, []operatorsv1.GroupKind{{Group: "packages.operators.coreos.com", Kind: "PackageManifest"}}))
+
+		err = wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
+			role, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), packageManifestRole, metav1.GetOptions{})
+			if err != nil {
+				return false, err
+			}
+			return role.Labels["rbac.authorization.k8s.io/aggregate-to-view"] == "true", nil
+		})
+		require.NoError(GinkgoT(), err)
+
+		// The chart-shipped role is the second, policy-independent layer.
+		chartRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), "aggregate-olm-view", metav1.GetOptions{})
+		require.NoError(GinkgoT(), err)
+		require.Equal(GinkgoT(), "true", chartRole.Labels["rbac.authorization.k8s.io/aggregate-to-view"])
+		hasPackageManifestsRule := false
+		for _, rule := range chartRole.Rules {
+			if sets.New(rule.APIGroups...).Has("packages.operators.coreos.com") &&
+				sets.New(rule.Resources...).Has("packagemanifests") &&
+				sets.New(rule.Verbs...).HasAll("get", "list", "watch") {
+				hasPackageManifestsRule = true
+				break
+			}
+		}
+		require.True(GinkgoT(), hasPackageManifestsRule, "aggregate-olm-view must grant get/list/watch on packagemanifests")
+
+		viewer, cleanupViewer := createClusterViewer(GinkgoT(), c, generatedNamespace.GetName())
+		defer cleanupViewer()
+
+		viewerCanList := func() (bool, error) {
+			res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), &authorizationv1.SubjectAccessReview{
+				Spec: authorizationv1.SubjectAccessReviewSpec{
+					User: viewer,
+					ResourceAttributes: &authorizationv1.ResourceAttributes{
+						Group:    "packages.operators.coreos.com",
+						Version:  "v1",
+						Resource: "packagemanifests",
+						Verb:     "list",
+					},
+				},
+			}, metav1.CreateOptions{})
+			if err != nil {
+				return false, err
+			}
+			return res.Status.Allowed, nil
+		}
+
+		// Viewer access must survive in both configurations.
+		err = wait.Poll(pollInterval, convergencePollDuration, viewerCanList)
+		require.NoError(GinkgoT(), err)
+
+		require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, false, nil))
+		err = wait.Poll(pollInterval, convergencePollDuration, viewerCanList)
+		require.NoError(GinkgoT(), err)
 	})
 
 	Context("Given a CatalogSource created using the ConfigMap as catalog source type", func() {

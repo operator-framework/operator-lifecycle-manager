@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -13,9 +14,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/yaml"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
@@ -110,6 +113,43 @@ var _ = BeforeSuite(func() {
 	deprovision = ctx.MustProvision(ctx.Ctx())
 	ctx.MustInstall(ctx.Ctx())
 
+	// Verify the chart's default OlmConfig configuration from its template so
+	// that changes to the default must consciously update this suite as well.
+	// The template is read rather than the live object so the check is stable
+	// across repeated runs against the same cluster.
+	chartTemplatePath := filepath.Join("..", "..", "deploy", "chart", "templates", "0000_50_olm_03-olmconfig.yaml")
+	chartBytes, err := os.ReadFile(chartTemplatePath)
+	Expect(err).To(Succeed())
+	var chartConfig struct {
+		Spec struct {
+			Features struct {
+				RoleAggregation struct {
+					Disable    bool                    `json:"disable"`
+					EnableAPIs []operatorsv1.GroupKind `json:"enableAPIs"`
+				} `json:"roleAggregation"`
+			} `json:"features"`
+		} `json:"spec"`
+	}
+	Expect(yaml.Unmarshal(chartBytes, &chartConfig)).To(Succeed())
+	Expect(chartConfig.Spec.Features.RoleAggregation.Disable).To(BeTrue())
+	Expect(chartConfig.Spec.Features.RoleAggregation.EnableAPIs).To(ContainElement(operatorsv1.GroupKind{
+		Group: "packages.operators.coreos.com",
+		Kind:  "PackageManifest",
+	}))
+
+	// Re-enable role aggregation: the chart defaults new installs to
+	// disable: true with the packageserver API allowlisted, but this suite
+	// verifies the legacy aggregating behavior. A merge patch is required
+	// (CRDs do not support strategic merge), and enableAPIs must be nulled
+	// out alongside disable: false to satisfy the "enableAPIs may only be
+	// set when disable is true" validation rule.
+	_, err = ctx.Ctx().OperatorClient().OperatorsV1().OLMConfigs().Patch(
+		context.TODO(), "cluster", types.MergePatchType,
+		[]byte(`{"spec":{"features":{"roleAggregation":{"disable":false,"enableAPIs":null}}}}`),
+		metav1.PatchOptions{},
+	)
+	Expect(err).To(Succeed())
+
 	var groups operatorsv1.OperatorGroupList
 	Expect(ctx.Ctx().Client().List(context.Background(), &groups, client.InNamespace(testNamespace))).To(Succeed())
 	if len(groups.Items) == 0 {
@@ -138,7 +178,7 @@ var _ = BeforeSuite(func() {
 		ContainElement(Not(BeZero())),
 	))
 
-	_, err := fetchCatalogSourceOnStatus(ctx.Ctx().OperatorClient(), "operatorhubio-catalog", operatorNamespace, catalogSourceRegistryPodSynced())
+	_, err = fetchCatalogSourceOnStatus(ctx.Ctx().OperatorClient(), "operatorhubio-catalog", operatorNamespace, catalogSourceRegistryPodSynced())
 	Expect(err).NotTo(HaveOccurred())
 
 })
