@@ -32,7 +32,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.1.0
 	github.com/stretchr/testify v1.12.1
-	go.podman.io/image/v5 v5.42.0
+	go.podman.io/image/v5 v5.42.1
 	go.uber.org/mock v0.6.0
 	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/net v0.62.0
@@ -172,7 +172,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	go.podman.io/common v0.69.0 // indirect
-	go.podman.io/storage v1.65.0 // indirect
+	go.podman.io/storage v1.65.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.5 // indirect
