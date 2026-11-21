@@ -1,6 +1,10 @@
 package install
 
 import (
+	"crypto"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"reflect"
 	"testing"
@@ -34,6 +38,201 @@ func keyPair(t *testing.T, expiration time.Time) *certs.KeyPair {
 	return p
 }
 
+func certificatePEM(t *testing.T, template, parent *x509.Certificate, publicKey any, signer crypto.Signer) []byte {
+	raw, err := x509.CreateCertificate(rand.Reader, template, parent, publicKey, signer)
+	require.NoError(t, err)
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: raw})
+}
+
+func publicKeyFromPEM(t *testing.T, keyPEM []byte) any {
+	block, _ := pem.Decode(keyPEM)
+	require.NotNil(t, block)
+	key, err := x509.ParseECPrivateKey(block.Bytes)
+	require.NoError(t, err)
+	return &key.PublicKey
+}
+
+func validServingSecret(t *testing.T) (*corev1.Secret, []string, *certs.KeyPair) {
+	hosts := HostnamesForService("test-service", "test-namespace")
+	ca := keyPair(t, time.Now().Add(DefaultCertValidFor))
+	serving, err := certs.CreateSignedServingPair(time.Now().Add(DefaultCertValidFor), Organization, ca, hosts)
+	require.NoError(t, err)
+
+	caPEM, _, err := ca.ToPEM()
+	require.NoError(t, err)
+	certPEM, keyPEM, err := serving.ToPEM()
+	require.NoError(t, err)
+
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+			OLMCAHashAnnotationKey:   certs.PEMSHA256(caPEM),
+			OLMCertHashAnnotationKey: certs.PEMSHA256(certPEM),
+			OLMKeyHashAnnotationKey:  certs.PEMSHA256(keyPEM),
+		}},
+		Data: map[string][]byte{
+			OLMCAPEMKey:             caPEM,
+			corev1.TLSCertKey:       certPEM,
+			corev1.TLSPrivateKeyKey: keyPEM,
+		},
+	}, hosts, ca
+}
+
+func setCertificateHash(secret *corev1.Secret, key string) {
+	secret.Annotations[key] = certs.PEMSHA256(secret.Data[map[string]string{
+		OLMCAHashAnnotationKey:   OLMCAPEMKey,
+		OLMCertHashAnnotationKey: corev1.TLSCertKey,
+		OLMKeyHashAnnotationKey:  corev1.TLSPrivateKeyKey,
+	}[key]])
+}
+
+func TestShouldRotateCerts(t *testing.T) {
+	tests := []struct {
+		name       string
+		mutate     func(secret *corev1.Secret, hosts []string, ca *certs.KeyPair)
+		wantRotate bool
+	}{
+		{
+			name: "valid material and fingerprints",
+		},
+		{
+			name: "missing CA",
+			mutate: func(secret *corev1.Secret, _ []string, _ *certs.KeyPair) {
+				delete(secret.Data, OLMCAPEMKey)
+			},
+			wantRotate: true,
+		},
+		{
+			name: "missing certificate",
+			mutate: func(secret *corev1.Secret, _ []string, _ *certs.KeyPair) {
+				delete(secret.Data, corev1.TLSCertKey)
+			},
+			wantRotate: true,
+		},
+		{
+			name: "missing private key",
+			mutate: func(secret *corev1.Secret, _ []string, _ *certs.KeyPair) {
+				delete(secret.Data, corev1.TLSPrivateKeyKey)
+			},
+			wantRotate: true,
+		},
+		{
+			name: "malformed CA",
+			mutate: func(secret *corev1.Secret, _ []string, _ *certs.KeyPair) {
+				secret.Data[OLMCAPEMKey] = []byte("malformed")
+			},
+			wantRotate: true,
+		},
+		{
+			name: "malformed certificate",
+			mutate: func(secret *corev1.Secret, _ []string, _ *certs.KeyPair) {
+				secret.Data[corev1.TLSCertKey] = []byte("malformed")
+			},
+			wantRotate: true,
+		},
+		{
+			name: "malformed private key",
+			mutate: func(secret *corev1.Secret, _ []string, _ *certs.KeyPair) {
+				secret.Data[corev1.TLSPrivateKeyKey] = []byte("malformed")
+			},
+			wantRotate: true,
+		},
+		{
+			name: "expired certificate",
+			mutate: func(secret *corev1.Secret, _ []string, ca *certs.KeyPair) {
+				servingCert, err := certs.PEMToCert(secret.Data[corev1.TLSCertKey])
+				require.NoError(t, err)
+				expired := *servingCert
+				expired.NotBefore = time.Now().Add(-2 * time.Hour)
+				expired.NotAfter = time.Now().Add(-time.Hour)
+				secret.Data[corev1.TLSCertKey] = certificatePEM(t, &expired, ca.Cert, publicKeyFromPEM(t, secret.Data[corev1.TLSPrivateKeyKey]), ca.Priv)
+				setCertificateHash(secret, OLMCertHashAnnotationKey)
+			},
+			wantRotate: true,
+		},
+		{
+			name: "not yet valid certificate",
+			mutate: func(secret *corev1.Secret, _ []string, ca *certs.KeyPair) {
+				servingCert, err := certs.PEMToCert(secret.Data[corev1.TLSCertKey])
+				require.NoError(t, err)
+				future := *servingCert
+				future.NotBefore = time.Now().Add(time.Hour)
+				future.NotAfter = time.Now().Add(2 * time.Hour)
+				secret.Data[corev1.TLSCertKey] = certificatePEM(t, &future, ca.Cert, publicKeyFromPEM(t, secret.Data[corev1.TLSPrivateKeyKey]), ca.Priv)
+				setCertificateHash(secret, OLMCertHashAnnotationKey)
+			},
+			wantRotate: true,
+		},
+		{
+			name: "wrong hostname",
+			mutate: func(_ *corev1.Secret, hosts []string, _ *certs.KeyPair) {
+				hosts[0] = "unexpected.example"
+			},
+			wantRotate: true,
+		},
+		{
+			name: "wrong CA",
+			mutate: func(secret *corev1.Secret, _ []string, _ *certs.KeyPair) {
+				wrongCA := keyPair(t, time.Now().Add(DefaultCertValidFor))
+				caPEM, _, err := wrongCA.ToPEM()
+				require.NoError(t, err)
+				secret.Data[OLMCAPEMKey] = caPEM
+				setCertificateHash(secret, OLMCAHashAnnotationKey)
+			},
+			wantRotate: true,
+		},
+		{
+			name: "mismatched private key",
+			mutate: func(secret *corev1.Secret, hosts []string, ca *certs.KeyPair) {
+				other, err := certs.CreateSignedServingPair(time.Now().Add(DefaultCertValidFor), Organization, ca, hosts)
+				require.NoError(t, err)
+				_, keyPEM, err := other.ToPEM()
+				require.NoError(t, err)
+				secret.Data[corev1.TLSPrivateKeyKey] = keyPEM
+				setCertificateHash(secret, OLMKeyHashAnnotationKey)
+			},
+			wantRotate: true,
+		},
+		{
+			name: "changed CA fingerprint",
+			mutate: func(secret *corev1.Secret, _ []string, _ *certs.KeyPair) {
+				secret.Annotations[OLMCAHashAnnotationKey] = "changed"
+			},
+			wantRotate: true,
+		},
+		{
+			name: "changed certificate fingerprint",
+			mutate: func(secret *corev1.Secret, _ []string, _ *certs.KeyPair) {
+				secret.Annotations[OLMCertHashAnnotationKey] = "changed"
+			},
+			wantRotate: true,
+		},
+		{
+			name: "changed private key fingerprint",
+			mutate: func(secret *corev1.Secret, _ []string, _ *certs.KeyPair) {
+				secret.Annotations[OLMKeyHashAnnotationKey] = "changed"
+			},
+			wantRotate: true,
+		},
+		{
+			name: "legacy secret without fingerprints",
+			mutate: func(secret *corev1.Secret, _ []string, _ *certs.KeyPair) {
+				secret.Annotations = nil
+			},
+			wantRotate: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			secret, hosts, ca := validServingSecret(t)
+			if tt.mutate != nil {
+				tt.mutate(secret, hosts, ca)
+			}
+			assert.Equal(t, tt.wantRotate, shouldRotateCerts(secret, hosts))
+		})
+	}
+}
+
 func selector(t *testing.T, selector string) *metav1.LabelSelector {
 	s, err := metav1.ParseToLabelSelector(selector)
 	assert.NoError(t, err)
@@ -61,6 +260,7 @@ type fakeState struct {
 
 	existingSecret *corev1.Secret
 	getSecretError error
+	getSecret      func() (*corev1.Secret, error)
 
 	existingRole *rbacv1.Role
 	getRoleError error
@@ -89,7 +289,13 @@ func newFakeLister(state fakeState) *operatorlisterfakes.FakeOperatorLister {
 	fakeCoreV1Lister.SecretListerReturns(fakeSecretLister)
 	fakeSecretNamespacedLister := &listerfakes.FakeSecretNamespaceLister{}
 	fakeSecretLister.SecretsReturns(fakeSecretNamespacedLister)
-	fakeSecretNamespacedLister.GetReturns(state.existingSecret, state.getSecretError)
+	if state.getSecret != nil {
+		fakeSecretNamespacedLister.GetCalls(func(string) (*corev1.Secret, error) {
+			return state.getSecret()
+		})
+	} else {
+		fakeSecretNamespacedLister.GetReturns(state.existingSecret, state.getSecretError)
+	}
 
 	fakeRoleLister := &listerfakes.FakeRoleLister{}
 	fakeRbacV1Lister.RoleListerReturns(fakeRoleLister)
@@ -122,7 +328,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 			UID:       "123-uid",
 		},
 	})
-	ca := keyPair(t, time.Now().Add(time.Hour))
+	ca := keyPair(t, time.Now().Add(DefaultCertValidFor))
 	caPEM, _, err := ca.ToPEM()
 	assert.NoError(t, err)
 	caHash := certs.PEMSHA256(caPEM)
@@ -140,9 +346,11 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 		rotateAt       time.Time
 		depSpec        appsv1.DeploymentSpec
 		ports          []corev1.ServicePort
+		reuseSecret    bool
 	}
 
 	type expectedExternalFunc func(clientInterface *operatorclientmocks.MockClientInterface, fakeLister *operatorlisterfakes.FakeOperatorLister, namespace string, args args)
+	var reusableSecret *corev1.Secret
 	tests := []struct {
 		name         string
 		mockExternal expectedExternalFunc
@@ -153,7 +361,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 		wantErr      bool
 	}{
 		{
-			name: "adds certs to deployment spec",
+			name: "reuses valid fingerprinted certs and adds certs to deployment spec",
 			mockExternal: func(mockOpClient *operatorclientmocks.MockClientInterface, fakeLister *operatorlisterfakes.FakeOperatorLister, namespace string, args args) {
 				service := corev1.Service{
 					ObjectMeta: metav1.ObjectMeta{
@@ -191,6 +399,9 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 					fmt.Sprintf("%s.%s", service.GetName(), namespace),
 					fmt.Sprintf("%s.%s.svc", service.GetName(), namespace),
 				}
+				if args.reuseSecret {
+					hosts = HostnamesForService(service.GetName(), namespace)
+				}
 				servingPair, err := certGenerator.Generate(args.rotateAt, Organization, args.ca, hosts)
 				require.NoError(t, err)
 
@@ -200,19 +411,27 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 
 				secret := &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:        "test-service-cert",
-						Namespace:   namespace,
-						Annotations: map[string]string{OLMCAHashAnnotationKey: caHash},
-						Labels:      map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
+						Name:      "test-service-cert",
+						Namespace: namespace,
+						Annotations: map[string]string{
+							OLMCAHashAnnotationKey:   caHash,
+							OLMCertHashAnnotationKey: certs.PEMSHA256(certPEM),
+							OLMKeyHashAnnotationKey:  certs.PEMSHA256(privPEM),
+						},
+						Labels: map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
 					},
 					Data: map[string][]byte{
-						"tls.crt":   certPEM,
-						"tls.key":   privPEM,
-						OLMCAPEMKey: caPEM,
+						corev1.TLSCertKey:       certPEM,
+						corev1.TLSPrivateKeyKey: privPEM,
+						OLMCAPEMKey:             caPEM,
 					},
 					Type: corev1.SecretTypeTLS,
 				}
-				mockOpClient.EXPECT().UpdateSecret(secret).Return(secret, nil)
+				if args.reuseSecret {
+					reusableSecret = secret
+				} else {
+					mockOpClient.EXPECT().UpdateSecret(secret).Return(secret, nil)
+				}
 
 				secretRole := &rbacv1.Role{
 					ObjectMeta: metav1.ObjectMeta{
@@ -334,6 +553,9 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				existingSecret: &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{},
 				},
+				getSecret: func() (*corev1.Secret, error) {
+					return reusableSecret, nil
+				},
 				existingRole: &rbacv1.Role{
 					ObjectMeta: metav1.ObjectMeta{},
 				},
@@ -355,7 +577,8 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 			args: args{
 				deploymentName: "test",
 				ca:             ca,
-				rotateAt:       time.Now().Add(time.Hour),
+				rotateAt:       time.Now().Add(DefaultCertValidFor),
+				reuseSecret:    true,
 				ports:          []corev1.ServicePort{},
 				depSpec: appsv1.DeploymentSpec{
 					Selector: selector(t, "test=label"),
@@ -389,11 +612,11 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 										SecretName: "test-service-cert",
 										Items: []corev1.KeyToPath{
 											{
-												Key:  "tls.crt",
+												Key:  corev1.TLSCertKey,
 												Path: "apiserver.crt",
 											},
 											{
-												Key:  "tls.key",
+												Key:  corev1.TLSPrivateKeyKey,
 												Path: "apiserver.key",
 											},
 										},
@@ -407,11 +630,11 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 										SecretName: "test-service-cert",
 										Items: []corev1.KeyToPath{
 											{
-												Key:  "tls.crt",
+												Key:  corev1.TLSCertKey,
 												Path: "tls.crt",
 											},
 											{
-												Key:  "tls.key",
+												Key:  corev1.TLSPrivateKeyKey,
 												Path: "tls.key",
 											},
 										},
@@ -471,15 +694,19 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 
 				secret := &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:        "test-service-cert",
-						Namespace:   namespace,
-						Annotations: map[string]string{OLMCAHashAnnotationKey: caHash},
-						Labels:      map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
+						Name:      "test-service-cert",
+						Namespace: namespace,
+						Annotations: map[string]string{
+							OLMCAHashAnnotationKey:   caHash,
+							OLMCertHashAnnotationKey: certs.PEMSHA256(certPEM),
+							OLMKeyHashAnnotationKey:  certs.PEMSHA256(privPEM),
+						},
+						Labels: map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
 					},
 					Data: map[string][]byte{
-						"tls.crt":   certPEM,
-						"tls.key":   privPEM,
-						OLMCAPEMKey: caPEM,
+						corev1.TLSCertKey:       certPEM,
+						corev1.TLSPrivateKeyKey: privPEM,
+						OLMCAPEMKey:             caPEM,
 					},
 					Type: corev1.SecretTypeTLS,
 				}
@@ -655,11 +882,11 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 										SecretName: "test-service-cert",
 										Items: []corev1.KeyToPath{
 											{
-												Key:  "tls.crt",
+												Key:  corev1.TLSCertKey,
 												Path: "apiserver.crt",
 											},
 											{
-												Key:  "tls.key",
+												Key:  corev1.TLSPrivateKeyKey,
 												Path: "apiserver.key",
 											},
 										},
@@ -673,11 +900,11 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 										SecretName: "test-service-cert",
 										Items: []corev1.KeyToPath{
 											{
-												Key:  "tls.crt",
+												Key:  corev1.TLSCertKey,
 												Path: "tls.crt",
 											},
 											{
-												Key:  "tls.key",
+												Key:  corev1.TLSPrivateKeyKey,
 												Path: "tls.key",
 											},
 										},
@@ -737,18 +964,22 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 
 				secret := &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:        "test-service-cert",
-						Namespace:   namespace,
-						Annotations: map[string]string{OLMCAHashAnnotationKey: caHash},
-						Labels:      map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
+						Name:      "test-service-cert",
+						Namespace: namespace,
+						Annotations: map[string]string{
+							OLMCAHashAnnotationKey:   caHash,
+							OLMCertHashAnnotationKey: certs.PEMSHA256(certPEM),
+							OLMKeyHashAnnotationKey:  certs.PEMSHA256(privPEM),
+						},
+						Labels: map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
 						OwnerReferences: []metav1.OwnerReference{
 							ownerutil.NonBlockingOwner(&v1alpha1.ClusterServiceVersion{}),
 						},
 					},
 					Data: map[string][]byte{
-						"tls.crt":   certPEM,
-						"tls.key":   privPEM,
-						OLMCAPEMKey: caPEM,
+						corev1.TLSCertKey:       certPEM,
+						corev1.TLSPrivateKeyKey: privPEM,
+						OLMCAPEMKey:             caPEM,
 					},
 					Type: corev1.SecretTypeTLS,
 				}
@@ -929,11 +1160,11 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 										SecretName: "test-service-cert",
 										Items: []corev1.KeyToPath{
 											{
-												Key:  "tls.crt",
+												Key:  corev1.TLSCertKey,
 												Path: "apiserver.crt",
 											},
 											{
-												Key:  "tls.key",
+												Key:  corev1.TLSPrivateKeyKey,
 												Path: "apiserver.key",
 											},
 										},
@@ -947,11 +1178,11 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 										SecretName: "test-service-cert",
 										Items: []corev1.KeyToPath{
 											{
-												Key:  "tls.crt",
+												Key:  corev1.TLSCertKey,
 												Path: "tls.crt",
 											},
 											{
-												Key:  "tls.key",
+												Key:  corev1.TLSPrivateKeyKey,
 												Path: "tls.key",
 											},
 										},

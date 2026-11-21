@@ -520,6 +520,145 @@ var _ = Describe("CSVs with a Webhook", Label("Webhooks"), func() {
 			newWebhookCABundle := actualWebhook.Webhooks[0].ClientConfig.CABundle
 			Expect(newWebhookCABundle).ShouldNot(Equal(oldWebhookCABundle))
 		})
+		It("rotates serving Secret when fingerprints do not match", func() {
+			webhook := newServingWebhookDescription()
+
+			csv := createCSVWithWebhook(generatedNamespace.GetName(), webhook)
+			var err error
+			cleanupCSV, err = createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
+			Expect(err).Should(BeNil())
+
+			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
+			Expect(err).Should(BeNil())
+
+			dep, err := c.GetDeployment(generatedNamespace.GetName(), webhook.DeploymentName)
+			Expect(err).ShouldNot(HaveOccurred())
+			oldDeploymentCAHash, ok := dep.Spec.Template.GetAnnotations()[install.OLMCAHashAnnotationKey]
+			Expect(ok).Should(BeTrue())
+
+			secretName := install.SecretName(install.ServiceName(dep.Name))
+			secret, err := c.KubernetesInterface().CoreV1().Secrets(generatedNamespace.GetName()).Get(context.TODO(), secretName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(secret.Labels).Should(HaveKeyWithValue(install.OLMManagedLabelKey, install.OLMManagedLabelValue))
+
+			oldSecretCAHash := secret.Annotations[install.OLMCAHashAnnotationKey]
+			oldCertHashAnnotation := secret.Annotations[install.OLMCertHashAnnotationKey]
+			oldKeyHashAnnotation := secret.Annotations[install.OLMKeyHashAnnotationKey]
+			Expect(oldSecretCAHash).ShouldNot(BeEmpty())
+			Expect(oldCertHashAnnotation).ShouldNot(BeEmpty())
+			Expect(oldKeyHashAnnotation).ShouldNot(BeEmpty())
+
+			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
+			Expect(err).ShouldNot(HaveOccurred())
+			oldWebhookCABundle := append([]byte(nil), actualWebhook.Webhooks[0].ClientConfig.CABundle...)
+
+			tamperedCA, tamperedCert, tamperedKey := generateValidCerts(install.HostnamesForService(install.ServiceName(dep.Name), generatedNamespace.GetName()))
+			By("Replacing the serving Secret with valid material whose fingerprints are stale")
+			Eventually(Apply(secret, func(secret *corev1.Secret) error {
+				secret.Data[install.OLMCAPEMKey] = tamperedCA
+				secret.Data[corev1.TLSCertKey] = tamperedCert
+				secret.Data[corev1.TLSPrivateKeyKey] = tamperedKey
+				return nil
+			})).Should(Succeed())
+
+			var rotatedSecret *corev1.Secret
+			Eventually(func() bool {
+				rotatedSecret, err = c.KubernetesInterface().CoreV1().Secrets(generatedNamespace.GetName()).Get(context.TODO(), secretName, metav1.GetOptions{})
+				if err != nil {
+					return false
+				}
+
+				return rotatedSecret.Annotations[install.OLMCAHashAnnotationKey] != oldSecretCAHash && servingSecretFingerprintsMatch(rotatedSecret)
+			}).Should(BeTrue())
+
+			Expect(rotatedSecret.Data[install.OLMCAPEMKey]).ShouldNot(Equal(tamperedCA))
+			Expect(rotatedSecret.Data[corev1.TLSCertKey]).ShouldNot(Equal(tamperedCert))
+			Expect(rotatedSecret.Data[corev1.TLSPrivateKeyKey]).ShouldNot(Equal(tamperedKey))
+			Expect(rotatedSecret.Annotations[install.OLMCertHashAnnotationKey]).ShouldNot(Equal(oldCertHashAnnotation))
+			Expect(rotatedSecret.Annotations[install.OLMKeyHashAnnotationKey]).ShouldNot(Equal(oldKeyHashAnnotation))
+
+			Eventually(func() bool {
+				dep, err = c.GetDeployment(generatedNamespace.GetName(), webhook.DeploymentName)
+				if err != nil {
+					return false
+				}
+				return dep.Spec.Template.GetAnnotations()[install.OLMCAHashAnnotationKey] == rotatedSecret.Annotations[install.OLMCAHashAnnotationKey] &&
+					dep.Spec.Template.GetAnnotations()[install.OLMCAHashAnnotationKey] != oldDeploymentCAHash
+			}).Should(BeTrue())
+
+			Eventually(func() bool {
+				actualWebhook, err = getWebhookWithGenerateName(c, webhook.GenerateName)
+				return err == nil && actualWebhook.Webhooks[0].ClientConfig.CABundle != nil &&
+					string(actualWebhook.Webhooks[0].ClientConfig.CABundle) != string(oldWebhookCABundle)
+			}).Should(BeTrue())
+
+			rotatedResourceVersion := rotatedSecret.ResourceVersion
+			rotatedCAHash := rotatedSecret.Annotations[install.OLMCAHashAnnotationKey]
+			Consistently(func() bool {
+				currentSecret, secretErr := c.KubernetesInterface().CoreV1().Secrets(generatedNamespace.GetName()).Get(context.TODO(), secretName, metav1.GetOptions{})
+				currentDeployment, deploymentErr := c.GetDeployment(generatedNamespace.GetName(), webhook.DeploymentName)
+				return secretErr == nil && deploymentErr == nil &&
+					currentSecret.ResourceVersion == rotatedResourceVersion && servingSecretFingerprintsMatch(currentSecret) &&
+					currentDeployment.Spec.Template.GetAnnotations()[install.OLMCAHashAnnotationKey] == rotatedCAHash
+			}, 10*time.Second, time.Second).Should(BeTrue())
+		})
+		It("rotates legacy serving Secret to establish fingerprints", func() {
+			webhook := newServingWebhookDescription()
+
+			csv := createCSVWithWebhook(generatedNamespace.GetName(), webhook)
+			var err error
+			cleanupCSV, err = createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
+			Expect(err).Should(BeNil())
+
+			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
+			Expect(err).Should(BeNil())
+
+			dep, err := c.GetDeployment(generatedNamespace.GetName(), webhook.DeploymentName)
+			Expect(err).ShouldNot(HaveOccurred())
+			oldDeploymentCAHash, ok := dep.Spec.Template.GetAnnotations()[install.OLMCAHashAnnotationKey]
+			Expect(ok).Should(BeTrue())
+
+			secretName := install.SecretName(install.ServiceName(dep.Name))
+			secret, err := c.KubernetesInterface().CoreV1().Secrets(generatedNamespace.GetName()).Get(context.TODO(), secretName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(secret.Labels).Should(HaveKeyWithValue(install.OLMManagedLabelKey, install.OLMManagedLabelValue))
+
+			originalCA := append([]byte(nil), secret.Data[install.OLMCAPEMKey]...)
+			originalCert := append([]byte(nil), secret.Data[corev1.TLSCertKey]...)
+			originalKey := append([]byte(nil), secret.Data[corev1.TLSPrivateKeyKey]...)
+			By("Removing fingerprints from the serving Secret")
+			Eventually(func() error {
+				secret, err := c.KubernetesInterface().CoreV1().Secrets(generatedNamespace.GetName()).Get(context.TODO(), secretName, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				delete(secret.Annotations, install.OLMCAHashAnnotationKey)
+				delete(secret.Annotations, install.OLMCertHashAnnotationKey)
+				delete(secret.Annotations, install.OLMKeyHashAnnotationKey)
+				_, err = c.KubernetesInterface().CoreV1().Secrets(generatedNamespace.GetName()).Update(context.TODO(), secret, metav1.UpdateOptions{})
+				return err
+			}).Should(Succeed())
+
+			var rotatedSecret *corev1.Secret
+			Eventually(func() bool {
+				rotatedSecret, err = c.KubernetesInterface().CoreV1().Secrets(generatedNamespace.GetName()).Get(context.TODO(), secretName, metav1.GetOptions{})
+				if err != nil {
+					return false
+				}
+
+				return servingSecretFingerprintsMatch(rotatedSecret) &&
+					string(rotatedSecret.Data[install.OLMCAPEMKey]) != string(originalCA) &&
+					string(rotatedSecret.Data[corev1.TLSCertKey]) != string(originalCert) &&
+					string(rotatedSecret.Data[corev1.TLSPrivateKeyKey]) != string(originalKey)
+			}).Should(BeTrue())
+
+			Expect(rotatedSecret.Labels).Should(HaveKeyWithValue(install.OLMManagedLabelKey, install.OLMManagedLabelValue))
+			Eventually(func() bool {
+				dep, err = c.GetDeployment(generatedNamespace.GetName(), webhook.DeploymentName)
+				return err == nil && dep.Spec.Template.GetAnnotations()[install.OLMCAHashAnnotationKey] == rotatedSecret.Annotations[install.OLMCAHashAnnotationKey] &&
+					dep.Spec.Template.GetAnnotations()[install.OLMCAHashAnnotationKey] != oldDeploymentCAHash
+			}).Should(BeTrue())
+		})
 	})
 	When("Installed in a Global OperatorGroup", func() {
 		var cleanupCSV cleanupFunc
@@ -1256,6 +1395,43 @@ func newV1CRD(plural string) apiextensionsv1.CustomResourceDefinition {
 	}
 
 	return crd
+}
+
+func generateValidCerts(hosts []string) ([]byte, []byte, []byte) {
+	ca, err := certs.GenerateCA(time.Now().Add(install.DefaultCertValidFor), install.Organization)
+	Expect(err).Should(BeNil())
+
+	serving, err := certs.CreateSignedServingPair(time.Now().Add(install.DefaultCertValidFor), install.Organization, ca, hosts)
+	Expect(err).Should(BeNil())
+
+	caPEM, _, err := ca.ToPEM()
+	Expect(err).Should(BeNil())
+	certPEM, privPEM, err := serving.ToPEM()
+	Expect(err).Should(BeNil())
+
+	return caPEM, certPEM, privPEM
+}
+
+func newServingWebhookDescription() operatorsv1alpha1.WebhookDescription {
+	sideEffect := admissionregistrationv1.SideEffectClassNone
+	return operatorsv1alpha1.WebhookDescription{
+		GenerateName:            webhookName,
+		Type:                    operatorsv1alpha1.ValidatingAdmissionWebhook,
+		DeploymentName:          genName("webhook-dep-"),
+		ContainerPort:           443,
+		AdmissionReviewVersions: []string{"v1beta1", "v1"},
+		SideEffects:             &sideEffect,
+	}
+}
+
+func servingSecretFingerprintsMatch(secret *corev1.Secret) bool {
+	caPEM, caOK := secret.Data[install.OLMCAPEMKey]
+	certPEM, certOK := secret.Data[corev1.TLSCertKey]
+	keyPEM, keyOK := secret.Data[corev1.TLSPrivateKeyKey]
+	return caOK && certOK && keyOK &&
+		secret.Annotations[install.OLMCAHashAnnotationKey] == certs.PEMSHA256(caPEM) &&
+		secret.Annotations[install.OLMCertHashAnnotationKey] == certs.PEMSHA256(certPEM) &&
+		secret.Annotations[install.OLMKeyHashAnnotationKey] == certs.PEMSHA256(keyPEM)
 }
 
 func generateExpiredCerts(hosts []string) ([]byte, []byte, []byte) {
