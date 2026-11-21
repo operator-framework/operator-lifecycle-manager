@@ -112,6 +112,10 @@ func CreateSignedServingPair(notAfter time.Time, organization string, ca *KeyPai
 		return nil, fmt.Errorf("invalid notAfter: %s before %s", notAfter.String(), notBefore.String())
 	}
 
+	if len(hosts) < 1 {
+		return nil, fmt.Errorf("at least one host must be specified")
+	}
+
 	serial, err := rand.Int(rand.Reader, new(big.Int).SetInt64(math.MaxInt64))
 	if err != nil {
 		return nil, err
