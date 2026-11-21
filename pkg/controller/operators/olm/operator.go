@@ -92,35 +92,37 @@ var operatorPlugInFactoryFuncs []plugins.OperatorPlugInFactoryFunc
 type Operator struct {
 	queueinformer.Operator
 
-	clock                        utilclock.Clock
-	logger                       *logrus.Logger
-	opClient                     operatorclient.ClientInterface
-	client                       versioned.Interface
-	lister                       operatorlister.OperatorLister
-	protectedCopiedCSVNamespaces map[string]struct{}
-	copiedCSVLister              operatorsv1alpha1listers.ClusterServiceVersionLister
-	ogQueueSet                   *queueinformer.ResourceQueueSet
-	csvQueueSet                  *queueinformer.ResourceQueueSet
-	olmConfigQueue               workqueue.TypedRateLimitingInterface[types.NamespacedName]
-	csvCopyQueueSet              *queueinformer.ResourceQueueSet
-	copiedCSVQueueSet            *queueinformer.ResourceQueueSet
-	nsQueueSet                   workqueue.TypedRateLimitingInterface[types.NamespacedName]
-	apiServiceQueue              workqueue.TypedRateLimitingInterface[types.NamespacedName]
-	csvIndexers                  map[string]cache.Indexer
-	recorder                     record.EventRecorder
-	resolver                     install.StrategyResolverInterface
-	apiReconciler                APIIntersectionReconciler
-	apiLabeler                   labeler.Labeler
-	csvSetGenerator              csvutility.SetGenerator
-	csvReplaceFinder             csvutility.ReplaceFinder
-	csvNotification              csvutility.WatchNotification
-	serviceAccountSyncer         *scoped.UserDefinedServiceAccountSyncer
-	clientAttenuator             *scoped.ClientAttenuator
-	serviceAccountQuerier        *scoped.UserDefinedServiceAccountQuerier
-	clientFactory                clients.Factory
-	plugins                      []plugins.OperatorPlugin
-	informersByNamespace         map[string]*plugins.Informers
-	informersFiltered            bool
+	clock                           utilclock.Clock
+	logger                          *logrus.Logger
+	opClient                        operatorclient.ClientInterface
+	client                          versioned.Interface
+	lister                          operatorlister.OperatorLister
+	protectedCopiedCSVNamespaces    map[string]struct{}
+	copiedCSVLister                 operatorsv1alpha1listers.ClusterServiceVersionLister
+	ogQueueSet                      *queueinformer.ResourceQueueSet
+	csvQueueSet                     *queueinformer.ResourceQueueSet
+	olmConfigQueue                  workqueue.TypedRateLimitingInterface[types.NamespacedName]
+	csvCopyQueueSet                 *queueinformer.ResourceQueueSet
+	copiedCSVQueueSet               *queueinformer.ResourceQueueSet
+	nsQueueSet                      workqueue.TypedRateLimitingInterface[types.NamespacedName]
+	apiServiceQueue                 workqueue.TypedRateLimitingInterface[types.NamespacedName]
+	conversionWebhookCleanupQueue   workqueue.TypedRateLimitingInterface[types.NamespacedName]
+	conversionWebhookCleanupIndexer cache.Indexer
+	csvIndexers                     map[string]cache.Indexer
+	recorder                        record.EventRecorder
+	resolver                        install.StrategyResolverInterface
+	apiReconciler                   APIIntersectionReconciler
+	apiLabeler                      labeler.Labeler
+	csvSetGenerator                 csvutility.SetGenerator
+	csvReplaceFinder                csvutility.ReplaceFinder
+	csvNotification                 csvutility.WatchNotification
+	serviceAccountSyncer            *scoped.UserDefinedServiceAccountSyncer
+	clientAttenuator                *scoped.ClientAttenuator
+	serviceAccountQuerier           *scoped.UserDefinedServiceAccountQuerier
+	clientFactory                   clients.Factory
+	plugins                         []plugins.OperatorPlugin
+	informersByNamespace            map[string]*plugins.Informers
+	informersFiltered               bool
 
 	ruleChecker     func(*v1alpha1.ClusterServiceVersion) *install.CSVRuleChecker
 	ruleCheckerLock sync.RWMutex
@@ -208,6 +210,11 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
+	conversionWebhookCleanupQueue := workqueue.NewTypedRateLimitingQueueWithConfig[types.NamespacedName](
+		workqueue.DefaultTypedControllerRateLimiter[types.NamespacedName](),
+		workqueue.TypedRateLimitingQueueConfig[types.NamespacedName]{Name: "conversion-webhook-cleanup"},
+	)
+
 	op := &Operator{
 		Operator:    queueOperator,
 		clock:       config.clock,
@@ -229,23 +236,39 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 			workqueue.TypedRateLimitingQueueConfig[types.NamespacedName]{
 				Name: "apiservice",
 			}),
-		resolver:                     config.strategyResolver,
-		apiReconciler:                config.apiReconciler,
-		lister:                       lister,
-		recorder:                     eventRecorder,
-		apiLabeler:                   config.apiLabeler,
-		csvIndexers:                  map[string]cache.Indexer{},
-		csvSetGenerator:              csvutility.NewSetGenerator(config.logger, lister),
-		csvReplaceFinder:             csvutility.NewReplaceFinder(config.logger, config.externalClient),
-		serviceAccountSyncer:         scoped.NewUserDefinedServiceAccountSyncer(config.logger, scheme, config.operatorClient, config.externalClient),
-		clientAttenuator:             scoped.NewClientAttenuator(config.logger, config.restConfig, config.operatorClient),
-		serviceAccountQuerier:        scoped.NewUserDefinedServiceAccountQuerier(config.logger, config.externalClient),
-		clientFactory:                clients.NewFactory(config.restConfig),
-		protectedCopiedCSVNamespaces: config.protectedCopiedCSVNamespaces,
-		resyncPeriod:                 config.resyncPeriod,
-		ruleCheckerLock:              sync.RWMutex{},
-		ctx:                          ctx,
-		informersFiltered:            canFilter,
+		conversionWebhookCleanupQueue:   conversionWebhookCleanupQueue,
+		conversionWebhookCleanupIndexer: cache.NewIndexer(conversionWebhookCleanupIndexerKey, cache.Indexers{}),
+		resolver:                        config.strategyResolver,
+		apiReconciler:                   config.apiReconciler,
+		lister:                          lister,
+		recorder:                        eventRecorder,
+		apiLabeler:                      config.apiLabeler,
+		csvIndexers:                     map[string]cache.Indexer{},
+		csvSetGenerator:                 csvutility.NewSetGenerator(config.logger, lister),
+		csvReplaceFinder:                csvutility.NewReplaceFinder(config.logger, config.externalClient),
+		serviceAccountSyncer:            scoped.NewUserDefinedServiceAccountSyncer(config.logger, scheme, config.operatorClient, config.externalClient),
+		clientAttenuator:                scoped.NewClientAttenuator(config.logger, config.restConfig, config.operatorClient),
+		serviceAccountQuerier:           scoped.NewUserDefinedServiceAccountQuerier(config.logger, config.externalClient),
+		clientFactory:                   clients.NewFactory(config.restConfig),
+		protectedCopiedCSVNamespaces:    config.protectedCopiedCSVNamespaces,
+		resyncPeriod:                    config.resyncPeriod,
+		ruleCheckerLock:                 sync.RWMutex{},
+		ctx:                             ctx,
+		informersFiltered:               canFilter,
+	}
+
+	conversionWebhookCleanupQueueInformer, err := queueinformer.NewQueueInformer(
+		ctx,
+		queueinformer.WithLogger(op.logger),
+		queueinformer.WithQueue(op.conversionWebhookCleanupQueue),
+		queueinformer.WithIndexer(op.conversionWebhookCleanupIndexer),
+		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncDeletedCSVConversionWebhook).ToSyncer()),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := op.RegisterQueueInformer(conversionWebhookCleanupQueueInformer); err != nil {
+		return nil, err
 	}
 
 	informersByNamespace := map[string]*plugins.Informers{}
@@ -1300,37 +1323,98 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 	// openapiv3 schema fails.
 	// As such, when a CSV is deleted OLM will check if it is being replaced. If the CSV is not being replaced, OLM will remove the conversion
 	// webhook from the CRD definition.
-	csvs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(clusterServiceVersion.GetNamespace()).List(labels.Everything())
-	if err != nil {
-		logger.Errorf("error listing csvs: %v\n", err)
+	for _, desc := range clusterServiceVersion.Spec.WebhookDefinitions {
+		if desc.Type == v1alpha1.ConversionWebhook && len(desc.ConversionCRDs) > 0 {
+			if err := a.conversionWebhookCleanupIndexer.Add(clusterServiceVersion.DeepCopy()); err != nil {
+				logger.WithError(err).Error("could not enqueue conversion webhook cleanup")
+				return
+			}
+			a.conversionWebhookCleanupQueue.Add(conversionWebhookCleanupQueueKey(clusterServiceVersion))
+			break
+		}
 	}
-	for _, csv := range csvs {
-		if csv.Spec.Replaces == clusterServiceVersion.GetName() {
-			return
+}
+
+func conversionWebhookCleanupQueueKey(csv *v1alpha1.ClusterServiceVersion) types.NamespacedName {
+	return types.NamespacedName{
+		Namespace: csv.GetNamespace(),
+		Name:      csv.GetName() + "/" + string(csv.GetUID()),
+	}
+}
+
+func conversionWebhookCleanupIndexerKey(obj interface{}) (string, error) {
+	csv, ok := obj.(*v1alpha1.ClusterServiceVersion)
+	if !ok {
+		return "", fmt.Errorf("unexpected object type for conversion webhook cleanup indexer: %T", obj)
+	}
+	return conversionWebhookCleanupQueueKey(csv).String(), nil
+}
+
+func (a *Operator) syncDeletedCSVConversionWebhook(obj interface{}) error {
+	csv, ok := obj.(*v1alpha1.ClusterServiceVersion)
+	if !ok {
+		return fmt.Errorf("unexpected object type for conversion webhook cleanup: %T", obj)
+	}
+
+	csvs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(csv.GetNamespace()).List(labels.Everything())
+	if err != nil {
+		return fmt.Errorf("could not list CSVs while cleaning up conversion webhook for %s/%s: %w", csv.GetNamespace(), csv.GetName(), err)
+	}
+
+	// Build the set of CRDs whose ConversionWebhook is still covered by the replacement CSV.
+	// If the replacement dropped the ConversionWebhook for a given CRD, spec.conversion on
+	// that CRD must be reset — otherwise it keeps pointing at the now-deleted service and
+	// all CR requests against that CRD will fail.
+	coveredCRDs := map[string]bool{}
+	for _, candidate := range csvs {
+		isReplacement := candidate.Spec.Replaces == csv.GetName()
+		isRecreatedCSV := candidate.GetName() == csv.GetName() && candidate.GetUID() != csv.GetUID()
+		if isReplacement || isRecreatedCSV {
+			for _, desc := range candidate.Spec.WebhookDefinitions {
+				if desc.Type == v1alpha1.ConversionWebhook {
+					for _, crdName := range desc.ConversionCRDs {
+						coveredCRDs[crdName] = true
+					}
+				}
+			}
 		}
 	}
 
-	for _, desc := range clusterServiceVersion.Spec.WebhookDefinitions {
-		if desc.Type != v1alpha1.ConversionWebhook || len(desc.ConversionCRDs) == 0 {
+	crdClient := a.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions()
+	for i, desc := range csv.Spec.WebhookDefinitions {
+		if desc.Type != v1alpha1.ConversionWebhook {
 			continue
 		}
 
-		for i, crdName := range desc.ConversionCRDs {
-			crd, err := a.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
-			if err != nil {
-				logger.Errorf("error getting CRD %v which was defined in CSVs spec.WebhookDefinition[%d]: %v\n", crdName, i, err)
+		for _, crdName := range desc.ConversionCRDs {
+			if coveredCRDs[crdName] {
+				// Replacement CSV still has a ConversionWebhook for this CRD; leave
+				// spec.conversion intact so in-flight conversion calls keep working.
 				continue
 			}
 
-			copy := crd.DeepCopy()
-			copy.Spec.Conversion.Strategy = apiextensionsv1.NoneConverter
-			copy.Spec.Conversion.Webhook = nil
+			crd, err := crdClient.Get(context.TODO(), crdName, metav1.GetOptions{})
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			if err != nil {
+				return fmt.Errorf("could not get CRD %s from deleted CSV %s webhook definition %d: %w", crdName, csv.GetName(), i, err)
+			}
 
-			if _, err = a.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), copy, metav1.UpdateOptions{}); err != nil {
-				logger.Errorf("error updating conversion strategy for CRD %v: %v\n", crdName, err)
+			if crd.Spec.Conversion == nil {
+				continue
+			}
+			updatedCRD := crd.DeepCopy()
+			updatedCRD.Spec.Conversion.Strategy = apiextensionsv1.NoneConverter
+			updatedCRD.Spec.Conversion.Webhook = nil
+
+			if _, err := crdClient.Update(context.TODO(), updatedCRD, metav1.UpdateOptions{}); err != nil {
+				return fmt.Errorf("could not clear conversion webhook for CRD %s: %w", crdName, err)
 			}
 		}
 	}
+
+	return a.conversionWebhookCleanupIndexer.Delete(csv)
 }
 
 func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) error {
@@ -2616,8 +2700,20 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 		a.logger.WithError(strategyErr).Debug("operator not installed")
 	}
 
+	// Removed admission webhooks can be cleaned up before the deployment is ready.
+	// Keep this separate from areWebhooksAvailable because conversion webhooks must
+	// not be activated until the deployment is serving requests.
+	webhookErr := a.cleanUpRemovedWebhooks(csv)
 	apiServicesInstalled, apiServiceErr := a.areAPIServicesAvailable(csv)
-	webhooksInstalled, webhookErr := a.areWebhooksAvailable(csv)
+	// Only attempt to write spec.conversion once the deployment is confirmed ready.
+	// areWebhooksAvailable calls EnsureConversionWebhooks, so calling it when
+	// strategyInstalled is false would recreate the upgrade race we are fixing.
+	// Note: CheckInstalled never returns (true, non-nil error), so strategyInstalled
+	// is sufficient — no need to also gate on strategyErr.
+	webhooksInstalled := true
+	if webhookErr == nil && strategyInstalled {
+		webhooksInstalled, webhookErr = a.areWebhooksAvailable(csv, installer)
+	}
 
 	if strategyInstalled && apiServicesInstalled && webhooksInstalled {
 		// if there's no error, we're successfully running

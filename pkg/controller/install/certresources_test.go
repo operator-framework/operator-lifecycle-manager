@@ -996,3 +996,47 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 		})
 	}
 }
+
+func TestEnsureConversionWebhooksLoadsCAFromSecret(t *testing.T) {
+	caPEM := []byte("ca")
+	owner := &v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "owner",
+			Namespace: "test-namespace",
+		},
+	}
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      SecretName(ServiceName("webhook-deployment")),
+			Namespace: owner.GetNamespace(),
+		},
+		Data: map[string][]byte{OLMCAPEMKey: caPEM},
+	}
+
+	lister := newFakeLister(fakeState{existingSecret: secret})
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockOpClient := operatorclientmocks.NewMockClientInterface(ctrl)
+	client := wrappers.NewInstallStrategyDeploymentClient(mockOpClient, lister, owner.GetNamespace())
+	installer := &StrategyDeploymentInstaller{
+		strategyClient: client,
+		owner:          owner,
+		webhookDescriptions: []certResource{
+			&webhookDescriptionWithCAPEM{
+				webhookDescription: v1alpha1.WebhookDescription{
+					Type:           v1alpha1.ConversionWebhook,
+					DeploymentName: "webhook-deployment",
+				},
+			},
+		},
+	}
+
+	desc := installer.webhookDescriptions[0].(*webhookDescriptionWithCAPEM)
+	got, err := installer.conversionWebhookCAPEM(desc)
+	require.NoError(t, err)
+	require.Equal(t, caPEM, got)
+}
