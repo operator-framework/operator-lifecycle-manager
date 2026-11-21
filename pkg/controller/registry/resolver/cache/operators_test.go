@@ -81,23 +81,65 @@ func TestAPIKeyToGVKString(t *testing.T) {
 		{
 			name: "EmptyAPIKey",
 			in:   opregistry.APIKey{},
-			want: "..",
+			want: "",
 		},
 		{
-			name: "BadAPIKey",
+			name: "BadAPIKey/MissingKind",
 			in:   opregistry.APIKey{Group: "birds. ", Version: "-"},
-			want: ".-.birds. ",
+			want: "",
 		},
 		{
 			name: "GoodAPIKey",
 			in:   opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"},
 			want: "Goose.v1alpha1.birds.com",
 		},
+		{
+			name: "CoreAPIKey/EmptyGroup",
+			in:   opregistry.APIKey{Version: "v1", Kind: "Pod"},
+			want: "Pod.v1.",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.want, APIKeyToGVKString(tt.in))
+		})
+	}
+}
+
+func TestAPIKeyToGVKHash(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      opregistry.APIKey
+		wantErr bool
+	}{
+		{
+			name:    "EmptyAPIKey/Error",
+			in:      opregistry.APIKey{},
+			wantErr: true,
+		},
+		{
+			name:    "MissingKind/Error",
+			in:      opregistry.APIKey{Group: "birds.com", Version: "v1alpha1"},
+			wantErr: true,
+		},
+		{
+			name:    "GoodAPIKey/NoError",
+			in:      opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hash, err := APIKeyToGVKHash(tt.in)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Empty(t, hash)
+			} else {
+				require.NoError(t, err)
+				require.NotEmpty(t, hash)
+			}
 		})
 	}
 }
@@ -135,7 +177,15 @@ func TestAPISetString(t *testing.T) {
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Egret"}: {},
 			},
-			want: ".v1alpha1.birds.com,Egret.v1alpha1.birds.com,Goose.v1alpha1.birds.com",
+			want: "Egret.v1alpha1.birds.com,Goose.v1alpha1.birds.com",
+		},
+		{
+			name: "AllInvalidKeys/EmptyOutput",
+			in: APISet{
+				opregistry.APIKey{}: {},
+				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1"}: {},
+			},
+			want: "",
 		},
 	}
 
