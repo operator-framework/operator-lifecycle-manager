@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/version"
+	"k8s.io/client-go/tools/cache"
 )
 
 type versionFunc func() (*version.Info, error)
@@ -90,5 +92,33 @@ func TestOperatorRunChannelClosure(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRegisterInformerDeduplicatesTypedWrappers(t *testing.T) {
+	// client-go's typed informer factories return a new
+	// typedSharedIndexInformer wrapper for every Informer() call around the
+	// same cached underlying informer, and two such wrappers of one
+	// informer compare unequal. Registering both must not enqueue the
+	// underlying informer twice, or RunInformers runs it twice and races
+	// sharedIndexInformer's start bookkeeping.
+	o, err := newOperatorFromConfig(defaultOperatorConfig())
+	if err != nil {
+		t.Fatalf("could not create operator from default config: %s", err)
+	}
+
+	underlying := cache.NewSharedIndexInformer(&cache.ListWatch{}, &corev1.Namespace{}, 0, cache.Indexers{})
+	first := cache.NewTypedSharedIndexInformer[*corev1.Namespace](underlying)
+	second := cache.NewTypedSharedIndexInformer[*corev1.Namespace](underlying)
+
+	if first == second {
+		t.Fatal("expected distinct wrapper instances around the same underlying informer")
+	}
+
+	o.registerInformer(first)
+	o.registerInformer(second)
+
+	if len(o.informers) != 1 {
+		t.Fatalf("expected the second wrapper of the same underlying informer to be deduplicated, got %d registered informers", len(o.informers))
 	}
 }
