@@ -854,6 +854,189 @@ var _ = Describe("Operator Group", Label("OperatorGroup"), func() {
 		csvA, err = fetchCSV(crc, nsA, csvA.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 	})
+	It("cleans up and reinstalls the InstallPlan RBAC of a CSV that fails on its OperatorGroup", func() {
+		By(`Create a catalog with an operator that supports only AllNamespaces and needs RBAC`)
+		By(`Update the OperatorGroup to target only its own namespace`)
+		By(`Subscribe and wait for the CSV to fail with reason "UnsupportedOperatorGroup"`)
+		By(`Wait for the InstallPlan to complete`)
+		By(`Ensure the Roles and ClusterRoles the InstallPlan created are removed`)
+		By(`Update the OperatorGroup to select all namespaces`)
+		By(`Ensure the InstallPlan creates the RBAC again and the CSV succeeds`)
+		By(`Break the OperatorGroup of the running operator, the Deployment and the plan RBAC go away`)
+		By(`Fix the OperatorGroup again, the operator comes back`)
+
+		ns := generatedNamespace.GetName()
+		pkg := genName("pkg-")
+		csvName := pkg + "-stable"
+		stableChannel := "stable"
+		saName := genName("sa-")
+
+		permissions := []v1alpha1.StrategyDeploymentPermissions{{
+			ServiceAccountName: saName,
+			Rules: []rbacv1.PolicyRule{{
+				Verbs:     []string{"get", "list"},
+				APIGroups: []string{""},
+				Resources: []string{"configmaps"},
+			}},
+		}}
+		clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{{
+			ServiceAccountName: saName,
+			Rules: []rbacv1.PolicyRule{{
+				Verbs:     []string{"get", "list"},
+				APIGroups: []string{""},
+				Resources: []string{"namespaces"},
+			}},
+		}}
+		strategy := newNginxInstallStrategy(csvName, permissions, clusterPermissions)
+		crd := newCRD(genName(pkg))
+		csv := newCSV(csvName, ns, "", semver.MustParse("0.1.0"), []apiextensionsv1.CustomResourceDefinition{crd}, nil, &strategy)
+		csv.Spec.InstallModes = []v1alpha1.InstallMode{
+			{Type: v1alpha1.InstallModeTypeOwnNamespace, Supported: false},
+			{Type: v1alpha1.InstallModeTypeSingleNamespace, Supported: false},
+			{Type: v1alpha1.InstallModeTypeMultiNamespace, Supported: false},
+			{Type: v1alpha1.InstallModeTypeAllNamespaces, Supported: true},
+		}
+
+		By(`Create a catalog with an operator that supports only AllNamespaces and needs RBAC`)
+		manifests := []registry.PackageManifest{{
+			PackageName:        pkg,
+			Channels:           []registry.PackageChannel{{Name: stableChannel, CurrentCSVName: csvName}},
+			DefaultChannelName: stableChannel,
+		}}
+		catalog := genName("catalog-")
+		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalog, ns, manifests, []apiextensionsv1.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+		defer cleanupCatalogSource()
+		_, err := fetchCatalogSourceOnStatus(crc, catalog, ns, catalogSourceRegistryPodSynced())
+		require.NoError(GinkgoT(), err)
+
+		// The generated namespace already has an OperatorGroup. A second one
+		// would stop the catalog-operator from resolving, so retarget that one.
+		groupName := fmt.Sprintf("%s-operatorgroup", ns)
+		setTargetNamespaces := func(targets []string) error {
+			return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+				current, err := crc.OperatorsV1().OperatorGroups(ns).Get(context.TODO(), groupName, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				current.Spec.TargetNamespaces = targets
+				_, err = crc.OperatorsV1().OperatorGroups(ns).Update(context.TODO(), current, metav1.UpdateOptions{})
+				return err
+			})
+		}
+
+		By(`Update the OperatorGroup to target only its own namespace`)
+		require.NoError(GinkgoT(), setTargetNamespaces([]string{ns}))
+
+		By(`Subscribe and wait for the CSV to fail with reason "UnsupportedOperatorGroup"`)
+		subName := genName("sub-")
+		cleanupSub := createSubscriptionForCatalog(crc, ns, subName, catalog, pkg, stableChannel, csvName, v1alpha1.ApprovalAutomatic)
+		defer cleanupSub()
+		sub, err := fetchSubscription(crc, ns, subName, subscriptionHasInstallPlanChecker())
+		require.NoError(GinkgoT(), err)
+		failedWithUnsupportedOperatorGroup := func(csv *v1alpha1.ClusterServiceVersion) bool {
+			return csvFailedChecker(csv) && csv.Status.Reason == v1alpha1.CSVReasonUnsupportedOperatorGroup
+		}
+		_, err = fetchCSV(crc, ns, csvName, failedWithUnsupportedOperatorGroup)
+		require.NoError(GinkgoT(), err)
+
+		By(`Wait for the InstallPlan to complete`)
+		planName := sub.Status.InstallPlanRef.Name
+		_, err = fetchInstallPlan(GinkgoT(), crc, planName, ns, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+		require.NoError(GinkgoT(), err)
+
+		ownedRBAC := func() (map[string]int, error) {
+			selector := labels.SelectorFromSet(map[string]string{
+				ownerutil.OwnerKey:          csvName,
+				ownerutil.OwnerNamespaceKey: ns,
+				ownerutil.OwnerKind:         v1alpha1.ClusterServiceVersionKind,
+			})
+			options := metav1.ListOptions{LabelSelector: selector.String()}
+			counts := map[string]int{}
+			roles, err := c.KubernetesInterface().RbacV1().Roles(ns).List(context.TODO(), options)
+			if err != nil {
+				return nil, err
+			}
+			counts["Role"] = len(roles.Items)
+			roleBindings, err := c.KubernetesInterface().RbacV1().RoleBindings(ns).List(context.TODO(), options)
+			if err != nil {
+				return nil, err
+			}
+			counts["RoleBinding"] = len(roleBindings.Items)
+			clusterRoles, err := c.KubernetesInterface().RbacV1().ClusterRoles().List(context.TODO(), options)
+			if err != nil {
+				return nil, err
+			}
+			counts["ClusterRole"] = len(clusterRoles.Items)
+			clusterRoleBindings, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().List(context.TODO(), options)
+			if err != nil {
+				return nil, err
+			}
+			counts["ClusterRoleBinding"] = len(clusterRoleBindings.Items)
+			return counts, nil
+		}
+		none := map[string]int{"Role": 0, "RoleBinding": 0, "ClusterRole": 0, "ClusterRoleBinding": 0}
+
+		By(`Ensure the Roles and ClusterRoles the InstallPlan created are removed`)
+		Eventually(ownedRBAC, pollDuration, pollInterval).Should(Equal(none))
+
+		By(`Update the OperatorGroup to select all namespaces`)
+		require.NoError(GinkgoT(), setTargetNamespaces(nil))
+
+		By(`Ensure the InstallPlan creates the RBAC again and the CSV succeeds`)
+		_, err = fetchCSV(crc, ns, csvName, csvSucceededChecker)
+		require.NoError(GinkgoT(), err)
+		plan, err := fetchInstallPlan(GinkgoT(), crc, planName, ns, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+		require.NoError(GinkgoT(), err)
+		// A re-executed step reports Created, or Present when the
+		// catalog-operator synced the plan a second time.
+		for _, step := range plan.Status.Plan {
+			switch step.Resource.Kind {
+			case "Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding":
+				require.Contains(GinkgoT(), []v1alpha1.StepStatus{v1alpha1.StepStatusCreated, v1alpha1.StepStatusPresent}, step.Status, "step %s/%s was not executed again", step.Resource.Kind, step.Resource.Name)
+			}
+		}
+		counts, err := ownedRBAC()
+		require.NoError(GinkgoT(), err)
+		for kind, count := range counts {
+			require.GreaterOrEqual(GinkgoT(), count, 1, "%s owned by the CSV", kind)
+		}
+
+		By(`Break the OperatorGroup of the running operator, the Deployment and the plan RBAC go away`)
+		require.NoError(GinkgoT(), setTargetNamespaces([]string{ns}))
+		_, err = fetchCSV(crc, ns, csvName, failedWithUnsupportedOperatorGroup)
+		require.NoError(GinkgoT(), err)
+		Eventually(func() (bool, error) {
+			_, err := c.GetDeployment(ns, csvName)
+			if apierrors.IsNotFound(err) {
+				return true, nil
+			}
+			return false, err
+		}, pollDuration, pollInterval).Should(BeTrue(), "deployment of the failed operator must be deleted")
+		Eventually(func() (int, error) {
+			plan, err := crc.OperatorsV1alpha1().InstallPlans(ns).Get(context.TODO(), planName, metav1.GetOptions{})
+			if err != nil {
+				return -1, err
+			}
+			notPresent := 0
+			for _, step := range plan.Status.Plan {
+				switch step.Resource.Kind {
+				case "Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding":
+					if step.Status == v1alpha1.StepStatusNotPresent {
+						notPresent++
+					}
+				}
+			}
+			return notPresent, nil
+		}, pollDuration, pollInterval).Should(BeNumerically(">=", 4), "plan RBAC steps marked NotPresent")
+
+		By(`Fix the OperatorGroup again, the operator comes back`)
+		require.NoError(GinkgoT(), setTargetNamespaces(nil))
+		_, err = fetchCSV(crc, ns, csvName, csvSucceededChecker)
+		require.NoError(GinkgoT(), err)
+		_, err = fetchInstallPlan(GinkgoT(), crc, planName, ns, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+		require.NoError(GinkgoT(), err)
+	})
+
 	It("[FLAKE] intersection", func() {
 
 		By(`Generate namespaceA`)
