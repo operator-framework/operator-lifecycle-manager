@@ -52,14 +52,6 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 
 	It("retains access to the packagemanifests API when role aggregation is disabled by the chart default", func() {
 
-		By(`Disable role aggregation without an allowlist`)
-		By(`Ensure the OLM-generated packagemanifests clusterrole loses its aggregation labels`)
-		By(`Disable role aggregation with the chart default PackageManifest allowlist`)
-		By(`Ensure the OLM-generated packagemanifests clusterrole regains its aggregation labels`)
-		By(`Ensure the chart-shipped aggregate-olm-view clusterrole still grants packagemanifests access`)
-		By(`Ensure a bound viewer can list packagemanifests while aggregation is disabled`)
-		By(`Restore role aggregation and re-verify viewer access`)
-
 		// Access to packagemanifests with aggregation disabled rests on two
 		// independent layers — the chart-shipped aggregate-olm-view role
 		// (always labeled) and the chart's OlmConfig allowlist entry (keeps
@@ -70,11 +62,13 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 
 		// Phase 1: with no allowlist, the OLM-generated role must lose its
 		// labels, proving the allowlist is load-bearing.
+		By(`Disable role aggregation without an allowlist`)
 		require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, true, nil))
 		defer func() {
 			require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, false, nil))
 		}()
 
+		By(`Ensure the OLM-generated packagemanifests clusterrole loses its aggregation labels`)
 		err := wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
 			role, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), packageManifestRole, metav1.GetOptions{})
 			if err != nil {
@@ -95,8 +89,10 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 		// Phase 2: with the chart default allowlist, the role regains its
 		// labels, proving the packageserver CSV's descriptor matches the
 		// chart's allowlist entry.
+		By(`Disable role aggregation with the chart default PackageManifest allowlist`)
 		require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, true, []operatorsv1.GroupKind{{Group: "packages.operators.coreos.com", Kind: "PackageManifest"}}))
 
+		By(`Ensure the OLM-generated packagemanifests clusterrole regains its aggregation labels`)
 		err = wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
 			role, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), packageManifestRole, metav1.GetOptions{})
 			if err != nil {
@@ -106,6 +102,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 		})
 		require.NoError(GinkgoT(), err)
 
+		By(`Ensure the chart-shipped aggregate-olm-view clusterrole still grants packagemanifests access`)
 		// The chart-shipped role is the second, policy-independent layer.
 		chartRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), "aggregate-olm-view", metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
@@ -142,10 +139,11 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			return res.Status.Allowed, nil
 		}
 
-		// Viewer access must survive in both configurations.
+		By(`Ensure a bound viewer can list packagemanifests while aggregation is disabled`)
 		err = wait.Poll(pollInterval, convergencePollDuration, viewerCanList)
 		require.NoError(GinkgoT(), err)
 
+		By(`Restore role aggregation and re-verify viewer access`)
 		require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, false, nil))
 		err = wait.Poll(pollInterval, convergencePollDuration, viewerCanList)
 		require.NoError(GinkgoT(), err)
