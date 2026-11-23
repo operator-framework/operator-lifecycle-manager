@@ -1590,6 +1590,11 @@ func (a *Operator) syncOLMConfig(obj interface{}) (syncError error) {
 	if !ok {
 		return fmt.Errorf("casting OLMConfig failed")
 	}
+
+	if olmConfig.GetName() != "cluster" {
+		return nil
+	}
+
 	// Status updates must not modify the informer cache.
 	olmConfig = olmConfig.DeepCopy()
 
@@ -1600,26 +1605,25 @@ func (a *Operator) syncOLMConfig(obj interface{}) (syncError error) {
 
 	// Track successful enqueues so the copied-CSV path does not enqueue them again.
 	requeuedCSVs := map[types.NamespacedName]struct{}{}
+
 	var errs []error
-	if olmConfig.GetName() == "cluster" {
-		nonCopiedCSVs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().List(labels.NewSelector().Add(*nonCopiedCSVRequirement))
+	nonCopiedCSVs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().List(labels.NewSelector().Add(*nonCopiedCSVRequirement))
+	if err != nil {
+		errs = append(errs, fmt.Errorf("listing all non-copied CSVs: %w", err))
+	}
+	roleAggregation := newRoleAggregationPolicy(olmConfig)
+	for _, csv := range nonCopiedCSVs {
+		needsSync, err := a.csvRoleAggregationNeedsSync(csv, roleAggregation)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("listing all non-copied CSVs: %w", err))
+			errs = append(errs, fmt.Errorf("checking role aggregation for CSV %s/%s: %w", csv.GetNamespace(), csv.GetName(), err))
 		}
-		roleAggregation := newRoleAggregationPolicy(olmConfig)
-		for _, csv := range nonCopiedCSVs {
-			needsSync, err := a.csvRoleAggregationNeedsSync(csv, roleAggregation)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("checking role aggregation for CSV %s/%s: %w", csv.GetNamespace(), csv.GetName(), err))
+		if needsSync {
+			key := types.NamespacedName{Namespace: csv.GetNamespace(), Name: csv.GetName()}
+			if err := a.csvQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
+				errs = append(errs, fmt.Errorf("requeueing CSV %s: %w", key, err))
+				continue
 			}
-			if needsSync {
-				key := types.NamespacedName{Namespace: csv.GetNamespace(), Name: csv.GetName()}
-				if err := a.csvQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
-					errs = append(errs, fmt.Errorf("requeueing CSV %s: %w", key, err))
-					continue
-				}
-				requeuedCSVs[key] = struct{}{}
-			}
+			requeuedCSVs[key] = struct{}{}
 		}
 	}
 
