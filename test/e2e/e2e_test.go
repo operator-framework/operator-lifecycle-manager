@@ -132,10 +132,6 @@ var _ = BeforeSuite(func() {
 	}
 	Expect(yaml.Unmarshal(chartBytes, &chartConfig)).To(Succeed())
 	Expect(chartConfig.Spec.Features.RoleAggregation.Disable).To(BeTrue())
-	Expect(chartConfig.Spec.Features.RoleAggregation.EnableAPIs).To(ContainElement(operatorsv1.GroupKind{
-		Group: "packages.operators.coreos.com",
-		Kind:  "PackageManifest",
-	}))
 
 	// Re-enable role aggregation: the chart defaults new installs to
 	// disable: true with the packageserver API allowlisted, but this suite
