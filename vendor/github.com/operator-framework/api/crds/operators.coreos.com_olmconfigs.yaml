@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.0
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: olmconfigs.operators.coreos.com
 spec:
   group: operators.coreos.com
@@ -67,6 +67,74 @@ spec:
                         period defaults to the value specified within the packageserver.
                       type: string
                       pattern: ^([0-9]+(\.[0-9]+)?(s|m|h))+$
+                    roleAggregation:
+                      description: |-
+                        RoleAggregation configures OLM's automatic aggregation of access
+                        to provided APIs into the default user-facing admin, edit and
+                        view ClusterRoles. When unset, aggregation is enabled for every
+                        provided API (the legacy behavior).
+                      type: object
+                      properties:
+                        disable:
+                          description: |-
+                            Disable is used to disable OLM's automatic role aggregation
+                            of access to provided APIs into the default
+                            user-facing admin, edit and view ClusterRoles, except for the
+                            APIs listed in enableAPIs. When true, the generated
+                            ClusterRoles for provided APIs are maintained without
+                            the aggregation labels, so the aggregated roles drop their rules;
+                            when unset or false, the labels are restored.
+                          type: boolean
+                        enableAPIs:
+                          description: |-
+                            EnableAPIs lists the provided APIs that remain aggregated into
+                            the default user-facing admin, edit and view ClusterRoles while
+                            role aggregation is otherwise disabled by `disable: true`. Aggregation is
+                            performed only for provided APIs matching one of the entries
+                            (group and kind must both match). Entries identify an API
+                            independently of its served versions: the aggregated permission
+                            applies to the resource as a whole, so a version bump of an
+                            exempted API does not require updating the list. Provided APIs
+                            that do not match are still granted their generated
+                            ClusterRoles, but without the aggregation labels. May only be
+                            set when disable is true.
+                          type: array
+                          maxItems: 1024
+                          items:
+                            description: |-
+                              GroupKind identifies a kind of API within a group, independently of any
+                              served versions of that API.
+                            type: object
+                            required:
+                              - group
+                              - kind
+                            properties:
+                              group:
+                                description: |-
+                                  group is the name of the Kubernetes API group, (e.g. "apps", "networking.k8s.io").
+                                  Must be a DNS subdomain, as required of CustomResourceDefinition spec.group,
+                                  and must not be empty: provided APIs are never part of the core ("") group.
+                                type: string
+                                maxLength: 253
+                                minLength: 1
+                                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                              kind:
+                                description: |-
+                                  kind is the Kubernetes resourcekind of the target object, (e.g. "Pod", "Deployment", "Service").
+                                  Must be a DNS (1035) label, which may have mixed case, as required of
+                                  CustomResourceDefinition spec.names.kind.
+                                type: string
+                                maxLength: 63
+                                minLength: 1
+                                pattern: ^[A-Za-z]([-A-Za-z0-9]*[A-Za-z0-9])?$
+                            x-kubernetes-map-type: atomic
+                          x-kubernetes-list-map-keys:
+                            - group
+                            - kind
+                          x-kubernetes-list-type: map
+                      x-kubernetes-validations:
+                        - rule: '!has(self.enableAPIs) || self.enableAPIs.size() == 0 || (has(self.disable) && self.disable)'
+                          message: enableAPIs may only be set when disable is true
             status:
               description: OLMConfigStatus is the status for an OLMConfig resource.
               type: object

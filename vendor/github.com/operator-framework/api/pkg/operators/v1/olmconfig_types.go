@@ -25,6 +25,12 @@ type Features struct {
 	// When reenabled, OLM will recreate the "Copied CSVs" for each
 	// cluster scoped operator.
 	DisableCopiedCSVs *bool `json:"disableCopiedCSVs,omitempty"`
+	// RoleAggregation configures OLM's automatic aggregation of access
+	// to provided APIs into the default user-facing admin, edit and
+	// view ClusterRoles. When unset, aggregation is enabled for every
+	// provided API (the legacy behavior).
+	// +optional
+	RoleAggregation OLMConfigRoleAggregation `json:"roleAggregation,omitzero"`
 	// PackageServerSyncInterval is used to define the sync interval for
 	// packagerserver pods. Packageserver pods periodically check the
 	// status of CatalogSources; this specifies the period using duration
@@ -35,6 +41,60 @@ type Features struct {
 	// +kubebuilder:validation:Type=string
 	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(s|m|h))+$"
 	PackageServerSyncInterval *metav1.Duration `json:"packageServerSyncInterval,omitempty"`
+}
+
+// OLMConfigRoleAggregation configures OLM's automatic aggregation of access
+// to provided APIs into the default user-facing admin, edit and view
+// ClusterRoles.
+// +kubebuilder:validation:XValidation:rule="!has(self.enableAPIs) || self.enableAPIs.size() == 0 || (has(self.disable) && self.disable)",message="enableAPIs may only be set when disable is true"
+type OLMConfigRoleAggregation struct {
+	// Disable is used to disable OLM's automatic role aggregation
+	// of access to provided APIs into the default
+	// user-facing admin, edit and view ClusterRoles, except for the
+	// APIs listed in enableAPIs. When true, the generated
+	// ClusterRoles for provided APIs are maintained without
+	// the aggregation labels, so the aggregated roles drop their rules;
+	// when unset or false, the labels are restored.
+	// +optional
+	Disable bool `json:"disable,omitzero"`
+
+	// EnableAPIs lists the provided APIs that remain aggregated into
+	// the default user-facing admin, edit and view ClusterRoles while
+	// role aggregation is otherwise disabled by `disable: true`. Aggregation is
+	// performed only for provided APIs matching one of the entries
+	// (group and kind must both match). Entries identify an API
+	// independently of its served versions: the aggregated permission
+	// applies to the resource as a whole, so a version bump of an
+	// exempted API does not require updating the list. Provided APIs
+	// that do not match are still granted their generated
+	// ClusterRoles, but without the aggregation labels. May only be
+	// set when disable is true.
+	// +optional
+	// +kubebuilder:validation:MaxItems=1024
+	// +listType=map
+	// +listMapKey=group
+	// +listMapKey=kind
+	EnableAPIs []GroupKind `json:"enableAPIs,omitempty,omitzero"`
+}
+
+// GroupKind identifies a kind of API within a group, independently of any
+// served versions of that API.
+// +structType=atomic
+type GroupKind struct {
+	// group is the name of the Kubernetes API group, (e.g. "apps", "networking.k8s.io").
+	// Must be a DNS subdomain, as required of CustomResourceDefinition spec.group,
+	// and must not be empty: provided APIs are never part of the core ("") group.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
+	Group string `json:"group"`
+	// kind is the Kubernetes resourcekind of the target object, (e.g. "Pod", "Deployment", "Service").
+	// Must be a DNS (1035) label, which may have mixed case, as required of
+	// CustomResourceDefinition spec.names.kind.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[A-Za-z]([-A-Za-z0-9]*[A-Za-z0-9])?$`
+	Kind string `json:"kind"`
 }
 
 // OLMConfigStatus is the status for an OLMConfig resource.

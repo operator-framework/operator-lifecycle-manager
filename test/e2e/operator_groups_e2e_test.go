@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
@@ -613,6 +615,305 @@ var _ = Describe("Operator Group", Label("OperatorGroup"), func() {
 						Group:     mockGroup,
 						Version:   version,
 						Resource:  mockNames[1],
+						Verb:      "create",
+					},
+				},
+			}, metav1.CreateOptions{})
+			if err != nil {
+				return false, err
+			}
+			if res == nil {
+				return false, nil
+			}
+			GinkgoT().Logf("checking padmin for permission: %#v", res)
+			return res.Status.Allowed, nil
+		})
+		require.NoError(GinkgoT(), err)
+	})
+	It("role aggregation disabled", func() {
+
+		// Disable aggregation before generating any test objects so their
+		// clusterroles are created directly in the un-aggregated state, and
+		// restore the suite-wide default for tests that verify the legacy
+		// behavior.
+		By(`Disable role aggregation via the OLMConfig`)
+		require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, true, nil))
+		defer func() {
+			By(`Restore role aggregation via the OLMConfig`)
+			require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, false, nil))
+		}()
+
+		By(`Generate namespaceA`)
+		nsA := genName("a")
+		GinkgoT().Logf("generating namespaceA: %s", nsA)
+		for _, ns := range []string{nsA} {
+			namespace := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: ns,
+				},
+			}
+			_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
+			require.NoError(GinkgoT(), err)
+			defer func(name string) {
+				require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), name, metav1.DeleteOptions{}))
+			}(ns)
+		}
+
+		By(`Generate operatorGroupA - OwnNamespace`)
+		groupAName := genName("a")
+		GinkgoT().Logf("Generate operatorGroupA - OwnNamespace: %s", groupAName)
+		groupA := newOperatorGroup(nsA, groupAName, nil, nil, []string{nsA}, false)
+		_, err := crc.OperatorsV1().OperatorGroups(nsA).Create(context.TODO(), groupA, metav1.CreateOptions{})
+		require.NoError(GinkgoT(), err)
+		defer func() {
+			require.NoError(GinkgoT(), crc.OperatorsV1().OperatorGroups(nsA).Delete(context.TODO(), groupA.GetName(), metav1.DeleteOptions{}))
+		}()
+
+		By(`Generate csvA in namespaceA with all installmodes supported`)
+		crdAName := genName("a")
+		strategyName := genName("dep-")
+		csvAName := "nginx-a"
+		GinkgoT().Logf("Generate csv (%s/%s) with crd %s and with all installmodes supported: %s", nsA, csvAName, crdAName, strategyName)
+		crd := newCRD(crdAName)
+		namedStrategy := newNginxInstallStrategy(strategyName, nil, nil)
+		csvA := newCSV(csvAName, nsA, "", semver.MustParse("0.1.0"), []apiextensionsv1.CustomResourceDefinition{crd}, nil, &namedStrategy)
+		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Create(context.TODO(), &csvA, metav1.CreateOptions{})
+		require.NoError(GinkgoT(), err)
+		defer func() {
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Delete(context.TODO(), csvA.GetName(), metav1.DeleteOptions{}))
+		}()
+
+		By(`Create crd so csv succeeds`)
+		GinkgoT().Logf("Create crd %s so csv %s/%s succeeds", crdAName, nsA, csvAName)
+		cleanupCRD, err := createCRD(c, crd)
+		require.NoError(GinkgoT(), err)
+		defer cleanupCRD()
+
+		_, err = fetchCSV(crc, nsA, csvA.GetName(), csvSucceededChecker)
+		require.NoError(GinkgoT(), err)
+
+		GinkgoT().Logf("Ensure clusterroles created without aggregation labels for access provided APIs")
+		padmin, cleanupPadmin := createProjectAdmin(GinkgoT(), c, nsA)
+		defer cleanupPadmin()
+
+		pviewer, cleanupPviewer := createClusterViewer(GinkgoT(), c, nsA)
+		defer cleanupPviewer()
+
+		By(`Ensure clusterroles for the provided API exist without aggregation labels`)
+		// The admin/edit/view roles must be maintained (rules intact) but
+		// carry no aggregation labels. The poll also covers convergence
+		// when the roles were generated before the policy change was
+		// observed and are de-labeled by a subsequent resync.
+		rolePrefix := fmt.Sprintf("%s-%s-", crd.GetName(), crd.Spec.Versions[0].Name)
+		err = wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
+			for _, suffix := range []string{"admin", "edit", "view"} {
+				role, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), rolePrefix+suffix, metav1.GetOptions{})
+				if err != nil {
+					if apierrors.IsNotFound(err) {
+						return false, nil // roles not generated yet
+					}
+					return false, err
+				}
+				if len(role.Rules) == 0 {
+					return false, nil // rules not populated yet
+				}
+				for labelKey := range role.Labels {
+					if strings.Contains(labelKey, "aggregate-to") {
+						return false, nil // not converged to the disabled policy yet
+					}
+				}
+			}
+			return true, nil
+		})
+		require.NoError(GinkgoT(), err)
+
+		By(`Ensure the crdview clusterrole retains aggregation labels`)
+		// The crdview role is always aggregated so viewers retain CRD read
+		// access for discovery.
+		GinkgoT().Logf("Ensure crdview clusterrole retains aggregation labels")
+		err = wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
+			role, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), rolePrefix+"crdview", metav1.GetOptions{})
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil // role not generated yet
+				}
+				return false, err
+			}
+			return role.Labels["rbac.authorization.k8s.io/aggregate-to-view"] == "true", nil
+		})
+		require.NoError(GinkgoT(), err)
+
+		By(`Ensure project admin cannot create the provided API`)
+		// Confirm the padmin binding is effective before the negative
+		// check, so the denial is attributable to the missing aggregation
+		// rather than a pending RoleBinding.
+		err = wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
+			res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), &authorizationv1.SubjectAccessReview{
+				Spec: authorizationv1.SubjectAccessReviewSpec{
+					User: padmin,
+					ResourceAttributes: &authorizationv1.ResourceAttributes{
+						Namespace: nsA,
+						Group:     "apps",
+						Version:   "v1",
+						Resource:  "deployments",
+						Verb:      "create",
+					},
+				},
+			}, metav1.CreateOptions{})
+			if err != nil {
+				return false, err
+			}
+			return res != nil && res.Status.Allowed, nil
+		})
+		require.NoError(GinkgoT(), err)
+
+		GinkgoT().Logf("Check CRD access not aggregated")
+		err = wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
+			res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), &authorizationv1.SubjectAccessReview{
+				Spec: authorizationv1.SubjectAccessReviewSpec{
+					User: padmin,
+					ResourceAttributes: &authorizationv1.ResourceAttributes{
+						Namespace: nsA,
+						Group:     crd.Spec.Group,
+						Version:   crd.Spec.Versions[0].Name,
+						Resource:  crd.Spec.Names.Plural,
+						Verb:      "create",
+					},
+				},
+			}, metav1.CreateOptions{})
+			if err != nil {
+				return false, err
+			}
+			if res == nil {
+				return false, nil
+			}
+			GinkgoT().Logf("checking padmin for permission: %#v", res)
+			return !res.Status.Allowed, nil
+		})
+		require.NoError(GinkgoT(), err)
+
+		By(`Ensure bound viewer can still get the CRD`)
+		GinkgoT().Logf("Check CRD get via crdview aggregation still allowed for bound viewers")
+		err = wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
+			res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), &authorizationv1.SubjectAccessReview{
+				Spec: authorizationv1.SubjectAccessReviewSpec{
+					User: pviewer,
+					ResourceAttributes: &authorizationv1.ResourceAttributes{
+						Group:    "apiextensions.k8s.io",
+						Version:  "v1",
+						Resource: "customresourcedefinitions",
+						Name:     crd.GetName(),
+						Verb:     "get",
+					},
+				},
+			}, metav1.CreateOptions{})
+			if err != nil {
+				return false, err
+			}
+			if res == nil {
+				return false, nil
+			}
+			GinkgoT().Logf("checking pviewer for permission: %#v", res)
+			return res.Status.Allowed, nil
+		})
+		require.NoError(GinkgoT(), err)
+	})
+	It("role aggregation disabled with allowlisted API", func() {
+
+		By(`Generate namespaceA`)
+		nsA := genName("a")
+		GinkgoT().Logf("generating namespaceA: %s", nsA)
+		for _, ns := range []string{nsA} {
+			namespace := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: ns,
+				},
+			}
+			_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
+			require.NoError(GinkgoT(), err)
+			defer func(name string) {
+				require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), name, metav1.DeleteOptions{}))
+			}(ns)
+		}
+
+		By(`Generate operatorGroupA - OwnNamespace`)
+		groupAName := genName("a")
+		GinkgoT().Logf("Generate operatorGroupA - OwnNamespace: %s", groupAName)
+		groupA := newOperatorGroup(nsA, groupAName, nil, nil, []string{nsA}, false)
+		_, err := crc.OperatorsV1().OperatorGroups(nsA).Create(context.TODO(), groupA, metav1.CreateOptions{})
+		require.NoError(GinkgoT(), err)
+		defer func() {
+			require.NoError(GinkgoT(), crc.OperatorsV1().OperatorGroups(nsA).Delete(context.TODO(), groupA.GetName(), metav1.DeleteOptions{}))
+		}()
+
+		By(`Generate csvA in namespaceA with all installmodes supported`)
+		crdAName := genName("a")
+		strategyName := genName("dep-")
+		csvAName := "nginx-a"
+		GinkgoT().Logf("Generate csv (%s/%s) with crd %s and with all installmodes supported: %s", nsA, csvAName, crdAName, strategyName)
+		crd := newCRD(crdAName)
+
+		// Disable aggregation with the provided API allowlisted. The kind
+		// must match the CSV's owned CRD descriptor, which newCSV
+		// populates with the CRD's plural name.
+		By(`Disable role aggregation via the OLMConfig with the provided API allowlisted`)
+		require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, true, []v1.GroupKind{{Group: crd.Spec.Group, Kind: crd.Spec.Names.Plural}}))
+		defer func() {
+			By(`Restore role aggregation via the OLMConfig`)
+			require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, false, nil))
+		}()
+
+		namedStrategy := newNginxInstallStrategy(strategyName, nil, nil)
+		csvA := newCSV(csvAName, nsA, "", semver.MustParse("0.1.0"), []apiextensionsv1.CustomResourceDefinition{crd}, nil, &namedStrategy)
+		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Create(context.TODO(), &csvA, metav1.CreateOptions{})
+		require.NoError(GinkgoT(), err)
+		defer func() {
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Delete(context.TODO(), csvA.GetName(), metav1.DeleteOptions{}))
+		}()
+
+		By(`Create crd so csv succeeds`)
+		GinkgoT().Logf("Create crd %s so csv %s/%s succeeds", crdAName, nsA, csvAName)
+		cleanupCRD, err := createCRD(c, crd)
+		require.NoError(GinkgoT(), err)
+		defer cleanupCRD()
+
+		_, err = fetchCSV(crc, nsA, csvA.GetName(), csvSucceededChecker)
+		require.NoError(GinkgoT(), err)
+
+		By(`Ensure clusterroles for the provided API are created with aggregation labels`)
+		GinkgoT().Logf("Ensure clusterroles created and aggregated for the allowlisted API")
+		padmin, cleanupPadmin := createProjectAdmin(GinkgoT(), c, nsA)
+		defer cleanupPadmin()
+
+		rolePrefix := fmt.Sprintf("%s-%s-", crd.GetName(), crd.Spec.Versions[0].Name)
+		err = wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
+			for _, suffix := range []string{"admin", "edit", "view"} {
+				role, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), rolePrefix+suffix, metav1.GetOptions{})
+				if err != nil {
+					if apierrors.IsNotFound(err) {
+						return false, nil // roles not generated yet
+					}
+					return false, err
+				}
+				if role.Labels[fmt.Sprintf("rbac.authorization.k8s.io/aggregate-to-%s", suffix)] != "true" {
+					return false, nil // not converged to the allowlisted policy yet
+				}
+			}
+			return true, nil
+		})
+		require.NoError(GinkgoT(), err)
+
+		By(`Ensure project admin can create the provided API`)
+		GinkgoT().Logf("Check CRD access aggregated for the allowlisted API")
+		err = wait.Poll(pollInterval, convergencePollDuration, func() (bool, error) {
+			res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), &authorizationv1.SubjectAccessReview{
+				Spec: authorizationv1.SubjectAccessReviewSpec{
+					User: padmin,
+					ResourceAttributes: &authorizationv1.ResourceAttributes{
+						Namespace: nsA,
+						Group:     crd.Spec.Group,
+						Version:   crd.Spec.Versions[0].Name,
+						Resource:  crd.Spec.Names.Plural,
 						Verb:      "create",
 					},
 				},
@@ -2479,6 +2780,69 @@ func createProjectAdmin(t GinkgoTInterface, c operatorclient.ClientInterface, na
 		_ = c.DeleteServiceAccount(sa.GetNamespace(), sa.GetName(), metav1.NewDeleteOptions(0))
 		_ = c.DeleteRoleBinding(rb.GetNamespace(), rb.GetName(), metav1.NewDeleteOptions(0))
 	}
+}
+
+// createClusterViewer creates a serviceaccount bound to the default view
+// ClusterRole via a ClusterRoleBinding: the crdview role's CRD read access
+// is cluster-scoped, which namespaced RoleBindings do not grant.
+func createClusterViewer(t GinkgoTInterface, c operatorclient.ClientInterface, namespace string) (string, cleanupFunc) {
+	sa, err := c.CreateServiceAccount(&corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      genName("cviewer-"),
+		},
+	})
+	require.NoError(t, err)
+
+	crb, err := c.CreateClusterRoleBinding(&rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("cviewer-"),
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      sa.GetName(),
+				Namespace: sa.GetNamespace(),
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     "view",
+		},
+	})
+	require.NoError(t, err)
+
+	return "system:serviceaccount:" + namespace + ":" + sa.GetName(), func() {
+		_ = c.DeleteServiceAccount(sa.GetNamespace(), sa.GetName(), metav1.NewDeleteOptions(0))
+		_ = c.DeleteClusterRoleBinding(crb.GetName(), metav1.NewDeleteOptions(0))
+	}
+}
+
+// patchOlmConfigRoleAggregation patches the cluster OlmConfig singleton's
+// roleAggregation feature with a JSON merge patch (CRDs do not support
+// strategic merge). A nil enableAPIs removes the allowlist, which the
+// validation rule requires whenever aggregation is enabled.
+func patchOlmConfigRoleAggregation(client versioned.Interface, disable bool, enableAPIs []v1.GroupKind) error {
+	patch := struct {
+		Spec struct {
+			Features struct {
+				RoleAggregation struct {
+					Disable    bool           `json:"disable"`
+					EnableAPIs []v1.GroupKind `json:"enableAPIs"`
+				} `json:"roleAggregation"`
+			} `json:"features"`
+		} `json:"spec"`
+	}{}
+	patch.Spec.Features.RoleAggregation.Disable = disable
+	patch.Spec.Features.RoleAggregation.EnableAPIs = enableAPIs
+
+	data, err := json.Marshal(patch)
+	if err != nil {
+		return err
+	}
+	_, err = client.OperatorsV1().OLMConfigs().Patch(context.TODO(), "cluster", types.MergePatchType, data, metav1.PatchOptions{})
+	return err
 }
 
 func checkForOperatorGroupLabels(operatorGroup *v1.OperatorGroup, namespaces []corev1.Namespace) bool {

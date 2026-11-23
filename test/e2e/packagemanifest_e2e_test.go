@@ -10,9 +10,12 @@ import (
 	. "github.com/onsi/gomega"
 	opver "github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/stretchr/testify/require"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -41,6 +44,56 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 
 	AfterEach(func() {
 		TearDown(generatedNamespace.GetName())
+	})
+
+	It("retains access to the packagemanifests API regardless of role aggregation", func() {
+
+		// Read access to packagemanifests is shipped by the chart
+		// independently of the OLMConfig roleAggregation policy, so it must
+		// be retained with aggregation disabled (the chart default) and
+		// enabled. Verify a bound viewer retains get, list, and watch
+		// access in both states.
+
+		By(`Disable role aggregation without an allowlist`)
+		require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, true, nil))
+		defer func() {
+			require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, false, nil))
+		}()
+
+		viewer, cleanupViewer := createClusterViewer(GinkgoT(), c, generatedNamespace.GetName())
+		defer cleanupViewer()
+
+		viewerCanAccessPackageManifests := func() (bool, error) {
+			for _, verb := range []string{"get", "list", "watch"} {
+				res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), &authorizationv1.SubjectAccessReview{
+					Spec: authorizationv1.SubjectAccessReviewSpec{
+						User: viewer,
+						ResourceAttributes: &authorizationv1.ResourceAttributes{
+							Group:    "packages.operators.coreos.com",
+							Version:  "v1",
+							Resource: "packagemanifests",
+							Verb:     verb,
+						},
+					},
+				}, metav1.CreateOptions{})
+				if err != nil {
+					return false, err
+				}
+				if !res.Status.Allowed {
+					return false, nil
+				}
+			}
+			return true, nil
+		}
+
+		By(`Ensure a bound viewer can get, list, and watch packagemanifests while aggregation is disabled`)
+		err := wait.Poll(pollInterval, convergencePollDuration, viewerCanAccessPackageManifests)
+		require.NoError(GinkgoT(), err)
+
+		By(`Restore role aggregation and re-verify viewer access`)
+		require.NoError(GinkgoT(), patchOlmConfigRoleAggregation(crc, false, nil))
+		err = wait.Poll(pollInterval, convergencePollDuration, viewerCanAccessPackageManifests)
+		require.NoError(GinkgoT(), err)
 	})
 
 	Context("Given a CatalogSource created using the ConfigMap as catalog source type", func() {

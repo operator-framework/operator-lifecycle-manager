@@ -1591,28 +1591,58 @@ func (a *Operator) syncOLMConfig(obj interface{}) (syncError error) {
 		return fmt.Errorf("casting OLMConfig failed")
 	}
 
-	// Generate an array of allNamespace OperatorGroups
-	allNSOperatorGroups, err := a.allNamespaceOperatorGroups()
-	if err != nil {
-		return err
+	if olmConfig.GetName() != "cluster" {
+		return nil
 	}
+
+	// Status updates must not modify the informer cache.
+	olmConfig = olmConfig.DeepCopy()
 
 	nonCopiedCSVRequirement, err := labels.NewRequirement(v1alpha1.CopiedLabelKey, selection.DoesNotExist, []string{})
 	if err != nil {
 		return err
 	}
 
-	csvIsRequeued := false
+	// Track successful enqueues so the copied-CSV path does not enqueue them again.
+	requeuedCSVs := map[types.NamespacedName]struct{}{}
+
+	var errs []error
+	nonCopiedCSVs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().List(labels.NewSelector().Add(*nonCopiedCSVRequirement))
+	if err != nil {
+		errs = append(errs, fmt.Errorf("listing all non-copied CSVs: %w", err))
+	}
+	roleAggregation := newRoleAggregationPolicy(olmConfig)
+	for _, csv := range nonCopiedCSVs {
+		needsSync, err := a.csvRoleAggregationNeedsSync(csv, roleAggregation)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("checking role aggregation for CSV %s/%s: %w", csv.GetNamespace(), csv.GetName(), err))
+		}
+		if needsSync {
+			key := types.NamespacedName{Namespace: csv.GetNamespace(), Name: csv.GetName()}
+			if err := a.csvQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
+				errs = append(errs, fmt.Errorf("requeueing CSV %s: %w", key, err))
+				continue
+			}
+			requeuedCSVs[key] = struct{}{}
+		}
+	}
+
+	// Only copied-CSV drift contributes to the copied-CSV status condition.
+	copiesNeedSync := false
+	allNSOperatorGroups, err := a.allNamespaceOperatorGroups()
+	if err != nil {
+		return utilerrors.NewAggregate(append(errs, err))
+	}
 	for _, og := range allNSOperatorGroups {
 		// Get all copied CSVs owned by this operatorGroup
 		copiedCSVRequirement, err := labels.NewRequirement(v1alpha1.CopiedLabelKey, selection.Equals, []string{og.GetNamespace()})
 		if err != nil {
-			return err
+			return utilerrors.NewAggregate(append(errs, err))
 		}
 
 		copiedCSVs, err := a.copiedCSVLister.List(labels.NewSelector().Add(*copiedCSVRequirement))
 		if err != nil {
-			return err
+			return utilerrors.NewAggregate(append(errs, err))
 		}
 
 		// Create a map that points from CSV name to a map of namespaces it is copied to
@@ -1627,12 +1657,12 @@ func (a *Operator) syncOLMConfig(obj interface{}) (syncError error) {
 
 		csvs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(og.GetNamespace()).List(labels.NewSelector().Add(*nonCopiedCSVRequirement))
 		if err != nil {
-			return err
+			return utilerrors.NewAggregate(append(errs, err))
 		}
 
 		namespaces, err := a.lister.CoreV1().NamespaceLister().List(labels.Everything())
 		if err != nil {
-			return err
+			return utilerrors.NewAggregate(append(errs, err))
 		}
 
 		copiedCSVEvaluatorFunc := getCopiedCSVEvaluatorFunc(olmConfig.CopiedCSVsAreEnabled(), namespaces, a.protectedCopiedCSVNamespaces)
@@ -1643,23 +1673,29 @@ func (a *Operator) syncOLMConfig(obj interface{}) (syncError error) {
 				continue
 			}
 
+			copiesNeedSync = true
+			key := types.NamespacedName{Namespace: csv.GetNamespace(), Name: csv.GetName()}
+			if _, alreadyRequeued := requeuedCSVs[key]; alreadyRequeued {
+				continue
+			}
 			if err := a.csvQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
 				a.logger.WithError(err).Warn("unable to requeue")
+				continue
 			}
-			csvIsRequeued = true
+			requeuedCSVs[key] = struct{}{}
 		}
 	}
 
 	// Update the olmConfig status if it has changed.
-	condition := getCopiedCSVsCondition(olmConfig.CopiedCSVsAreEnabled(), csvIsRequeued)
+	condition := getCopiedCSVsCondition(olmConfig.CopiedCSVsAreEnabled(), copiesNeedSync)
 	if !isStatusConditionPresentAndAreTypeReasonMessageStatusEqual(olmConfig.Status.Conditions, condition) {
 		meta.SetStatusCondition(&olmConfig.Status.Conditions, condition)
 		if _, err := a.client.OperatorsV1().OLMConfigs().UpdateStatus(context.TODO(), olmConfig, metav1.UpdateOptions{}); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
 
-	return nil
+	return utilerrors.NewAggregate(errs)
 }
 
 // getCopiedCSVEvaluatorFunc returns a function that evaluates if the a set of Copied CSVs exist in the expected namespaces.
@@ -1738,7 +1774,7 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 		return fmt.Errorf("casting ClusterServiceVersion failed")
 	}
 
-	olmConfig, err := a.client.OperatorsV1().OLMConfigs().Get(context.TODO(), "cluster", metav1.GetOptions{})
+	olmConfig, err := a.informersByNamespace[corev1.NamespaceAll].OLMConfigInformer.Lister().Get("cluster")
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
@@ -1850,7 +1886,7 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 // If the "cluster" olmConfig resource is not found, true will be returned
 // without an error.
 func (a *Operator) copiedCSVsAreEnabled() (bool, error) {
-	olmConfig, err := a.client.OperatorsV1().OLMConfigs().Get(context.TODO(), "cluster", metav1.GetOptions{})
+	olmConfig, err := a.informersByNamespace[corev1.NamespaceAll].OLMConfigInformer.Lister().Get("cluster")
 	if err != nil {
 		// Default to true if olmConfig singleton cannot be found
 		if apierrors.IsNotFound(err) {
