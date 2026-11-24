@@ -577,8 +577,8 @@ github.com/goccy/go-yaml/parser
 github.com/goccy/go-yaml/printer
 github.com/goccy/go-yaml/scanner
 github.com/goccy/go-yaml/token
-# github.com/gofrs/flock v0.12.1
-## explicit; go 1.21.0
+# github.com/gofrs/flock v0.13.0
+## explicit; go 1.24.0
 github.com/gofrs/flock
 # github.com/gogo/protobuf v1.3.2
 ## explicit; go 1.15
@@ -1370,8 +1370,8 @@ github.com/rogpeppe/go-internal/internal/syscall/windows
 github.com/rogpeppe/go-internal/internal/syscall/windows/sysdll
 github.com/rogpeppe/go-internal/lockedfile
 github.com/rogpeppe/go-internal/lockedfile/internal/filelock
-# github.com/rubenv/sql-migrate v1.8.0
-## explicit; go 1.23.0
+# github.com/rubenv/sql-migrate v1.8.1
+## explicit; go 1.24.0
 github.com/rubenv/sql-migrate
 github.com/rubenv/sql-migrate/sqlparse
 # github.com/russross/blackfriday/v2 v2.1.0
@@ -1520,15 +1520,6 @@ github.com/uudashr/iface/unused
 # github.com/x448/float16 v0.8.4
 ## explicit; go 1.11
 github.com/x448/float16
-# github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb
-## explicit
-github.com/xeipuuv/gojsonpointer
-# github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415
-## explicit
-github.com/xeipuuv/gojsonreference
-# github.com/xeipuuv/gojsonschema v1.2.0
-## explicit
-github.com/xeipuuv/gojsonschema
 # github.com/xen0n/gosmopolitan v1.2.2
 ## explicit; go 1.19
 github.com/xen0n/gosmopolitan
@@ -2126,8 +2117,8 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# helm.sh/helm/v3 v3.18.3
-## explicit; go 1.24.0
+# helm.sh/helm/v3 v3.20.2
+## explicit; go 1.25.0
 helm.sh/helm/v3/cmd/helm
 helm.sh/helm/v3/cmd/helm/require
 helm.sh/helm/v3/cmd/helm/search
