@@ -184,7 +184,7 @@ require (
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.18.0 // indirect
-	github.com/gofrs/flock v0.12.1 // indirect
+	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-migrate/migrate/v4 v4.19.1 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
@@ -303,7 +303,7 @@ require (
 	github.com/quasilyte/stdinfo v0.0.0-20220114132959-f7386bf02567 // indirect
 	github.com/raeperd/recvcheck v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	github.com/rubenv/sql-migrate v1.8.0 // indirect
+	github.com/rubenv/sql-migrate v1.8.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryancurrah/gomodguard v1.3.5 // indirect
 	github.com/ryanrolds/sqlclosecheck v0.5.1 // indirect
@@ -337,9 +337,6 @@ require (
 	github.com/uudashr/gocognit v1.2.0 // indirect
 	github.com/uudashr/iface v1.3.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
-	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
-	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xen0n/gosmopolitan v1.2.2 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
 	github.com/yagipy/maintidx v1.0.0 // indirect
@@ -393,7 +390,7 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	helm.sh/helm/v3 v3.18.3 // indirect
+	helm.sh/helm/v3 v3.20.2 // indirect
 	honnef.co/go/tools v0.6.1 // indirect
 	k8s.io/cli-runtime v0.36.1 // indirect
 	k8s.io/gengo/v2 v2.0.0-20260408192533-25e2208e0dc3 // indirect
