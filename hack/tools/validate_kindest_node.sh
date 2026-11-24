@@ -1,8 +1,8 @@
 #!/bin/bash
 # This script verifies that the version of kind used for testing uses a major.minor version of k8s that operator-controller does
 
-# Extract the version of kind, by removing the "${GOBIN}/kind-" prefix
-KIND=${KIND#${GOBIN}/kind-}
+# Read the version pinned for the kind tool in go.mod.
+KIND=$(go list -m -f '{{.Version}}' sigs.k8s.io/kind)
 
 # Get the version of the image
 KIND_VER=$(curl -L -s https://github.com/kubernetes-sigs/kind/raw/refs/tags/${KIND}/pkg/apis/config/defaults/image.go | grep -Eo 'v[0-9]+\.[0-9]+')

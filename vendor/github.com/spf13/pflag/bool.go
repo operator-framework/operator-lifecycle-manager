@@ -1,22 +1,12 @@
 package pflag
 
-import (
-	"errors"
-	"strconv"
-)
+import "strconv"
 
 // optional interface to indicate boolean flags that can be
 // supplied without "=value" text
 type boolFlag interface {
 	Value
 	IsBoolFlag() bool
-}
-
-func isNoOptBoolValue(v Value) bool {
-	if bf, ok := v.(boolFlag); ok {
-		return bf.IsBoolFlag()
-	}
-	return false
 }
 
 // -- bool Value
@@ -29,11 +19,8 @@ func newBoolValue(val bool, p *bool) *boolValue {
 
 func (b *boolValue) Set(s string) error {
 	v, err := strconv.ParseBool(s)
-	if err != nil {
-		return errors.New("must be true or false")
-	}
 	*b = boolValue(v)
-	return nil
+	return err
 }
 
 func (b *boolValue) Type() string {

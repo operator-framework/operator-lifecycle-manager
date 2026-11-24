@@ -1,6 +1,7 @@
 package pflag
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -45,7 +46,7 @@ func (s *durationSliceValue) Type() string {
 func (s *durationSliceValue) String() string {
 	out := make([]string, len(*s.value))
 	for i, d := range *s.value {
-		out[i] = d.String()
+		out[i] = fmt.Sprintf("%s", d)
 	}
 	return "[" + strings.Join(out, ",") + "]"
 }
@@ -55,7 +56,7 @@ func (s *durationSliceValue) fromString(val string) (time.Duration, error) {
 }
 
 func (s *durationSliceValue) toString(val time.Duration) string {
-	return val.String()
+	return fmt.Sprintf("%s", val)
 }
 
 func (s *durationSliceValue) Append(val string) error {

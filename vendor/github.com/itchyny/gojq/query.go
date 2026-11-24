@@ -1,7 +1,6 @@
 package gojq
 
 import (
-	"cmp"
 	"context"
 	"strings"
 )
@@ -71,8 +70,16 @@ func (e *Query) writeTo(s *strings.Builder) {
 		e.Term.writeTo(s)
 	} else if e.Right != nil {
 		e.Left.writeTo(s)
-		writePatternsTo(s, e.Patterns)
 		if e.Op != OpComma {
+			s.WriteByte(' ')
+		}
+		for i, p := range e.Patterns {
+			if i == 0 {
+				s.WriteString("as ")
+			} else {
+				s.WriteString("?// ")
+			}
+			p.writeTo(s)
 			s.WriteByte(' ')
 		}
 		s.WriteString(e.Op.String())
@@ -240,9 +247,6 @@ func (e *Term) writeTo(s *strings.Builder) {
 }
 
 func (e *Term) toIndexKey() any {
-	if len(e.SuffixList) > 0 {
-		return nil
-	}
 	switch e.Type {
 	case TermTypeNumber:
 		return toNumber(e.Number)
@@ -280,7 +284,7 @@ func (e *Term) toIndices(xs []any) []any {
 }
 
 func (e *Term) toNumber() any {
-	if e.Type == TermTypeNumber && len(e.SuffixList) == 0 {
+	if e.Type == TermTypeNumber {
 		return toNumber(e.Number)
 	}
 	return nil
@@ -345,17 +349,6 @@ func (e *Pattern) writeTo(s *strings.Builder) {
 			e.writeTo(s)
 		}
 		s.WriteByte('}')
-	}
-}
-
-func writePatternsTo(s *strings.Builder, ps []*Pattern) {
-	for i, p := range ps {
-		if i == 0 {
-			s.WriteString(" as ")
-		} else {
-			s.WriteString(" ?// ")
-		}
-		p.writeTo(s)
 	}
 }
 
@@ -718,10 +711,10 @@ func (e *Try) writeTo(s *strings.Builder) {
 
 // Reduce ...
 type Reduce struct {
-	Query    *Query
-	Patterns []*Pattern
-	Start    *Query
-	Update   *Query
+	Query   *Query
+	Pattern *Pattern
+	Start   *Query
+	Update  *Query
 }
 
 func (e *Reduce) String() string {
@@ -733,7 +726,8 @@ func (e *Reduce) String() string {
 func (e *Reduce) writeTo(s *strings.Builder) {
 	s.WriteString("reduce ")
 	e.Query.writeTo(s)
-	writePatternsTo(s, e.Patterns)
+	s.WriteString(" as ")
+	e.Pattern.writeTo(s)
 	s.WriteString(" (")
 	e.Start.writeTo(s)
 	s.WriteString("; ")
@@ -743,11 +737,11 @@ func (e *Reduce) writeTo(s *strings.Builder) {
 
 // Foreach ...
 type Foreach struct {
-	Query    *Query
-	Patterns []*Pattern
-	Start    *Query
-	Update   *Query
-	Extract  *Query
+	Query   *Query
+	Pattern *Pattern
+	Start   *Query
+	Update  *Query
+	Extract *Query
 }
 
 func (e *Foreach) String() string {
@@ -759,7 +753,8 @@ func (e *Foreach) String() string {
 func (e *Foreach) writeTo(s *strings.Builder) {
 	s.WriteString("foreach ")
 	e.Query.writeTo(s)
-	writePatternsTo(s, e.Patterns)
+	s.WriteString(" as ")
+	e.Pattern.writeTo(s)
 	s.WriteString(" (")
 	e.Start.writeTo(s)
 	s.WriteString("; ")
@@ -884,7 +879,11 @@ func (e *ConstObject) ToValue() map[string]any {
 	}
 	v := make(map[string]any, len(e.KeyVals))
 	for _, e := range e.KeyVals {
-		v[cmp.Or(e.Key, e.KeyString)] = e.Val.toValue()
+		key := e.Key
+		if key == "" {
+			key = e.KeyString
+		}
+		v[key] = e.Val.toValue()
 	}
 	return v
 }
