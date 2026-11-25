@@ -1490,7 +1490,14 @@ func TestRegistryProviderList(t *testing.T) {
 					clientFake := &fakes.FakeRegistryClient{}
 					clientFake.ListBundlesReturns(listBundlesFake, nil)
 					clientFake.ListPackagesReturns(listFake, nil)
-					clientFake.GetPackageReturnsOnCall(0, &api.Package{
+					// refreshCache fetches each package and its per-channel
+					// bundles from its own goroutine, so stub responses must
+					// be matched to the request rather than the call order:
+					// counterfeiter's ReturnsOnCall hands a response to
+					// whichever goroutine issues the call, so interleaved
+					// scheduling cross-wires order-bound responses between
+					// packages.
+					noBundlePkg := &api.Package{
 						Name: "no-bundle",
 						Channels: []*api.Channel{
 							{
@@ -1499,8 +1506,8 @@ func TestRegistryProviderList(t *testing.T) {
 							},
 						},
 						DefaultChannelName: "alpha",
-					}, nil)
-					clientFake.GetPackageReturnsOnCall(1, &api.Package{
+					}
+					hasBundlePkg := &api.Package{
 						Name: "has-bundle",
 						Channels: []*api.Channel{
 							{
@@ -1509,9 +1516,8 @@ func TestRegistryProviderList(t *testing.T) {
 							},
 						},
 						DefaultChannelName: "alpha",
-					}, nil)
-					clientFake.GetBundleForChannelReturnsOnCall(0, nil, fmt.Errorf("no bundle found"))
-					clientFake.GetBundleForChannelReturnsOnCall(1, &api.Bundle{
+					}
+					hasBundle := &api.Bundle{
 						CsvName:     "etcdoperator.v0.9.2",
 						PackageName: "has-bundle",
 						ChannelName: "alpha",
@@ -1522,7 +1528,23 @@ func TestRegistryProviderList(t *testing.T) {
 							etcdUpgradesCRDJSON,
 							etcdRestoresCRDJSON,
 						},
-					}, nil)
+					}
+					clientFake.GetPackageStub = func(_ context.Context, req *api.GetPackageRequest, _ ...grpc.CallOption) (*api.Package, error) {
+						switch req.GetName() {
+						case noBundlePkg.Name:
+							return noBundlePkg, nil
+						case hasBundlePkg.Name:
+							return hasBundlePkg, nil
+						default:
+							return nil, fmt.Errorf("unexpected package %q", req.GetName())
+						}
+					}
+					clientFake.GetBundleForChannelStub = func(_ context.Context, req *api.GetBundleInChannelRequest, _ ...grpc.CallOption) (*api.Bundle, error) {
+						if req.GetPkgName() == noBundlePkg.Name {
+							return nil, fmt.Errorf("no bundle found")
+						}
+						return hasBundle, nil
+					}
 
 					return &registryClient{clientFake, catsrc, nil}
 				}(),
