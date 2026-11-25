@@ -146,7 +146,18 @@ func NewStepResourceFromBundle(bundle *api.Bundle, namespace, replaces, catalogS
 	if err != nil {
 		return nil, err
 	}
-	steps := []v1alpha1.StepResource{step}
+	// Synthesized SA/RBAC steps come before bundle objects so that any
+	// BundleSecret in the bundle always has its owning ServiceAccount available
+	// when its step executes (fixes the common-path case of OCPBUGS-35210).
+	// The runtime WaitingForAPI check in NewBundleSecretStep is still required
+	// for the stale-cache race and for SAs that are themselves in bundle.Object.
+	operatorServiceAccountSteps, err := NewServiceAccountStepResources(csv, catalogSourceName, catalogSourceNamespace)
+	if err != nil {
+		return nil, err
+	}
+	steps := make([]v1alpha1.StepResource, 0, 1+len(operatorServiceAccountSteps)+len(bundle.Object))
+	steps = append(steps, step) // CSV first
+	steps = append(steps, operatorServiceAccountSteps...)
 
 	for _, object := range bundle.Object {
 		dec := yaml.NewYAMLOrJSONDecoder(strings.NewReader(object), 10)
@@ -166,11 +177,6 @@ func NewStepResourceFromBundle(bundle *api.Bundle, namespace, replaces, catalogS
 		steps = append(steps, step)
 	}
 
-	operatorServiceAccountSteps, err := NewServiceAccountStepResources(csv, catalogSourceName, catalogSourceNamespace)
-	if err != nil {
-		return nil, err
-	}
-	steps = append(steps, operatorServiceAccountSteps...)
 	return steps, nil
 }
 
